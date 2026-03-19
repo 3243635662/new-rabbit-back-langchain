@@ -1,0 +1,137 @@
+import {
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+  Logger,
+} from '@nestjs/common';
+import Redis from 'ioredis';
+import { ConfigService } from '@nestjs/config';
+@Injectable()
+// 继承生命钩子
+export class RedisService implements OnModuleInit, OnModuleDestroy {
+  constructor(private readonly configService: ConfigService) {}
+  private client: Redis;
+  private readonly logger = new Logger(RedisService.name);
+  private readonly BLOOM_KEY = 'bloom:user:ids';
+  private readonly BLOOM_INITIAL_CAPACITY = 100000; // 初始容量
+  private readonly BLOOM_ERROR_RATE = 0.01; // 误判率
+  // 模块执行的时候执行
+  async onModuleInit() {
+    const redisConfig = {
+      port: this.configService.get<number>('REDIS_PORT') || 6379,
+      host: this.configService.get<string>('REDIS_HOST') || 'localhost',
+      enableAutoPipelining: true,
+      retryStrategy: (times: number) => {
+        if (times > 10) {
+          return null; // 超过10次放弃重连
+        }
+        return Math.min(times * 50, 2000); //  重连间隔：50ms → 2000ms
+      },
+    };
+    this.client = new Redis(redisConfig);
+    this.client.on('connect', () => {
+      this.logger.log('✅ Redis connected');
+    });
+    try {
+      await this.ensureBloomFilterExists();
+      this.logger.log('✅ 布隆过滤器已初始化');
+    } catch (error) {
+      this.logger.error('❌ 初始化布隆过滤器失败:', error);
+    }
+
+    this.watchOnLoad();
+  }
+
+  // ?确保布隆过滤器存在
+  private async ensureBloomFilterExists(): Promise<void> {
+    try {
+      await this.client.call('bf.info', [this.BLOOM_KEY]);
+    } catch {
+      await this.client.call('bf.reserve', [
+        this.BLOOM_KEY,
+        this.BLOOM_ERROR_RATE.toString(),
+        this.BLOOM_INITIAL_CAPACITY.toString(),
+      ]);
+    }
+  }
+
+  // ?检查用户ID是否存在于布隆过滤器中
+  async userIdExists(userId: number | string): Promise<boolean> {
+    const result = await this.client.call('bf.exists', [
+      this.BLOOM_KEY,
+      String(userId), // ✅ 安全转字符串（兼容 number/string）
+    ]);
+    return result === 1;
+  }
+
+  //  *添加单个用户 ID
+  async addUserId(userId: number | string): Promise<void> {
+    await this.client.call('bf.add', [this.BLOOM_KEY, String(userId)]);
+  }
+
+  // ?销毁的时候执行
+  async onModuleDestroy() {
+    // ✅ 安全关闭连接
+    if (this.client) {
+      await this.client.quit();
+    }
+    this.logger.log('✅ Redis 连接已关闭');
+  }
+
+  get clientInstance(): Redis {
+    return this.client;
+  }
+
+  async get<T>(key: string): Promise<T | null> {
+    const data = await this.client.get(key);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return data ? JSON.parse(data) : null;
+  }
+
+  async del(...keys: string[]): Promise<number> {
+    return this.client.del(...keys);
+  }
+
+  // *安全地批量删除指定前缀的所有键
+  async delByPrefixSafe(prefix: string): Promise<number> {
+    let deleted = 0;
+    let cursor = '0';
+
+    do {
+      // SCAN 分批扫描，不会阻塞 Redis
+      const [nextCursor, keys] = await this.client.scan(
+        cursor,
+        'MATCH',
+        `${prefix}*`,
+        'COUNT',
+        100,
+      );
+      cursor = nextCursor;
+
+      if (keys.length) {
+        deleted += await this.client.del(...keys);
+      }
+    } while (cursor !== '0');
+
+    return deleted;
+  }
+
+  async set<T>(key: string, value: T, expire?: number): Promise<void> {
+    const serialized = JSON.stringify(value);
+    if (expire) {
+      await this.client.set(key, serialized, 'EX', expire);
+    } else {
+      await this.client.set(key, serialized);
+    }
+  }
+
+  watchOnLoad() {
+    this.client.on('connect', () => this.logger.log('✅ Redis 已连接'));
+    this.client.on('ready', () => this.logger.log('🚀 Redis 已就绪'));
+    this.client.on('error', (err) => this.logger.error('❌ Redis 错误', err));
+    this.client.on('reconnecting', () =>
+      this.logger.warn('🔄 Redis 正在重连...'),
+    );
+    this.client.on('end', () => this.logger.log('🛑 Redis 连接已关闭'));
+  }
+}
