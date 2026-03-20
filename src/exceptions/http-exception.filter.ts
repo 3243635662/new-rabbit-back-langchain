@@ -23,11 +23,17 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     let status: number;
     let message: string | object;
+    let details: unknown = null;
 
     // 处理HttpException（NestJS内置异常）
     if (exception instanceof HttpException) {
       status = exception.getStatus();
-      message = exception.getResponse();
+      const res = exception.getResponse();
+      message = res;
+      // 提取 validation 管道中抛出的自定义 details
+      if (typeof res === 'object' && res !== null && 'details' in res) {
+        details = (res as Record<string, unknown>).details;
+      }
     }
     // 处理普通Error
     else if (exception instanceof Error) {
@@ -39,32 +45,34 @@ export class HttpExceptionFilter implements ExceptionFilter {
       status = HttpStatus.INTERNAL_SERVER_ERROR;
       message = '服务器内部错误';
     }
-    // 如果message是对象 接口响应会返回一个这样的格式：
-    /*
-"message": {
-        "message": "用户名不存在",
-        "error": "Unauthorized",
-        "statusCode": 401
-    },
-    */
-    // 我们只需要message中的message字段 其他的都可以忽略 下面就是使用类型断言安全的方式获取message字段
+
+    // 格式化 message 为纯字符串
     if (typeof message === 'object' && message !== null) {
-      message =
-        (message as { message?: string }).message || message || '未知错误';
+      // @nestjs/common 中的默认验证信息经常是一个数组，将它展开成更友好的格式
+      const msgObj = message as Record<string, unknown>;
+      const msgProp = msgObj.message;
+      if (Array.isArray(msgProp)) {
+        message = msgProp.join(', ');
+      } else {
+        message = (msgProp as string) || '未知错误';
+      }
     }
 
     // 格式化响应 - 使用code/result/message格式
+    const errorDetailsData: Record<string, unknown> = {
+      path: request.url,
+      method: request.method,
+      statusCode: status,
+      timestamp: timeFormatMethod(),
+    };
+    if (details) {
+      errorDetailsData.validationDetails = details;
+    }
 
-    const errResponse: any = resFormatMethod<object>(
-      status, // 使用HTTP状态a码作为错误code
-      message as string, // 错误消息
-      {
-        // 错误详情数据
-        path: request.url,
-        method: request.method,
-        statusCode: status,
-        timestamp: timeFormatMethod(),
-      },
+    const errResponse = resFormatMethod<object>(
+      status, // 使用HTTP状态码作为错误code
+      message, // 错误消息
+      errorDetailsData, // 错误详情数据
     );
     response.status(status).json(errResponse);
   }

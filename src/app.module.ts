@@ -8,6 +8,9 @@ import { UserModule } from './modules/user/user.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { RedisModule } from './modules/db/redis/redis.module';
+import { APP_GUARD } from '@nestjs/core';
+import { ApiKeyGuard } from './common/guards/apikey.guard';
+import { EmailModule } from './modules/email/email.module';
 @Module({
   imports: [
     AuthModule,
@@ -32,8 +35,15 @@ import { RedisModule } from './modules/db/redis/redis.module';
         autoLoadEntities: true,
       }),
     }),
+    EmailModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: ApiKeyGuard,
+    },
+  ],
 })
 export class AppModule {}

@@ -1,8 +1,66 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
-
+import {
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+  HttpException,
+} from '@nestjs/common';
+import { UserService } from '../user/user.service';
+import { JwtService } from '@nestjs/jwt';
+import { LoginDto } from './dto/login.dto';
+import * as bcrypt from 'bcrypt';
+import { resFormatMethod } from '../../utils/resFormat.util';
+import { User } from '../user/entities/user.entity';
 @Injectable()
 export class AuthService {
-  login() {
-    throw new BadRequestException('用户名不存在');
+  constructor(
+    private readonly userService: UserService,
+    private readonly jwtService: JwtService,
+  ) {}
+  async login(dto: LoginDto) {
+    let isPasswordValid: boolean;
+    try {
+      let user: User;
+      try {
+        user = await this.userService.findByUsername(dto.account);
+      } catch (error) {
+        if (error instanceof NotFoundException) {
+          user = await this.userService.findByEmail(dto.account);
+        } else {
+          throw error;
+        }
+      }
+
+      if (!user) {
+        throw new NotFoundException('账号不存在');
+      }
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+        isPasswordValid = await bcrypt.compare(dto.password, user.password);
+      } catch {
+        throw new Error('内部错误');
+      }
+      if (!isPasswordValid) {
+        throw new UnauthorizedException('密码错误');
+      }
+      if (user.active && isPasswordValid) {
+        throw new UnauthorizedException('账号被锁定');
+      }
+      const role = user.role;
+      // 给token增加角色信息
+      const payload = { username: user.username, id: user.id, role };
+      // 5. 生成JWT token
+      const token = this.jwtService.sign(payload);
+      return resFormatMethod(0, '登录成功', {
+        id: user.id,
+        token,
+      });
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      // 其他未知错误
+      throw new UnauthorizedException('登录失败，请稍后重试');
+    }
   }
 }

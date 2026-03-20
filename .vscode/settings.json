@@ -65,10 +65,21 @@
   "terminal.integrated.cursorStyle": "line",
   "terminal.integrated.cursorBlinking": true,
   "cSpell.words": [
+    "antfu",
+    "apikey",
     "bodys",
     "Bookfile",
     "bookid",
     "fanfan",
-    "qiniu"
+    "nuxt",
+    "pinia",
+    "qiniu",
+    "slidev",
+    "tsdown",
+    "turborepo",
+    "vite",
+    "vitepress",
+    "vitest",
+    "vueuse"
   ]
 }
