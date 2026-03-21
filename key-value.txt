@@ -1,0 +1,2 @@
+邮箱验证码：register:code:email
+轮播图缓存：clientHome:carousel

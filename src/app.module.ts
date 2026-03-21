@@ -8,11 +8,13 @@ import { UserModule } from './modules/user/user.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { RedisModule } from './modules/db/redis/redis.module';
-import { APP_GUARD } from '@nestjs/core';
-import { ApiKeyGuard } from './common/guards/apikey.guard';
+// import { APP_GUARD } from '@nestjs/core';
+// import { ApiKeyGuard } from './common/guards/apikey.guard';
 import { EmailModule } from './modules/email/email.module';
+import { ClientHomeModule } from './modules/clientHome/clientHome.module';
 @Module({
   imports: [
+    ClientHomeModule,
     AuthModule,
     UserModule,
     RedisModule,
@@ -40,10 +42,10 @@ import { EmailModule } from './modules/email/email.module';
   controllers: [AppController],
   providers: [
     AppService,
-    {
-      provide: APP_GUARD,
-      useClass: ApiKeyGuard,
-    },
+    // {
+    //   provide: APP_GUARD,
+    //   useClass: ApiKeyGuard,
+    // },
   ],
 })
 export class AppModule {}

@@ -14,9 +14,14 @@ export class UserController {
     return this.userService.create(dto, payload);
   }
 
-  @Public()
   @Post('emailCode')
   getEmailCode(@Body('email') email: string) {
     return this.userService.sendRegisterCode(email);
+  }
+
+  // @Public()
+  @Post('initAdmin')
+  async initAdmin() {
+    return await this.userService.initAdmin();
   }
 }

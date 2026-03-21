@@ -6,6 +6,12 @@ import {
 } from '@nestjs/common';
 import Redis from 'ioredis';
 import { ConfigService } from '@nestjs/config';
+// 定义不同的布隆过滤器键名
+export enum BloomFilters {
+  USER_IDS = 'bloom:user:ids', // 用户ID布隆过滤器
+  ORDER_IDS = 'bloom:order:ids', // 订单ID布隆过滤器
+}
+
 @Injectable()
 // 继承生命钩子
 export class RedisService implements OnModuleInit, OnModuleDestroy {
@@ -33,7 +39,8 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       this.logger.log('✅ Redis connected');
     });
     try {
-      await this.ensureBloomFilterExists();
+      await this.ensureFilterExists(BloomFilters.USER_IDS);
+      await this.ensureFilterExists(BloomFilters.ORDER_IDS);
       this.logger.log('✅ 布隆过滤器已初始化');
     } catch (error) {
       this.logger.error('❌ 初始化布隆过滤器失败:', error);
@@ -42,17 +49,42 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     this.watchOnLoad();
   }
 
-  // ?确保布隆过滤器存在
-  private async ensureBloomFilterExists(): Promise<void> {
+  /**
+   * 确保指定的布隆过滤器已存在
+   * @param filterKey 过滤器的 Key
+   */
+  private async ensureFilterExists(filterKey: string): Promise<void> {
     try {
-      await this.client.call('bf.info', [this.BLOOM_KEY]);
+      await this.client.call('bf.info', [filterKey]);
     } catch {
       await this.client.call('bf.reserve', [
-        this.BLOOM_KEY,
+        filterKey,
         this.BLOOM_ERROR_RATE.toString(),
         this.BLOOM_INITIAL_CAPACITY.toString(),
       ]);
     }
+  }
+
+  /**
+   * 通用检查项是否存在
+   */
+  async itemExists(
+    filterKey: string,
+    value: string | number,
+  ): Promise<boolean> {
+    const result = await this.client.call('bf.exists', [
+      filterKey,
+      String(value),
+    ]);
+    return result === 1;
+  }
+
+  /**
+   * 通用添加项
+   */
+  async addItem(filterKey: string, value: string | number): Promise<void> {
+    // 第一次使用新 key 时可能需要 ensureFilterExists
+    await this.client.call('bf.add', [filterKey, String(value)]);
   }
 
   // ?检查用户ID是否存在于布隆过滤器中
@@ -78,16 +110,19 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     this.logger.log('✅ Redis 连接已关闭');
   }
 
+  // *导出redis实例
   get clientInstance(): Redis {
     return this.client;
   }
 
+  // *取
   async get<T>(key: string): Promise<T | null> {
     const data = await this.client.get(key);
     // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return data ? JSON.parse(data) : null;
   }
 
+  // *del删
   async del(...keys: string[]): Promise<number> {
     return this.client.del(...keys);
   }
@@ -116,6 +151,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return deleted;
   }
 
+  // *set存
   async set<T>(key: string, value: T, expire?: number): Promise<void> {
     const serialized = JSON.stringify(value);
     if (expire) {

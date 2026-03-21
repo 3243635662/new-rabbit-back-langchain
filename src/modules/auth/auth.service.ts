@@ -7,7 +7,7 @@ import {
 import { UserService } from '../user/user.service';
 import { JwtService } from '@nestjs/jwt';
 import { LoginDto } from './dto/login.dto';
-import * as bcrypt from 'bcrypt';
+import { BcryptUtil } from '../../utils/bcrypt.util';
 import { resFormatMethod } from '../../utils/resFormat.util';
 @Injectable()
 export class AuthService {
@@ -27,7 +27,7 @@ export class AuthService {
         throw new NotFoundException('账号不存在');
       }
       try {
-        isPasswordValid = await bcrypt.compare(dto.password, user.password);
+        isPasswordValid = await BcryptUtil.compare(dto.password, user.password);
       } catch {
         throw new Error('内部错误');
       }
