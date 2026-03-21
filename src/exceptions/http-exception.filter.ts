@@ -70,7 +70,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     }
 
     const errResponse = resFormatMethod<object>(
-      status, // 使用HTTP状态码作为错误code
+      1, // 使用1作为错误code
       message, // 错误消息
       errorDetailsData, // 错误详情数据
     );

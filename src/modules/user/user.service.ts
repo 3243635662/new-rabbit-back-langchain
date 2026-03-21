@@ -3,12 +3,11 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
-  NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create.dto';
 import { JwtPayloadType } from '../../types/auth.type';
 import { RedisService } from '../db/redis/redis.service';
@@ -26,83 +25,76 @@ export class UserService {
   ) {}
 
   // *根据用户名查找用户
-  async findByUsername(username: string) {
-    const user = await this.userRepository.findOneBy({ username });
-    if (!user) {
-      throw new NotFoundException('账号不存在');
-    }
-    return user;
+  async findByUsername(username: string, manager?: EntityManager) {
+    const repo = manager ? manager.getRepository(User) : this.userRepository;
+    return await repo.findOneBy({ username });
   }
 
   // *根据邮箱查找用户
-  async findByEmail(email: string) {
-    const user = await this.userRepository.findOneBy({ email });
-    if (!user) {
-      throw new NotFoundException('账号不存在');
-    }
-    return user;
+  async findByEmail(email: string, manager?: EntityManager) {
+    const repo = manager ? manager.getRepository(User) : this.userRepository;
+    return await repo.findOneBy({ email });
   }
 
   // *创建新用户
   async create(dto: CreateUserDto, payload: JwtPayloadType) {
-    // 检查用户名和邮箱是否存在
-    try {
-      let foundUser: User;
+    return this.userRepository.manager.transaction(async (entityManager) => {
+      // 检查用户名和邮箱是否存在
       try {
-        foundUser = await this.findByUsername(dto.username);
-      } catch (error) {
-        if (error instanceof NotFoundException) {
-          foundUser = await this.findByEmail(dto.email);
-        } else {
-          throw error;
-        }
-      }
+        const userByName = await this.findByUsername(
+          dto.username,
+          entityManager,
+        );
+        const userByEmail = await this.findByEmail(dto.email, entityManager);
 
-      if (foundUser) {
-        throw new BadRequestException('用户名或邮箱已存在');
-      }
-      const saltRounds = this.configService.get<number>('SALTROUNDS')!;
-      const hashedPassword = await bcrypt.hash(dto.password, saltRounds);
-      const newUser: User = new User();
-      newUser.username = dto.username;
-      newUser.password = hashedPassword;
-      newUser.email = dto.email;
-      newUser.avatar =
-        dto.avatar ||
-        'https://www.dhs.tsinghua.edu.cn/wp-content/uploads/2025/03/2025031301575583.jpeg';
-      newUser.role = dto.role || 'user';
-      newUser.active = dto.active ? 1 : 0;
-      newUser.areaId = dto.areaId || 0;
-      newUser.remark = dto.remark || '无';
-      // 后台注册
-      if (payload && payload.role === 'admin') {
-        await this.userRepository.save(newUser);
-        return resFormatMethod(0, '创建成功', null);
-      }
-      // 客户端注册  验证邮箱验证码
-      if (!payload) {
-        if (!dto.emailCode) {
-          throw new BadRequestException('邮箱验证码不能为空');
-        } else {
-          const storedCode = await this.redisService.get(
-            `user:createEmailCode:${dto.email}`,
-          );
-          if (!storedCode) {
-            throw new BadRequestException('邮箱验证码错误');
-          }
-          if (storedCode !== dto.emailCode) {
-            throw new BadRequestException('邮箱验证码错误');
-          }
-          await this.userRepository.save(newUser);
+        if (userByName || userByEmail) {
+          throw new BadRequestException('用户名或邮箱已存在');
+        }
+
+        const saltRounds = this.configService.get<number>('SALTROUNDS')!;
+        const hashedPassword = await bcrypt.hash(dto.password, saltRounds);
+        const newUser: User = new User();
+        newUser.username = dto.username;
+        newUser.password = hashedPassword;
+        newUser.email = dto.email;
+        newUser.avatar =
+          dto.avatar ||
+          'https://www.dhs.tsinghua.edu.cn/wp-content/uploads/2025/03/2025031301575583.jpeg';
+        newUser.role = dto.role || 'user';
+        newUser.active = dto.active ? 1 : 0;
+        newUser.areaId = dto.areaId || 0;
+        newUser.remark = dto.remark || '无';
+        // 后台注册
+        if (payload && payload.role === 'admin') {
+          await entityManager.save(newUser);
           return resFormatMethod(0, '创建成功', null);
         }
+
+        // 客户端注册  验证邮箱验证码
+        if (!payload) {
+          if (!dto.emailCode) {
+            throw new BadRequestException('邮箱验证码不能为空');
+          } else {
+            const storedCode = await this.redisService.get(
+              `user:createEmailCode:${dto.email}`,
+            );
+            if (!storedCode) {
+              throw new BadRequestException('邮箱验证码错误');
+            }
+            if (storedCode !== dto.emailCode) {
+              throw new BadRequestException('邮箱验证码错误');
+            }
+            await entityManager.save(newUser);
+            return resFormatMethod(0, '创建成功', null);
+          }
+        }
+      } catch (error) {
+        if (error instanceof HttpException) {
+          throw error;
+        }
+        throw new BadRequestException('创建失败');
       }
-    } catch (error) {
-      if (error instanceof HttpException) {
-        throw error;
-      }
-      throw new BadRequestException('创建失败');
-    }
+    });
   }
 
   // *获取注册邮箱验证码

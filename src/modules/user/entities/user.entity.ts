@@ -4,6 +4,7 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  VersionColumn,
 } from 'typeorm';
 @Entity('user')
 export class User {
@@ -37,4 +38,7 @@ export class User {
   // 🔄 更新时间：自动更新，无需手动处理
   @UpdateDateColumn()
   updated_at: Date;
+
+  @VersionColumn() // 添加乐观锁版本字段
+  version: number;
 }

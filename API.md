@@ -22,7 +22,7 @@ api_key:fanfan0521
 
 ```json
 {
-  "code": 400, // 与 HTTP statusCode 相同
+  "code": 1
   "result": {
     "path": "/xxx",
     "method": "POST",

@@ -9,7 +9,6 @@ import { JwtService } from '@nestjs/jwt';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
 import { resFormatMethod } from '../../utils/resFormat.util';
-import { User } from '../user/entities/user.entity';
 @Injectable()
 export class AuthService {
   constructor(
@@ -19,22 +18,15 @@ export class AuthService {
   async login(dto: LoginDto) {
     let isPasswordValid: boolean;
     try {
-      let user: User;
-      try {
-        user = await this.userService.findByUsername(dto.account);
-      } catch (error) {
-        if (error instanceof NotFoundException) {
-          user = await this.userService.findByEmail(dto.account);
-        } else {
-          throw error;
-        }
+      let user = await this.userService.findByUsername(dto.account);
+      if (!user) {
+        user = await this.userService.findByEmail(dto.account);
       }
 
       if (!user) {
         throw new NotFoundException('账号不存在');
       }
       try {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
         isPasswordValid = await bcrypt.compare(dto.password, user.password);
       } catch {
         throw new Error('内部错误');
@@ -42,7 +34,7 @@ export class AuthService {
       if (!isPasswordValid) {
         throw new UnauthorizedException('密码错误');
       }
-      if (user.active && isPasswordValid) {
+      if (!user.active) {
         throw new UnauthorizedException('账号被锁定');
       }
       const role = user.role;
