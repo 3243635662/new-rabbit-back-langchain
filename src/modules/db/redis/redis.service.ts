@@ -6,11 +6,13 @@ import {
 } from '@nestjs/common';
 import Redis from 'ioredis';
 import { ConfigService } from '@nestjs/config';
+import {
+  RedisLogicExpireData,
+  WhetherRedisLogicExpireDataType,
+} from '../../../types/redis.type';
+import { RedisKeys } from '../../../common/constants/redis-key.constant';
 // 定义不同的布隆过滤器键名
-export enum BloomFilters {
-  USER_IDS = 'bloom:user:ids', // 用户ID布隆过滤器
-  ORDER_IDS = 'bloom:order:ids', // 订单ID布隆过滤器
-}
+export const BloomFilters = RedisKeys.BLOOM;
 
 @Injectable()
 // 继承生命钩子
@@ -18,14 +20,14 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly configService: ConfigService) {}
   private client: Redis;
   private readonly logger = new Logger(RedisService.name);
-  private readonly BLOOM_KEY = 'bloom:user:ids';
+  private readonly BLOOM_KEY = RedisKeys.BLOOM.USER_IDS;
   private readonly BLOOM_INITIAL_CAPACITY = 100000; // 初始容量
   private readonly BLOOM_ERROR_RATE = 0.01; // 误判率
   // 模块执行的时候执行
   async onModuleInit() {
     const redisConfig = {
-      port: this.configService.get<number>('REDIS_PORT') || 6379,
-      host: this.configService.get<string>('REDIS_HOST') || 'localhost',
+      port: this.configService.get<number>('REDIS_PORT'),
+      host: this.configService.get<string>('REDIS_HOST'),
       enableAutoPipelining: true,
       retryStrategy: (times: number) => {
         if (times > 10) {
@@ -96,6 +98,56 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return result === 1;
   }
 
+  private formatLogicalData<T>(data: T, expireSeconds: number): string {
+    const payload = {
+      data: data,
+      expireTime: Date.now() + expireSeconds * 1000,
+    };
+    return JSON.stringify(payload);
+  }
+
+  // *设置逻辑过期以及物理过期时间
+  async setWithLogicExpire<T>(
+    key: string,
+    value: T,
+    logicExpireSeconds: number,
+  ) {
+    // 序列化数据
+    const serialized = this.formatLogicalData(value, logicExpireSeconds);
+
+    // 设置物理过期时间 一般比逻辑过期多一点冗余时间 随机设置1-10分钟
+    const physicalExpireSeconds =
+      logicExpireSeconds + Math.floor(Math.random() * 600) + 60;
+    await this.client.set(key, serialized, 'EX', physicalExpireSeconds);
+  }
+
+  // 获取数据
+  async getWithLogicExpire<T>(
+    key: string,
+  ): Promise<WhetherRedisLogicExpireDataType<T>> {
+    const str = await this.client.get(key);
+    if (!str) {
+      return {
+        data: null,
+        isExpired: true,
+      };
+    }
+    try {
+      const parsed = JSON.parse(str) as unknown as RedisLogicExpireData<T>;
+      const now = Date.now();
+      const isExpired = now > parsed.expireTime;
+      return {
+        data: parsed.data,
+        isExpired: isExpired,
+      };
+    } catch (error) {
+      this.logger.error('获取数据失败:', error);
+      return {
+        data: null,
+        isExpired: true,
+      };
+    }
+  }
   //  *添加单个用户 ID
   async addUserId(userId: number | string): Promise<void> {
     await this.client.call('bf.add', [this.BLOOM_KEY, String(userId)]);

@@ -15,6 +15,12 @@ export class AuthGuard implements CanActivate {
       context.getClass(),
     ]);
     if (isPublic) {
+      // 公开路由仍然尝试解析 Token（如果有的话），以便后续业务能获取用户信息
+      try {
+        await this.handleTokenService.extractAndVerifyToken(context);
+      } catch {
+        // 公开路由不要求必须有 Token，忽略解析失败
+      }
       return true;
     }
     /* 进行token的验证 - 成功会返回

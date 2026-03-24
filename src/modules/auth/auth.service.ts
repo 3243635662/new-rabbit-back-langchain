@@ -8,19 +8,24 @@ import { UserService } from '../user/user.service';
 import { JwtService } from '@nestjs/jwt';
 import { LoginDto } from './dto/login.dto';
 import { BcryptUtil } from '../../utils/bcrypt.util';
-import { resFormatMethod } from '../../utils/resFormat.util';
+import { LoginResType } from '../../types/auth.type';
 @Injectable()
 export class AuthService {
   constructor(
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
   ) {}
-  async login(dto: LoginDto) {
+  // *登录
+  async login(dto: LoginDto): Promise<LoginResType> {
     let isPasswordValid: boolean;
     try {
-      let user = await this.userService.findByUsername(dto.account);
+      let user = await this.userService.findByUsername(
+        dto.account,
+        undefined,
+        true,
+      );
       if (!user) {
-        user = await this.userService.findByEmail(dto.account);
+        user = await this.userService.findByEmail(dto.account, undefined, true);
       }
 
       if (!user) {
@@ -37,15 +42,18 @@ export class AuthService {
       if (!user.active) {
         throw new UnauthorizedException('账号被锁定');
       }
-      const role = user.role;
       // 给token增加角色信息
-      const payload = { username: user.username, id: user.id, role };
+      const payload = {
+        username: user.username,
+        id: user.id,
+        roleId: user.roleId,
+      };
       // 5. 生成JWT token
       const token = this.jwtService.sign(payload);
-      return resFormatMethod(0, '登录成功', {
+      return {
         id: user.id,
         token,
-      });
+      };
     } catch (error) {
       if (error instanceof HttpException) {
         throw error;

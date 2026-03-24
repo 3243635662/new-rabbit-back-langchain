@@ -12,8 +12,15 @@ import { RedisModule } from './modules/db/redis/redis.module';
 // import { ApiKeyGuard } from './common/guards/apikey.guard';
 import { EmailModule } from './modules/email/email.module';
 import { ClientHomeModule } from './modules/clientHome/clientHome.module';
+import { MenuModule } from './modules/menu/menu.module';
+import { RoleModule } from './modules/role/role.module';
+import { AddressModule } from './modules/address/address.module';
+import { CustomizationModule } from './modules/customization/customization.module';
+import { GoodsModule } from './modules/goods/goods.module';
+import { MerchantModule } from './modules/merchant/merchant.module';
 @Module({
   imports: [
+    MenuModule,
     ClientHomeModule,
     AuthModule,
     UserModule,
@@ -38,6 +45,11 @@ import { ClientHomeModule } from './modules/clientHome/clientHome.module';
       }),
     }),
     EmailModule,
+    RoleModule,
+    AddressModule,
+    CustomizationModule,
+    GoodsModule,
+    MerchantModule,
   ],
   controllers: [AppController],
   providers: [

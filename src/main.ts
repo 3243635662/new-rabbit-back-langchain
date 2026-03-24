@@ -11,6 +11,7 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const PORT = configService.get<number>('PORT', 3003);
   app.useGlobalFilters(new HttpExceptionFilter());
+  // app.useGlobalInterceptors(new TransformInterceptor(app.get(Reflector)));
   // 全局验证管道 DTO
   app.useGlobalPipes(
     new ValidationPipe({
