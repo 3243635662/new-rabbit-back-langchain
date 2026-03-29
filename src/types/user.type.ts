@@ -7,7 +7,7 @@ export interface UserResType {
   username: string;
   avatar: string;
   roleId: number;
-  active: number;
+  active: boolean;
   areaId: number;
   email: string;
   remark: string;

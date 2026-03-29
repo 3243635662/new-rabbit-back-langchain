@@ -2,7 +2,7 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
-  ManyToOne,
+  OneToOne,
   JoinColumn,
 } from 'typeorm';
 import { Goods } from './goods.entity';
@@ -14,7 +14,7 @@ export class GoodsInfo {
   @Column({ nullable: true })
   goodsId: number;
 
-  @ManyToOne(() => Goods, (goods) => goods.goodsInfo)
+  @OneToOne(() => Goods, (goods) => goods.goodsInfo)
   @JoinColumn({ name: 'goodsId' })
   goods: Goods;
 
@@ -26,6 +26,9 @@ export class GoodsInfo {
 
   @Column({ default: 0, comment: '收藏数' })
   collectCount: number;
+
+  @Column({ default: '个', comment: '计量单位' })
+  unit: string;
 
   @Column({
     type: 'simple-array',

@@ -18,6 +18,11 @@ import { AddressModule } from './modules/address/address.module';
 import { CustomizationModule } from './modules/customization/customization.module';
 import { GoodsModule } from './modules/goods/goods.module';
 import { MerchantModule } from './modules/merchant/merchant.module';
+import { OrderModule } from './modules/order/order.module';
+import { SeedModule } from './modules/db/seed/seed.module';
+import { InventoryService } from './modules/inventory/inventory.service';
+import { InventoryController } from './modules/inventory/inventory.controller';
+import { InventoryModule } from './modules/inventory/inventory.module';
 @Module({
   imports: [
     MenuModule,
@@ -50,10 +55,15 @@ import { MerchantModule } from './modules/merchant/merchant.module';
     CustomizationModule,
     GoodsModule,
     MerchantModule,
+    OrderModule,
+    SeedModule,
+    InventoryModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, InventoryController],
   providers: [
     AppService,
+    InventoryService,
+
     // {
     //   provide: APP_GUARD,
     //   useClass: ApiKeyGuard,

@@ -20,8 +20,8 @@ export class Menu {
   @Column()
   pid: number;
 
-  @Column()
-  status: number;
+  @Column({ default: true, comment: '菜单状态' })
+  status: boolean;
 
   @Column()
   icon: string;

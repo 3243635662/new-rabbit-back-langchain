@@ -1,8 +1,16 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  OneToMany,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { Goods } from './goods.entity';
+import { Merchant } from '../../merchant/entities/merchant.entity';
 @Entity('categories')
 export class Categories {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedColumn({})
   id: number;
 
   @Column({ length: 255, nullable: true })
@@ -12,8 +20,8 @@ export class Categories {
   //   父分类id
   pid: number;
 
-  @Column({ default: 1 })
-  status: number; // 分类状态：1-启用，0-禁用
+  @Column({ default: true, comment: '分类状态:true-启用,false-禁用' })
+  status: boolean;
 
   @Column({ nullable: true })
   picture: string;
@@ -23,4 +31,11 @@ export class Categories {
 
   @OneToMany(() => Goods, (goods) => goods.category)
   goods: Goods[];
+
+  @Column({ nullable: true, comment: '所属商家ID' })
+  merchantId: number;
+
+  @ManyToOne(() => Merchant, (merchant) => merchant.categories)
+  @JoinColumn({ name: 'merchantId' })
+  merchant: Merchant;
 }

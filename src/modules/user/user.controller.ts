@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req } from '@nestjs/common';
 import { Public } from 'src/common/decorators/public.decorator';
 import { CreateUserDto } from './dto/create.dto';
 import { UserService } from './user.service';
@@ -6,6 +6,7 @@ import { type Request } from 'express';
 import { JwtPayloadType } from '../../types/auth.type';
 import type { IApiResponse } from '../../types/response.type';
 import { resFormatMethod } from '../../utils/resFormat.util';
+import { User } from './entities/user.entity';
 
 @Controller('user')
 export class UserController {
@@ -30,10 +31,12 @@ export class UserController {
     return resFormatMethod(0, '验证码已发送', result);
   }
 
-  @Public()
-  @Post('initAdmin')
-  async initAdmin(): Promise<IApiResponse<null>> {
-    const result = await this.userService.initAdmin();
-    return resFormatMethod(0, '管理员初始化成功', result);
+  @Get()
+  async getUserInfo(
+    @Req() request: Request,
+  ): Promise<IApiResponse<User | null>> {
+    const payload = request['user'] as JwtPayloadType;
+    const result = await this.userService.getUserInfo(payload);
+    return resFormatMethod(0, '获取成功', result);
   }
 }

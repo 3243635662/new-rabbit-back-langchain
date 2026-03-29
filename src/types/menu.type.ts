@@ -11,7 +11,7 @@ export interface MenuResType {
   redirect: string;
   meta: MenuMeta;
   pid: number;
-  status: number;
+  status: boolean;
   icon: string;
   desc: string;
 }

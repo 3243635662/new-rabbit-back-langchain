@@ -39,8 +39,8 @@ export class User {
   @JoinColumn({ name: 'roleId' })
   role: Role;
 
-  @Column({ type: 'tinyint', default: 1, comment: '用户状态：1-启用，0-禁用' })
-  active: number;
+  @Column({ default: true, comment: '用户状态：true-启用，false-禁用' })
+  active: boolean;
 
   /**
    * 地区编码 (如：省市区编码)

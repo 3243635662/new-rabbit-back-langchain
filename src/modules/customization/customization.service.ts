@@ -29,7 +29,6 @@ export class CustomizationService implements OnModuleInit {
     } catch {
       throw new Error('获取城市失败');
     }
-    Logger.log(res);
 
     const regionList = res.region.split(' ');
 

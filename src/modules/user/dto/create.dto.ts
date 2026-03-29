@@ -9,6 +9,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateUserDto {
   @IsString({ message: '用户名必须是字符串' })
@@ -34,14 +35,17 @@ export class CreateUserDto {
   avatar?: string;
 
   @IsNumber({}, { message: '角色ID必须是数字' })
+  @Type(() => Number)
   @IsOptional()
   roleId?: number;
 
   @IsBoolean({ message: '是否激活必须是布尔值' })
+  @Type(() => Boolean)
   @IsOptional()
   active?: boolean;
 
   @IsNumber({}, { message: '区域ID必须是数字' })
+  @Type(() => Number)
   @IsOptional()
   areaId?: number;
 

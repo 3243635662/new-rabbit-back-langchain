@@ -10,6 +10,7 @@ import {
 import { Role } from '../../role/entities/role.entity';
 import { User } from '../../user/entities/user.entity';
 import { Goods } from '../../goods/entities/goods.entity';
+import { Categories } from '../../goods/entities/categories.entity';
 
 @Entity('merchant')
 export class Merchant {
@@ -55,4 +56,7 @@ export class Merchant {
 
   @OneToMany(() => Goods, (goods) => goods.merchant)
   goods: Goods[];
+
+  @OneToMany(() => Categories, (category) => category.merchant)
+  categories: Categories[];
 }

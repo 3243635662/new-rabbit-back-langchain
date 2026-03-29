@@ -156,28 +156,6 @@ export class UserService implements OnModuleInit {
     });
   }
 
-  // *初始化管理员
-  async initAdmin(): Promise<null> {
-    const user = await this.findByUsername('admin');
-    if (user) {
-      throw new BadRequestException('管理员已存在');
-    }
-    const newUser: User = new User();
-    newUser.username = 'admin';
-    newUser.password = await BcryptUtil.hash('123456', 10);
-    newUser.email = 'fanfan0521@yeah.net';
-    newUser.avatar =
-      'https://www.dhs.tsinghua.edu.cn/wp-content/uploads/2025/03/2025031301575583.jpeg';
-    newUser.roleId = 1; // 超级管理员角色 ID
-    newUser.active = 1;
-    newUser.areaId = 0;
-    newUser.remark = '无';
-    const savedUser = await this.userRepository.save(newUser);
-    // 同步更新布隆过滤器
-    await this.redisService.addItem(BloomFilters.USER_IDS, savedUser.id);
-    return null;
-  }
-
   // *发送注册邮箱验证码
   async sendRegisterCode(email: string): Promise<null> {
     const redisKey = RedisKeys.AUTH.getRegisterCodeKey(email);
@@ -205,5 +183,14 @@ export class UserService implements OnModuleInit {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  // *根据token获取用户信息
+  async getUserInfo(payload: JwtPayloadType) {
+    const user = await this.findByUsername(payload.username, undefined, false);
+    if (user) {
+      return user;
+    }
+    return null;
   }
 }

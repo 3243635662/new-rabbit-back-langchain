@@ -11,6 +11,7 @@ import { Categories } from './categories.entity';
 import { Spec } from './spec.entity';
 import { Merchant } from '../../merchant/entities/merchant.entity';
 import { GoodsInfo } from './goodInfo.entity';
+import { GoodsSku } from './goods_sku.entity';
 
 @Entity('goods')
 export class Goods {
@@ -23,14 +24,14 @@ export class Goods {
   @Column({ length: 255, nullable: false, comment: '商品描述' })
   description: string;
 
-  @Column({
-    type: 'decimal',
-    precision: 10,
-    scale: 2,
-    nullable: false,
-    comment: '商品价格',
-  })
-  price: number;
+  @Column({ nullable: true, comment: '商品主图' })
+  mainPicture: string;
+
+  @Column({ length: 50, nullable: true, comment: '品牌名称' })
+  brand: string;
+
+  @Column({ default: 0, comment: '库存预警值' })
+  warningStock: number;
 
   @Column({ nullable: true, comment: '商品分类ID' })
   categoryId: number;
@@ -44,11 +45,8 @@ export class Goods {
   @OneToMany(() => Spec, (spec) => spec.goods)
   specs: Spec[];
 
-  @Column({ default: 0, comment: '排序' })
-  orderNum: number;
-
-  @Column({ default: 1, comment: '状态:1-启用,0-禁用' })
-  status: number;
+  @Column({ default: true, comment: '状态:true-启用,false-禁用' })
+  status: boolean;
 
   @Column({ nullable: true, comment: '商户ID' })
   merchantId: number;
@@ -60,5 +58,9 @@ export class Goods {
 
   //*商品详情
   @OneToOne(() => GoodsInfo, (goodsInfo) => goodsInfo.goods)
-  goodsInfo: GoodsInfo[];
+  goodsInfo: GoodsInfo;
+
+  //*关联商品具体所有的 SKU 集合
+  @OneToMany(() => GoodsSku, (sku) => sku.goods)
+  skus: GoodsSku[];
 }

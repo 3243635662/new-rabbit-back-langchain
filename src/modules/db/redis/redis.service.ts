@@ -52,7 +52,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * 确保指定的布隆过滤器已存在
+   * ?确保指定的布隆过滤器已存在  解决缓存穿透
    * @param filterKey 过滤器的 Key
    */
   private async ensureFilterExists(filterKey: string): Promise<void> {
@@ -98,6 +98,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return result === 1;
   }
 
+  // *将存储数据格式化一下
   private formatLogicalData<T>(data: T, expireSeconds: number): string {
     const payload = {
       data: data,
@@ -106,7 +107,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return JSON.stringify(payload);
   }
 
-  // *设置逻辑过期以及物理过期时间
+  // *设置逻辑过期以及物理过期时间  解决缓存雪崩
   async setWithLogicExpire<T>(
     key: string,
     value: T,
@@ -121,7 +122,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     await this.client.set(key, serialized, 'EX', physicalExpireSeconds);
   }
 
-  // 获取数据
+  // *获取数据
   async getWithLogicExpire<T>(
     key: string,
   ): Promise<WhetherRedisLogicExpireDataType<T>> {
@@ -148,6 +149,20 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       };
     }
   }
+
+  // *互斥锁开关
+  async tryLock(key: string, expire: number): Promise<boolean> {
+    const lockKey = RedisKeys.LOCK.getLockKey(key);
+    const result = await this.client.set(lockKey, '1', 'EX', expire, 'NX');
+    return result === 'OK';
+  }
+
+  // *解锁
+  async unlock(key: string): Promise<void> {
+    const lockKey = RedisKeys.LOCK.getLockKey(key);
+    await this.client.del(lockKey);
+  }
+
   //  *添加单个用户 ID
   async addUserId(userId: number | string): Promise<void> {
     await this.client.call('bf.add', [this.BLOOM_KEY, String(userId)]);

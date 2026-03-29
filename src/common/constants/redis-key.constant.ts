@@ -37,4 +37,13 @@ export const RedisKeys = {
     USER_IDS: 'bloom:user:ids', // 用户 ID 布隆过滤器
     ORDER_IDS: 'bloom:order:ids', // 订单 ID 布隆过滤器
   },
+
+  // 互斥锁 (Mutex Locks - 用于解决缓存雪崩/击穿)
+  LOCK: {
+    /**
+     * 获取互斥锁 Key
+     * @param key 原始缓存 Key
+     */
+    getLockKey: (key: string) => `lock:${key}`,
+  },
 } as const;
