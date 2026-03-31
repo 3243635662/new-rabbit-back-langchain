@@ -26,6 +26,9 @@ export class Menu {
   @Column()
   icon: string;
 
-  @Column()
+  @Column({ default: '', comment: '描述' })
   desc: string;
+
+  @Column({ default: 0, comment: '排序' })
+  sort: number;
 }

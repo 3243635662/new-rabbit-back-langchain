@@ -9,6 +9,12 @@ import { GoodsSku } from '../../goods/entities/goods_sku.entity';
 import { Role } from '../../role/entities/role.entity';
 import { RedisService, BloomFilters } from '../redis/redis.service';
 import { BcryptUtil } from '../../../utils/bcrypt.util';
+import { HomeBanner } from '../../clientHome/entities/home-banner.entity';
+import { HomeCategory } from '../../clientHome/entities/home-category.entity';
+import {
+  CarouselData,
+  CarouselSideRecommendation,
+} from '../../../composables/useClientHomeData';
 
 interface SpecOption {
   name: string;
@@ -28,6 +34,10 @@ export class SeedService {
     private readonly merchantRepo: Repository<Merchant>,
     @InjectRepository(GoodsSku)
     private readonly skuRepo: Repository<GoodsSku>,
+    @InjectRepository(HomeBanner)
+    private readonly homeBannerRepo: Repository<HomeBanner>,
+    @InjectRepository(HomeCategory)
+    private readonly homeCategoryRepo: Repository<HomeCategory>,
     private readonly redisService: RedisService,
   ) {}
 
@@ -148,5 +158,36 @@ export class SeedService {
       },
       [[]] as SpecOption[][],
     );
+  }
+
+  // *初始化首页数据
+  async initHomeData() {
+    // 1. 初始化轮播图
+    const bannerCount = await this.homeBannerRepo.count();
+    if (bannerCount === 0) {
+      const banners = CarouselData.map((data, index) =>
+        this.homeBannerRepo.create({
+          ...data,
+          sort: index,
+          isActive: true,
+        }),
+      );
+      await this.homeBannerRepo.save(banners);
+    }
+
+    // 2. 初始化分类侧边推荐
+    const categoryCount = await this.homeCategoryRepo.count();
+    if (categoryCount === 0) {
+      const categories = CarouselSideRecommendation.map((data, index) =>
+        this.homeCategoryRepo.create({
+          ...data,
+          sort: index,
+          isActive: true,
+        }),
+      );
+      await this.homeCategoryRepo.save(categories);
+    }
+
+    return { message: '首页数据初始化成功' };
   }
 }

@@ -15,7 +15,6 @@ import { RedisKeys } from '../../../common/constants/redis-key.constant';
 export const BloomFilters = RedisKeys.BLOOM;
 
 @Injectable()
-// 继承生命钩子
 export class RedisService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly configService: ConfigService) {}
   private client: Redis;
@@ -23,7 +22,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   private readonly BLOOM_KEY = RedisKeys.BLOOM.USER_IDS;
   private readonly BLOOM_INITIAL_CAPACITY = 100000; // 初始容量
   private readonly BLOOM_ERROR_RATE = 0.01; // 误判率
-  // 模块执行的时候执行
+
   async onModuleInit() {
     const redisConfig = {
       port: this.configService.get<number>('REDIS_PORT'),
@@ -43,6 +42,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.ensureFilterExists(BloomFilters.USER_IDS);
       await this.ensureFilterExists(BloomFilters.ORDER_IDS);
+      await this.ensureFilterExists(BloomFilters.ROLE_IDS);
       this.logger.log('✅ 布隆过滤器已初始化');
     } catch (error) {
       this.logger.error('❌ 初始化布隆过滤器失败:', error);
@@ -67,9 +67,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /**
-   * 通用检查项是否存在
-   */
+  // *通用检查项是否存在
   async itemExists(
     filterKey: string,
     value: string | number,
@@ -81,9 +79,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return result === 1;
   }
 
-  /**
-   * 通用添加项
-   */
+  // *通用添加项
   async addItem(filterKey: string, value: string | number): Promise<void> {
     // 第一次使用新 key 时可能需要 ensureFilterExists
     await this.client.call('bf.add', [filterKey, String(value)]);

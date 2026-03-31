@@ -1,20 +1,37 @@
 import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { RedisService } from '../db/redis/redis.service';
 import {
   CarouselData,
   CarouselSideRecommendation,
 } from '../../composables/useClientHomeData';
 import { RedisKeys } from '../../common/constants/redis-key.constant';
+import { HomeBanner } from './entities/home-banner.entity';
+import { HomeCategory } from './entities/home-category.entity';
 
 @Injectable()
 export class ClientHomeService {
-  constructor(private readonly redisService: RedisService) {}
+  constructor(
+    private readonly redisService: RedisService,
+    @InjectRepository(HomeBanner)
+    private readonly homeBannerRepo: Repository<HomeBanner>,
+    @InjectRepository(HomeCategory)
+    private readonly homeCategoryRepo: Repository<HomeCategory>,
+  ) {}
 
   // *获取首页轮播图
   async getCarousel() {
     return this.getCachedDataWithLogicExpire(
       RedisKeys.CLIENT_HOME.CAROUSEL,
-      CarouselData,
+      async () => {
+        const banners = await this.homeBannerRepo.find({
+          where: { isActive: true },
+          order: { sort: 'ASC' },
+        });
+
+        return banners.length > 0 ? banners : CarouselData;
+      },
     );
   }
 
@@ -22,19 +39,25 @@ export class ClientHomeService {
   async getCarouselSideRecommendation() {
     return this.getCachedDataWithLogicExpire(
       RedisKeys.CLIENT_HOME.SIDE_RECOMMENDATION,
-      CarouselSideRecommendation,
+      async () => {
+        const categories = await this.homeCategoryRepo.find({
+          where: { isActive: true },
+          order: { sort: 'ASC' },
+        });
+        return categories.length > 0 ? categories : CarouselSideRecommendation;
+      },
     );
   }
 
   /**
    * 通用逻辑过期处理逻辑 (解决缓存雪崩/击穿)
    * @param key Redis 键
-   * @param dataFetcher 数据获取函数 (这里暂时直接传入数据，实际业务中应为异步回调)
+   * @param dataFetcher 数据获取函数 (异步回调)
    * @param logicExpireSeconds 逻辑过期时间 (秒)
    */
   private async getCachedDataWithLogicExpire<T>(
     key: string,
-    fallbackData: T,
+    dataFetcher: () => Promise<T>,
     logicExpireSeconds = 60 * 60 * 24, // 默认1天
   ): Promise<T> {
     // 1. 获取带有逻辑过期信息的缓存数据
@@ -51,14 +74,13 @@ export class ClientHomeService {
       // 2.2 逻辑已过期，尝试获取互斥锁异步刷新
       if (await this.redisService.tryLock(key, 10)) {
         // 获取锁成功，开启异步更新
-        // 注意：不 await，不影响当前请求返回旧数据
         void (async () => {
           try {
-            // 模拟从数据库重新查询数据并更新缓存
-            // 在实际项目中，这里应该是 await fetchFromDB();
+            // 从数据库重新查询数据并更新缓存
+            const dbData = await dataFetcher();
             await this.redisService.setWithLogicExpire(
               key,
-              fallbackData,
+              dbData,
               logicExpireSeconds,
             );
           } finally {
@@ -81,21 +103,22 @@ export class ClientHomeService {
         if (secondCheck.data) return secondCheck.data;
 
         // 加载数据并设置缓存
+        const dbData = await dataFetcher();
         await this.redisService.setWithLogicExpire(
           key,
-          fallbackData,
+          dbData,
           logicExpireSeconds,
         );
-        return fallbackData;
+        return dbData;
       } finally {
         await this.redisService.unlock(key);
       }
     } else {
-      // 未抢到锁的请求，等待一段时间后重试 (此时热点数据应该已由抢到锁的请求重建)
+      // 未抢到锁的请求，等待一段时间后重试
       await new Promise((resolve) => setTimeout(resolve, 50));
       return this.getCachedDataWithLogicExpire(
         key,
-        fallbackData,
+        dataFetcher,
         logicExpireSeconds,
       );
     }

@@ -11,6 +11,8 @@ import { Merchant } from '../../merchant/entities/merchant.entity';
 import { GoodsInfo } from '../../goods/entities/goodInfo.entity';
 import { User } from '../../user/entities/user.entity';
 import { Role } from '../../role/entities/role.entity';
+import { HomeBanner } from '../../clientHome/entities/home-banner.entity';
+import { HomeCategory } from '../../clientHome/entities/home-category.entity';
 
 @Module({
   imports: [
@@ -24,6 +26,8 @@ import { Role } from '../../role/entities/role.entity';
       SpecValue,
       Merchant,
       GoodsInfo,
+      HomeBanner,
+      HomeCategory,
     ]),
   ],
   providers: [SeedService],

@@ -187,10 +187,26 @@ export class UserService implements OnModuleInit {
 
   // *根据token获取用户信息
   async getUserInfo(payload: JwtPayloadType) {
-    const user = await this.findByUsername(payload.username, undefined, false);
-    if (user) {
-      return user;
+    const id = payload.id;
+
+    // 先使用布隆过滤滤一遍
+    const exists = await this.redisService.userIdExists(id);
+    if (!exists) {
+      throw new BadRequestException('用户不存在');
     }
-    return null;
+
+    const cacheKey = RedisKeys.USER.getUserInfoKey(id);
+    const cacheData =
+      await this.redisService.getWithLogicExpire<User>(cacheKey);
+    if (cacheData.data && !cacheData.isExpired) {
+      return cacheData.data;
+    }
+    const user = await this.userRepository.findOneBy({ id });
+    if (!user) {
+      throw new BadRequestException('用户不存在');
+    }
+    // 设置缓存
+    await this.redisService.setWithLogicExpire(cacheKey, user, 60 * 60 * 24);
+    return user;
   }
 }

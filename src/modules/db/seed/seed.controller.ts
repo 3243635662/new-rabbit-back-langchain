@@ -26,4 +26,14 @@ export class SeedController {
     const result = await this.seedService.initSku();
     return resFormatMethod(0, '商品 SKU 初始化成功', result);
   }
+
+  /**
+   * 初始化首页数据 (Banner 和分类侧边推荐)
+   */
+  @Public()
+  @Post('home')
+  async initHomeData() {
+    const result = await this.seedService.initHomeData();
+    return resFormatMethod(0, '首页数据初始化成功', result);
+  }
 }

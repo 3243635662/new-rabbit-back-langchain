@@ -85,5 +85,6 @@
     "vitepress",
     "vitest",
     "vueuse"
-  ]
+  ],
+  "nuxt.isNuxtApp": false
 }
