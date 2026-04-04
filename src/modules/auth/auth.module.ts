@@ -31,5 +31,6 @@ import { AuthGuard } from './auth.guard';
       useClass: AuthGuard,
     },
   ],
+  exports: [HandleTokenService],
 })
 export class AuthModule {}

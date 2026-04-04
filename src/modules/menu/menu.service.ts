@@ -51,7 +51,6 @@ export class MenuService implements OnModuleInit {
         );
 
         // 3. 可选：预热常用角色的菜单缓存（回源一次触发缓存设置）
-        // 这里为了演示，我们只在启动时异步预热所有存在关联的角色菜单
         for (const r of roles) {
           // 由于 JwtPayloadType 可能还包含其他字段，这里使用 Partial 或强转，
           // 但 roleId 是必须的

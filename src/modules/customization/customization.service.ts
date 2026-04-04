@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UapiClient } from 'uapi-sdk-typescript';
 import {
@@ -27,7 +32,7 @@ export class CustomizationService implements OnModuleInit {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       res = await this.client.network.getNetworkIpinfo(payload);
     } catch {
-      throw new Error('获取城市失败');
+      throw new ServiceUnavailableException('获取数据失败，请稍后重试');
     }
 
     const regionList = res.region.split(' ');
@@ -52,7 +57,7 @@ export class CustomizationService implements OnModuleInit {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       res = await this.client.misc.getMiscWeather(payload);
     } catch {
-      throw new Error('获取天气失败');
+      throw new ServiceUnavailableException('获取数据失败，请稍后重试');
     }
     Logger.log(res);
     return res;

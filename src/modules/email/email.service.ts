@@ -3,6 +3,7 @@ import {
   OnModuleInit,
   OnModuleDestroy,
   Logger,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 import { ConfigService } from '@nestjs/config';
@@ -127,7 +128,7 @@ export class EmailService implements OnModuleDestroy, OnModuleInit {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       this.logger.error(`发送验证码邮件至 ${email} 失败: ${error.message}`);
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      throw new Error(`邮件发送失败: ${error.message}`);
+      throw new ServiceUnavailableException(`邮件发送失败: ${error.message}`);
     }
   }
 }

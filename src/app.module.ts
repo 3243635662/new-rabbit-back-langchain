@@ -20,9 +20,8 @@ import { GoodsModule } from './modules/goods/goods.module';
 import { MerchantModule } from './modules/merchant/merchant.module';
 import { OrderModule } from './modules/order/order.module';
 import { SeedModule } from './modules/db/seed/seed.module';
-import { InventoryService } from './modules/inventory/inventory.service';
-import { InventoryController } from './modules/inventory/inventory.controller';
 import { InventoryModule } from './modules/inventory/inventory.module';
+import { AdminModule } from './modules/admin/admin.module';
 @Module({
   imports: [
     MenuModule,
@@ -58,11 +57,11 @@ import { InventoryModule } from './modules/inventory/inventory.module';
     OrderModule,
     SeedModule,
     InventoryModule,
+    AdminModule,
   ],
-  controllers: [AppController, InventoryController],
+  controllers: [AppController],
   providers: [
     AppService,
-    InventoryService,
 
     // {
     //   provide: APP_GUARD,

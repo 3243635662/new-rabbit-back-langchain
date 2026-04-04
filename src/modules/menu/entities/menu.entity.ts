@@ -11,7 +11,7 @@ export class Menu {
   @Column()
   path: string;
 
-  @Column()
+  @Column({ nullable: true })
   redirect: string;
 
   @Column()
@@ -23,7 +23,7 @@ export class Menu {
   @Column({ default: true, comment: '菜单状态' })
   status: boolean;
 
-  @Column()
+  @Column({ nullable: true })
   icon: string;
 
   @Column({ default: '', comment: '描述' })

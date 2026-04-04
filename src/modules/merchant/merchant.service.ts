@@ -1,4 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository, IsNull } from 'typeorm';
 import { Merchant } from './entities/merchant.entity';
@@ -8,6 +13,7 @@ import { GoodsSku } from '../goods/entities/goods_sku.entity';
 import { Spec } from '../goods/entities/spec.entity';
 import { SpecValue } from '../goods/entities/spec_value.entity';
 import { GoodsInfo } from '../goods/entities/goodInfo.entity';
+import { Brands } from '../goods/entities/brands.entity';
 import { JwtPayloadType } from '../../types/auth.type';
 import type { PaginationOptionsType } from '../../types/pagination.type';
 import { IPaginationOptions, paginate } from 'nestjs-typeorm-paginate';
@@ -33,6 +39,8 @@ export class MerchantService {
     private readonly specValueRepo: Repository<SpecValue>,
     @InjectRepository(GoodsInfo)
     private readonly goodsInfoRepo: Repository<GoodsInfo>,
+    @InjectRepository(Brands)
+    private readonly brandsRepo: Repository<Brands>,
   ) {}
 
   //* 获取商家的商品列表 (SKU级细分)
@@ -61,6 +69,7 @@ export class MerchantService {
       .createQueryBuilder('sku')
       .leftJoinAndSelect('sku.goods', 'goods')
       .leftJoinAndSelect('goods.category', 'category')
+      .leftJoinAndSelect('goods.brandRelation', 'brandRelation')
       .where('goods.merchantId = :merchantId', { merchantId: merchant.id });
 
     // 关键词过滤 (商品名称 或 SKU规格内容)
@@ -121,9 +130,12 @@ export class MerchantService {
         price: sku.price,
         stock: sku.stock,
         skuCode: sku.skuCode,
-        brand: sku.goods?.brand,
+        brand: sku.goods?.brandRelation?.name || '无品牌',
         picture: sku.picture || DEFAULT_GOODS_PICTURE,
         status: sku.goods?.status ?? true,
+        isReviewed: sku.goods?.isReviewed ?? false,
+        isLaunching: sku.isLaunching,
+        isReviewedSeccuss: sku.goods?.isReviewedSeccuss ?? false,
         createdAt: timeFormatMethod(sku.createdAt),
       };
     });
@@ -182,12 +194,28 @@ export class MerchantService {
     });
 
     if (!merchant) {
-      throw new Error('当前用户不是商户');
+      throw new ForbiddenException('当前用户不是商户');
     }
 
     // 使用事务确保数据一致性
     return await this.goodsRepo.manager.transaction(async (manager) => {
-      // 1. 创建并保存 Goods (SPU)
+      // 1. 处理品牌 (如果不存在则自动创建)
+      let brandId: number | null = null;
+      if (body.brand) {
+        let brandEntity = await manager.findOne(Brands, {
+          where: { name: body.brand },
+        });
+        if (!brandEntity) {
+          brandEntity = manager.create(Brands, {
+            name: body.brand,
+            picture: body.mainPicture || '', // 默认给个商品主图或者空
+          });
+          brandEntity = await manager.save(Brands, brandEntity);
+        }
+        brandId = brandEntity.id;
+      }
+
+      // 2. 创建并保存 Goods (SPU)
       const goods = manager.create(Goods, {
         name: body.name,
         description: body.desc,
@@ -195,7 +223,7 @@ export class MerchantService {
         status: body.status,
         merchantId: merchant.id,
         mainPicture: body.mainPicture,
-        brand: body.brand,
+        brandId: brandId,
         warningStock: body.warningStock || 0,
       });
 
@@ -309,7 +337,7 @@ export class MerchantService {
     });
 
     if (!merchant) {
-      throw new Error('当前用户不是商户');
+      throw new ForbiddenException('当前用户不是商户');
     }
 
     // 检查父分类名字是否重复
@@ -322,7 +350,7 @@ export class MerchantService {
     });
 
     if (existingCategory) {
-      throw new Error('该父分类名称已存在');
+      throw new ConflictException('该分类名称已存在');
     }
 
     const category = this.categoriesRepo.create({
@@ -347,7 +375,7 @@ export class MerchantService {
     });
 
     if (!merchant) {
-      throw new Error('当前用户不是商户');
+      throw new ForbiddenException('当前用户不是商户');
     }
 
     // 检查父分类是否存在
@@ -359,7 +387,7 @@ export class MerchantService {
     });
 
     if (!parentCategory) {
-      throw new Error('父分类不存在或不属于当前商户');
+      throw new NotFoundException('父分类不存在或不属于当前商户');
     }
 
     // 检查子分类名字是否重复
@@ -372,7 +400,7 @@ export class MerchantService {
     });
 
     if (existingCategory) {
-      throw new Error('该子分类名称已存在');
+      throw new ConflictException('该分类名称已存在');
     }
 
     const category = this.categoriesRepo.create({
@@ -393,7 +421,7 @@ export class MerchantService {
     });
 
     if (!merchant) {
-      throw new Error('当前用户不是商户');
+      throw new ForbiddenException('当前用户不是商户');
     }
 
     const categories = await this.categoriesRepo.find({
@@ -416,6 +444,95 @@ export class MerchantService {
       },
       [[]] as T[][],
     );
+  }
+
+  // *获取商家当前拥有的品牌列表 (即该商家已上架商品所关联的所有品牌)
+  async getMerchantBrands(payload: JwtPayloadType): Promise<Brands[]> {
+    const { id: userId } = payload;
+    const merchant = await this.merchantRepo.findOne({
+      where: { userId: userId.toString() },
+      select: ['id'],
+    });
+
+    if (!merchant) return [];
+
+    // 查询该商家所有商品关联的品牌，去重
+    const brands = await this.brandsRepo
+      .createQueryBuilder('brand')
+      .innerJoin('brand.goods', 'goods')
+      .where('goods.merchantId = :merchantId', { merchantId: merchant.id })
+      .select(['brand.id', 'brand.name', 'brand.picture'])
+      .distinct(true)
+      .getMany();
+
+    return brands;
+  }
+
+  // *根据品牌ID获取商家旗下的商品列表
+  async getGoodsByBrand(
+    payload: JwtPayloadType,
+    brandId: number,
+    options: PaginationOptionsType,
+  ) {
+    const { id: userId } = payload;
+    const merchant = await this.merchantRepo.findOne({
+      where: { userId: userId.toString() },
+      select: ['id'],
+    });
+
+    if (!merchant) {
+      throw new ForbiddenException('当前用户不是商户');
+    }
+
+    // 复用已有的分页逻辑，但增加 brandId 过滤
+    const qb = this.skuRepo
+      .createQueryBuilder('sku')
+      .leftJoinAndSelect('sku.goods', 'goods')
+      .leftJoinAndSelect('goods.category', 'category')
+      .leftJoinAndSelect('goods.brandRelation', 'brandRelation')
+      .where('goods.merchantId = :merchantId', { merchantId: merchant.id })
+      .andWhere('goods.brandId = :brandId', { brandId });
+
+    // 分页
+    const paginateOptions: IPaginationOptions = {
+      page: options.page || 1,
+      limit: options.limit || 10,
+    };
+
+    const paginationData = await paginate<GoodsSku>(qb, paginateOptions);
+
+    const formattedItems = paginationData.items.map((sku) => {
+      const specsLabel = sku.specs
+        .map((s) => `${s.name}: ${s.value}`)
+        .join(' / ');
+
+      return {
+        id: sku.id,
+        mainId: sku.goodsId,
+        name: sku.goods?.name || '未知商品',
+        categoryLabel: sku.goods?.category?.name || '未分类',
+        specs: sku.specs,
+        specsLabel,
+        price: sku.price,
+        stock: sku.stock,
+        skuCode: sku.skuCode,
+        brand: sku.goods?.brandRelation?.name || '无品牌',
+        picture: sku.picture || DEFAULT_GOODS_PICTURE,
+        status: sku.goods?.status ?? true,
+        isReviewed: sku.goods?.isReviewed ?? false,
+        isLaunching: sku.isLaunching,
+        isReviewedSeccuss: sku.goods?.isReviewedSeccuss ?? false,
+        createdAt: timeFormatMethod(sku.createdAt),
+      };
+    });
+
+    return {
+      list: formattedItems,
+      total: paginationData.meta.totalItems,
+      totalPage: paginationData.meta.totalPages,
+      page: paginationData.meta.currentPage,
+      limit: paginationData.meta.itemsPerPage,
+    };
   }
 }
 

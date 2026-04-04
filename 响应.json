@@ -3,11 +3,444 @@
   "result": [
     {
       "id": 1,
-      "name": "手机"
+      "name": "Dashboard",
+      "path": "/dashboard",
+      "redirect": "/dashboard/index",
+      "meta": {
+        "title": "routes.dashboard.index",
+        "orderNo": 100,
+        "keepAlive": true
+      },
+      "pid": 0,
+      "status": true,
+      "icon": "stash:dashboard-duotone",
+      "desc": "数据看板",
+      "sort": 0
+    },
+    {
+      "id": 2,
+      "name": "Goods",
+      "path": "/goods",
+      "redirect": "/goods/list",
+      "meta": {
+        "title": "routes.goods.index",
+        "orderNo": 100,
+        "keepAlive": true
+      },
+      "pid": 0,
+      "status": true,
+      "icon": "ep:goods",
+      "desc": "商品管理",
+      "sort": 0
+    },
+    {
+      "id": 3,
+      "name": "GoodsList",
+      "path": "list",
+      "redirect": "",
+      "meta": {
+        "title": "routes.goods.list",
+        "keepAlive": true
+      },
+      "pid": 2,
+      "status": true,
+      "icon": "",
+      "desc": "商品列表",
+      "sort": 0
+    },
+    {
+      "id": 4,
+      "name": "GoodsAdd",
+      "path": "add",
+      "redirect": "",
+      "meta": {
+        "title": "routes.goods.add",
+        "keepAlive": true
+      },
+      "pid": 2,
+      "status": true,
+      "icon": "",
+      "desc": "添加商品",
+      "sort": 0
     },
     {
       "id": 5,
-      "name": "电脑"
+      "name": "GoodsRecycle",
+      "path": "recycle",
+      "redirect": "",
+      "meta": {
+        "title": "routes.goods.recycle",
+        "keepAlive": true
+      },
+      "pid": 2,
+      "status": true,
+      "icon": "",
+      "desc": "回收站",
+      "sort": 0
+    },
+    {
+      "id": 6,
+      "name": "GoodsComment",
+      "path": "comment",
+      "redirect": "",
+      "meta": {
+        "title": "routes.goods.comment",
+        "keepAlive": true
+      },
+      "pid": 2,
+      "status": true,
+      "icon": "",
+      "desc": "商品评论",
+      "sort": 0
+    },
+    {
+      "id": 7,
+      "name": "GoodsCategorize",
+      "path": "categorize",
+      "redirect": "",
+      "meta": {
+        "title": "routes.goods.categorize",
+        "keepAlive": true
+      },
+      "pid": 2,
+      "status": true,
+      "icon": "",
+      "desc": "商品分类",
+      "sort": 0
+    },
+    {
+      "id": 8,
+      "name": "GoodsBrands",
+      "path": "brands",
+      "redirect": "",
+      "meta": {
+        "title": "routes.goods.brands",
+        "keepAlive": true
+      },
+      "pid": 2,
+      "status": true,
+      "icon": "",
+      "desc": "商品品牌",
+      "sort": 0
+    },
+    {
+      "id": 9,
+      "name": "Order",
+      "path": "/order",
+      "redirect": "/order/list",
+      "meta": {
+        "title": "routes.order.index",
+        "orderNo": 100,
+        "keepAlive": true
+      },
+      "pid": 0,
+      "status": true,
+      "icon": "lsicon:order-outline",
+      "desc": "订单管理",
+      "sort": 0
+    },
+    {
+      "id": 10,
+      "name": "OrderList",
+      "path": "list",
+      "redirect": "",
+      "meta": {
+        "title": "routes.order.list",
+        "keepAlive": true
+      },
+      "pid": 9,
+      "status": true,
+      "icon": "",
+      "desc": "订单列表",
+      "sort": 0
+    },
+    {
+      "id": 11,
+      "name": "OrderConfirm",
+      "path": "confirm",
+      "redirect": "",
+      "meta": {
+        "title": "routes.order.confirm",
+        "keepAlive": true
+      },
+      "pid": 9,
+      "status": true,
+      "icon": "",
+      "desc": "订单确认",
+      "sort": 0
+    },
+    {
+      "id": 12,
+      "name": "OrderAfter",
+      "path": "after",
+      "redirect": "",
+      "meta": {
+        "title": "routes.order.after",
+        "keepAlive": true
+      },
+      "pid": 9,
+      "status": true,
+      "icon": "",
+      "desc": "订单售后",
+      "sort": 0
+    },
+    {
+      "id": 13,
+      "name": "OrderSetting",
+      "path": "setting",
+      "redirect": "",
+      "meta": {
+        "title": "routes.order.setting",
+        "keepAlive": true
+      },
+      "pid": 9,
+      "status": true,
+      "icon": "",
+      "desc": "订单设置",
+      "sort": 0
+    },
+    {
+      "id": 14,
+      "name": "Inventory",
+      "path": "/inventory",
+      "redirect": "/inventory/index",
+      "meta": {
+        "title": "routes.inventory.index",
+        "orderNo": 100,
+        "keepAlive": true
+      },
+      "pid": 0,
+      "status": true,
+      "icon": "si:inventory-line",
+      "desc": "库存管理",
+      "sort": 0
+    },
+    {
+      "id": 15,
+      "name": "User",
+      "path": "/user",
+      "redirect": "/user/list",
+      "meta": {
+        "title": "routes.user.index",
+        "orderNo": 100,
+        "keepAlive": true
+      },
+      "pid": 0,
+      "status": true,
+      "icon": "uil:user",
+      "desc": "用户管理",
+      "sort": 0
+    },
+    {
+      "id": 16,
+      "name": "UserList",
+      "path": "list",
+      "redirect": "",
+      "meta": {
+        "title": "routes.user.list",
+        "keepAlive": true
+      },
+      "pid": 15,
+      "status": true,
+      "icon": "",
+      "desc": "用户列表",
+      "sort": 0
+    },
+    {
+      "id": 17,
+      "name": "UserTag",
+      "path": "tag",
+      "redirect": "",
+      "meta": {
+        "title": "routes.user.tag",
+        "keepAlive": true
+      },
+      "pid": 15,
+      "status": true,
+      "icon": "",
+      "desc": "用户标签",
+      "sort": 0
+    },
+    {
+      "id": 18,
+      "name": "UserVIP",
+      "path": "vip",
+      "redirect": "",
+      "meta": {
+        "title": "routes.user.vip",
+        "keepAlive": true
+      },
+      "pid": 15,
+      "status": true,
+      "icon": "",
+      "desc": "用户VIP",
+      "sort": 0
+    },
+    {
+      "id": 19,
+      "name": "UserCredit",
+      "path": "credit",
+      "redirect": "",
+      "meta": {
+        "title": "routes.user.credit",
+        "keepAlive": true
+      },
+      "pid": 15,
+      "status": true,
+      "icon": "",
+      "desc": "用户积分",
+      "sort": 0
+    },
+    {
+      "id": 20,
+      "name": "Promotion",
+      "path": "/promotion",
+      "redirect": "/promotion/seckill",
+      "meta": {
+        "title": "routes.promotion.index",
+        "orderNo": 100,
+        "keepAlive": true
+      },
+      "pid": 0,
+      "status": true,
+      "icon": "icon-park-outline:coupon",
+      "desc": "促销管理",
+      "sort": 0
+    },
+    {
+      "id": 21,
+      "name": "PromotionSeckill",
+      "path": "seckill",
+      "redirect": "",
+      "meta": {
+        "title": "routes.promotion.seckill",
+        "keepAlive": true
+      },
+      "pid": 20,
+      "status": true,
+      "icon": "",
+      "desc": "秒杀管理",
+      "sort": 0
+    },
+    {
+      "id": 22,
+      "name": "PromotionGroup",
+      "path": "group",
+      "redirect": "",
+      "meta": {
+        "title": "routes.promotion.group",
+        "keepAlive": true
+      },
+      "pid": 20,
+      "status": true,
+      "icon": "",
+      "desc": "团购管理",
+      "sort": 0
+    },
+    {
+      "id": 23,
+      "name": "PromotionCoupon",
+      "path": "coupon",
+      "redirect": "",
+      "meta": {
+        "title": "routes.promotion.coupon",
+        "keepAlive": true
+      },
+      "pid": 20,
+      "status": true,
+      "icon": "",
+      "desc": "优惠券管理",
+      "sort": 0
+    },
+    {
+      "id": 24,
+      "name": "Operation",
+      "path": "/operation",
+      "redirect": "/operation/email",
+      "meta": {
+        "title": "routes.operation.index",
+        "keepAlive": true
+      },
+      "pid": 0,
+      "status": true,
+      "icon": "lsicon:operation-outline",
+      "desc": "运营管理",
+      "sort": 0
+    },
+    {
+      "id": 25,
+      "name": "OperationEmail",
+      "path": "email",
+      "redirect": "",
+      "meta": {
+        "title": "routes.operation.email",
+        "keepAlive": true
+      },
+      "pid": 24,
+      "status": true,
+      "icon": "",
+      "desc": "给客户邮箱发送广告消息",
+      "sort": 0
+    },
+    {
+      "id": 26,
+      "name": "OperationClient",
+      "path": "client",
+      "redirect": "",
+      "meta": {
+        "title": "routes.operation.client",
+        "keepAlive": true
+      },
+      "pid": 24,
+      "status": true,
+      "icon": "",
+      "desc": "给客户端发送广告消息的入口",
+      "sort": 0
+    },
+    {
+      "id": 27,
+      "name": "OperationHomepage",
+      "path": "homepage",
+      "redirect": "",
+      "meta": {
+        "title": "routes.operation.homepage",
+        "keepAlive": true
+      },
+      "pid": 24,
+      "status": true,
+      "icon": "",
+      "desc": "管理店铺主页的配置",
+      "sort": 0
+    },
+    {
+      "id": 28,
+      "name": "Service",
+      "path": "/service",
+      "redirect": "/service/index",
+      "meta": {
+        "title": "routes.service.index",
+        "keepAlive": true
+      },
+      "pid": 0,
+      "status": true,
+      "icon": "lsicon:service-outline",
+      "desc": "客服系统，可以先不做预留一个页面引导客户跳转到专门的客服系统",
+      "sort": 0
+    },
+    {
+      "id": 34,
+      "name": "Setting",
+      "path": "/setting",
+      "redirect": "",
+      "meta": {
+        "title": "routes.setting.index",
+        "keepAlive": true
+      },
+      "pid": 0,
+      "status": true,
+      "icon": "proicons:settings",
+      "desc": "系统设置",
+      "sort": 0
     }
   ],
   "message": "获取成功"

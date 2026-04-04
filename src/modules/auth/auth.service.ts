@@ -3,6 +3,7 @@ import {
   NotFoundException,
   UnauthorizedException,
   HttpException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { UserService } from '../user/user.service';
 import { JwtService } from '@nestjs/jwt';
@@ -34,7 +35,7 @@ export class AuthService {
       try {
         isPasswordValid = await BcryptUtil.compare(dto.password, user.password);
       } catch {
-        throw new Error('内部错误');
+        throw new InternalServerErrorException('签名生成或验证失败，内部错误');
       }
       if (!isPasswordValid) {
         throw new UnauthorizedException('密码错误');

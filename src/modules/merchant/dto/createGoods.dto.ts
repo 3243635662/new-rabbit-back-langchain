@@ -6,10 +6,13 @@ import {
   IsOptional,
   IsString,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { specType } from '../../../types/merchant.type';
+
 export class createGoodsDto {
   @IsNumber()
   @IsNotEmpty()
+  @Type(() => Number)
   categoriesId: number;
 
   @IsString()
@@ -30,14 +33,17 @@ export class createGoodsDto {
 
   @IsNumber()
   @IsNotEmpty()
+  @Type(() => Number)
   price: number; // 商品价格
 
   @IsNumber()
   @IsNotEmpty()
+  @Type(() => Number)
   stock: number; // 商品库存
 
   @IsNumber()
   @IsOptional()
+  @Type(() => Number)
   warningStock: number; // 商品库存预警值
 
   @IsString()
@@ -46,17 +52,20 @@ export class createGoodsDto {
 
   @IsBoolean()
   @IsNotEmpty()
+  @Type(() => Boolean)
   status: boolean; // 商品状态
 
   @IsString()
   @IsOptional()
   videoUrl: string; // 商品视频
 
-  @IsString()
+  @IsArray()
+  @IsString({ each: true })
   @IsOptional()
   smallPictures: string[]; // 商品小图
 
-  @IsString()
+  @IsArray()
+  @IsString({ each: true })
   @IsOptional()
   bigPictures: string[]; // 商品大图
 

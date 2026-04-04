@@ -47,6 +47,7 @@ export class MerchantController {
     @Req() req: { user: JwtPayloadType },
     @Body() body: createGoodsDto,
   ) {
+    console.log('body', body);
     const payload = req.user;
     const goods = await this.merchantService.createGoods(payload, body);
     return resFormatMethod(0, '创建成功', goods);
@@ -99,5 +100,31 @@ export class MerchantController {
       Number(parentId),
     );
     return resFormatMethod(0, '获取成功', categories);
+  }
+
+  /**
+   * 获取商家旗下的品牌列表
+   */
+  @Get('brands')
+  async getBrands(@Req() req: { user: JwtPayloadType }) {
+    const brands = await this.merchantService.getMerchantBrands(req.user);
+    return resFormatMethod(0, '获取品牌列表成功', brands);
+  }
+
+  /**
+   * 按品牌获取商品列表
+   */
+  @Get('brand-goods')
+  async getGoodsByBrand(
+    @Req() req: { user: JwtPayloadType },
+    @Query('brandId') brandId: string,
+    @PaginateOptions() paginationOptions: PaginationOptionsType,
+  ) {
+    const goods = await this.merchantService.getGoodsByBrand(
+      req.user,
+      Number(brandId),
+      paginationOptions,
+    );
+    return resFormatMethod(0, '获取品牌商品成功', goods);
   }
 }

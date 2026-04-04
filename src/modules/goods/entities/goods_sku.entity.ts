@@ -49,6 +49,8 @@ export class GoodsSku {
   })
   specs: { name: string; value: string }[];
 
+  @Column({ default: false, comment: '是否上架' })
+  isLaunching: boolean;
   @CreateDateColumn({ comment: '创建时间' })
   createdAt: Date;
 

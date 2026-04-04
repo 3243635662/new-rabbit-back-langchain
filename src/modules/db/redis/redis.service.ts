@@ -94,7 +94,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return result === 1;
   }
 
-  // *将存储数据格式化一下
+  // *将存储数据格式化
   private formatLogicalData<T>(data: T, expireSeconds: number): string {
     const payload = {
       data: data,

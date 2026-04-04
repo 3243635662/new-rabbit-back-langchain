@@ -6,12 +6,15 @@ import {
   OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import { Categories } from './categories.entity';
 import { Spec } from './spec.entity';
 import { Merchant } from '../../merchant/entities/merchant.entity';
 import { GoodsInfo } from './goodInfo.entity';
 import { GoodsSku } from './goods_sku.entity';
+import { Brands } from './brands.entity';
 
 @Entity('goods')
 export class Goods {
@@ -27,8 +30,12 @@ export class Goods {
   @Column({ nullable: true, comment: '商品主图' })
   mainPicture: string;
 
-  @Column({ length: 50, nullable: true, comment: '品牌名称' })
-  brand: string;
+  @Column({ nullable: true, comment: '品牌ID' })
+  brandId: number | null;
+
+  @ManyToOne(() => Brands, (brand) => brand.goods)
+  @JoinColumn({ name: 'brandId' })
+  brandRelation: Brands;
 
   @Column({ default: 0, comment: '库存预警值' })
   warningStock: number;
@@ -36,6 +43,11 @@ export class Goods {
   @Column({ nullable: true, comment: '商品分类ID' })
   categoryId: number;
 
+  @Column({ default: false, comment: '是否审核过' })
+  isReviewed: boolean;
+
+  @Column({ default: false, comment: '是否审核成功' })
+  isReviewedSeccuss: boolean;
   // *关联所属分类
   @ManyToOne(() => Categories, (category) => category.goods)
   @JoinColumn({ name: 'categoryId' })
@@ -63,4 +75,10 @@ export class Goods {
   //*关联商品具体所有的 SKU 集合
   @OneToMany(() => GoodsSku, (sku) => sku.goods)
   skus: GoodsSku[];
+
+  @CreateDateColumn({ comment: '创建时间' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ comment: '更新时间' })
+  updatedAt: Date;
 }
