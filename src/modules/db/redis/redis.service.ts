@@ -11,6 +11,7 @@ import {
   WhetherRedisLogicExpireDataType,
 } from '../../../types/redis.type';
 import { RedisKeys } from '../../../common/constants/redis-key.constant';
+import { RedisTTL } from '../../../common/constants/redis-TTL.constant';
 // 定义不同的布隆过滤器键名
 export const BloomFilters = RedisKeys.BLOOM;
 
@@ -146,17 +147,86 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  // *互斥锁开关
-  async tryLock(key: string, expire: number): Promise<boolean> {
-    const lockKey = RedisKeys.LOCK.getLockKey(key);
-    const result = await this.client.set(lockKey, '1', 'EX', expire, 'NX');
-    return result === 'OK';
+  // *订单创建锁（防止短时间重复下单）
+  async tryOrderCreateLock(
+    userId: string,
+    expire = RedisTTL.LOCK.ORDER_CREATE,
+  ): Promise<boolean> {
+    const lockKey = RedisKeys.LOCK.getOrderCreateLockKey(userId);
+    return this.tryLockByKey(lockKey, expire);
   }
 
-  // *解锁
-  async unlock(key: string): Promise<void> {
-    const lockKey = RedisKeys.LOCK.getLockKey(key);
-    await this.client.del(lockKey);
+  async unlockOrderCreateLock(userId: string): Promise<void> {
+    const lockKey = RedisKeys.LOCK.getOrderCreateLockKey(userId);
+    await this.unlockByKey(lockKey);
+  }
+
+  // *订单支付锁（防止重复支付）
+  async tryPaymentLock(
+    orderId: string,
+    expire = RedisTTL.LOCK.PAYMENT,
+  ): Promise<boolean> {
+    const lockKey = RedisKeys.LOCK.getPaymentLockKey(orderId);
+    return this.tryLockByKey(lockKey, expire);
+  }
+
+  async unlockPaymentLock(orderId: string): Promise<void> {
+    const lockKey = RedisKeys.LOCK.getPaymentLockKey(orderId);
+    await this.unlockByKey(lockKey);
+  }
+
+  // *库存锁（防止超卖）
+  async tryStockLock(
+    skuId: string,
+    expire = RedisTTL.LOCK.STOCK,
+  ): Promise<boolean> {
+    const lockKey = RedisKeys.LOCK.getStockLockKey(skuId);
+    return this.tryLockByKey(lockKey, expire);
+  }
+
+  async unlockStockLock(skuId: string): Promise<void> {
+    const lockKey = RedisKeys.LOCK.getStockLockKey(skuId);
+    await this.unlockByKey(lockKey);
+  }
+
+  // *菜单路由缓存重建锁（防止同一 role 并发回源）
+  async tryMenuRouteLock(
+    roleId: number,
+    expire = RedisTTL.LOCK.MENU_ROUTE,
+  ): Promise<boolean> {
+    const lockKey = RedisKeys.LOCK.getMenuRouteLockKey(roleId);
+    return this.tryLockByKey(lockKey, expire);
+  }
+
+  async unlockMenuRouteLock(roleId: number): Promise<void> {
+    const lockKey = RedisKeys.LOCK.getMenuRouteLockKey(roleId);
+    await this.unlockByKey(lockKey);
+  }
+
+  // *客户端首页轮播图缓存重建锁
+  async tryClientHomeCarouselLock(
+    expire = RedisTTL.LOCK.CLIENT_HOME_CAROUSEL,
+  ): Promise<boolean> {
+    const lockKey = RedisKeys.LOCK.getClientHomeCarouselLockKey();
+    return this.tryLockByKey(lockKey, expire);
+  }
+
+  async unlockClientHomeCarouselLock(): Promise<void> {
+    const lockKey = RedisKeys.LOCK.getClientHomeCarouselLockKey();
+    await this.unlockByKey(lockKey);
+  }
+
+  // *客户端首页侧边推荐缓存重建锁
+  async tryClientHomeSideRecommendationLock(
+    expire = RedisTTL.LOCK.CLIENT_HOME_SIDE_RECOMMENDATION,
+  ): Promise<boolean> {
+    const lockKey = RedisKeys.LOCK.getClientHomeSideRecommendationLockKey();
+    return this.tryLockByKey(lockKey, expire);
+  }
+
+  async unlockClientHomeSideRecommendationLock(): Promise<void> {
+    const lockKey = RedisKeys.LOCK.getClientHomeSideRecommendationLockKey();
+    await this.unlockByKey(lockKey);
   }
 
   //  *添加单个用户 ID
@@ -232,5 +302,19 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn('🔄 Redis 正在重连...'),
     );
     this.client.on('end', () => this.logger.log('🛑 Redis 连接已关闭'));
+  }
+
+  // *尝试获取互斥锁
+  private async tryLockByKey(
+    lockKey: string,
+    expire: number,
+  ): Promise<boolean> {
+    const result = await this.client.set(lockKey, '1', 'EX', expire, 'NX');
+    return result === 'OK';
+  }
+
+  // *解锁
+  private async unlockByKey(lockKey: string): Promise<void> {
+    await this.client.del(lockKey);
   }
 }

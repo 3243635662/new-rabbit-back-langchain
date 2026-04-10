@@ -484,16 +484,92 @@ export class MerchantService {
       throw new ForbiddenException('当前用户不是商户');
     }
 
-    // 复用已有的分页逻辑，但增加 brandId 过滤
+    const qb = this.goodsRepo
+      .createQueryBuilder('goods')
+      .leftJoinAndSelect('goods.category', 'category')
+      .leftJoinAndSelect('goods.brandRelation', 'brandRelation')
+      .leftJoinAndSelect('goods.goodsInfo', 'goodsInfo')
+      .where('goods.merchantId = :merchantId', { merchantId: merchant.id })
+      .andWhere('goods.brandId = :brandId', { brandId });
+
+    // 分页
+    const paginateOptions: IPaginationOptions = {
+      page: options.page || 1,
+      limit: options.limit || 10,
+    };
+
+    const paginationData = await paginate<Goods>(qb, paginateOptions);
+
+    const formattedItems = paginationData.items.map((goods) => {
+      const categoryLabel = goods.category?.name || '未分类';
+      const brandLabel = goods.brandRelation?.name || '无品牌';
+
+      return {
+        id: goods.id,
+        name: goods.name || '未知商品',
+        description: goods.description || '',
+        categoryId: goods.categoryId,
+        categoryLabel,
+        brandId: goods.brandId,
+        brand: brandLabel,
+        warningStock: goods.warningStock,
+        picture: goods.mainPicture || DEFAULT_GOODS_PICTURE,
+        status: goods.status ?? true,
+        isReviewed: goods.isReviewed ?? false,
+        isReviewedSeccuss: goods.isReviewedSeccuss ?? false,
+        salesCount: goods.goodsInfo?.salesCount ?? 0,
+        commentCount: goods.goodsInfo?.commentCount ?? 0,
+        collectCount: goods.goodsInfo?.collectCount ?? 0,
+        createdAt: timeFormatMethod(goods.createdAt),
+      };
+    });
+
+    return {
+      list: formattedItems,
+      total: paginationData.meta.totalItems,
+      totalPage: paginationData.meta.totalPages,
+      page: paginationData.meta.currentPage,
+      limit: paginationData.meta.itemsPerPage,
+    };
+  }
+
+  // *根据商品ID获取该商品下的 SKU 列表
+  async getSkusByGoodsId(
+    payload: JwtPayloadType,
+    goodsId: number,
+    options: PaginationOptionsType,
+  ) {
+    const { id: userId } = payload;
+    const merchant = await this.merchantRepo.findOne({
+      where: { userId: userId.toString() },
+      select: ['id'],
+    });
+
+    if (!merchant) {
+      throw new ForbiddenException('当前用户不是商户');
+    }
+
+    const targetGoods = await this.goodsRepo.findOne({
+      where: {
+        id: goodsId,
+        merchantId: merchant.id,
+      },
+      select: ['id', 'name', 'status', 'isReviewed', 'isReviewedSeccuss'],
+    });
+
+    if (!targetGoods) {
+      throw new NotFoundException('商品不存在或不属于当前商户');
+    }
+
     const qb = this.skuRepo
       .createQueryBuilder('sku')
       .leftJoinAndSelect('sku.goods', 'goods')
       .leftJoinAndSelect('goods.category', 'category')
       .leftJoinAndSelect('goods.brandRelation', 'brandRelation')
-      .where('goods.merchantId = :merchantId', { merchantId: merchant.id })
-      .andWhere('goods.brandId = :brandId', { brandId });
+      .where('sku.goodsId = :goodsId', { goodsId })
+      .andWhere('goods.merchantId = :merchantId', { merchantId: merchant.id })
+      .orderBy('sku.createdAt', 'DESC');
 
-    // 分页
     const paginateOptions: IPaginationOptions = {
       page: options.page || 1,
       limit: options.limit || 10,
@@ -527,6 +603,8 @@ export class MerchantService {
     });
 
     return {
+      goodsId: targetGoods.id,
+      goodsName: targetGoods.name,
       list: formattedItems,
       total: paginationData.meta.totalItems,
       totalPage: paginationData.meta.totalPages,

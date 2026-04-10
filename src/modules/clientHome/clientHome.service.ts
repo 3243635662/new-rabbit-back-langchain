@@ -7,6 +7,7 @@ import {
   CarouselSideRecommendation,
 } from '../../composables/useClientHomeData';
 import { RedisKeys } from '../../common/constants/redis-key.constant';
+import { RedisTTL } from '../../common/constants/redis-TTL.constant';
 import { HomeBanner } from './entities/home-banner.entity';
 import { HomeCategory } from './entities/home-category.entity';
 
@@ -24,6 +25,8 @@ export class ClientHomeService {
   async getCarousel() {
     return this.getCachedDataWithLogicExpire(
       RedisKeys.CLIENT_HOME.CAROUSEL,
+      () => this.redisService.tryClientHomeCarouselLock(10),
+      () => this.redisService.unlockClientHomeCarouselLock(),
       async () => {
         const banners = await this.homeBannerRepo.find({
           where: { isActive: true },
@@ -39,6 +42,8 @@ export class ClientHomeService {
   async getCarouselSideRecommendation() {
     return this.getCachedDataWithLogicExpire(
       RedisKeys.CLIENT_HOME.SIDE_RECOMMENDATION,
+      () => this.redisService.tryClientHomeSideRecommendationLock(10),
+      () => this.redisService.unlockClientHomeSideRecommendationLock(),
       async () => {
         const categories = await this.homeCategoryRepo.find({
           where: { isActive: true },
@@ -57,8 +62,10 @@ export class ClientHomeService {
    */
   private async getCachedDataWithLogicExpire<T>(
     key: string,
+    tryBusinessLock: () => Promise<boolean>,
+    unlockBusinessLock: () => Promise<void>,
     dataFetcher: () => Promise<T>,
-    logicExpireSeconds = 60 * 60 * 24, // 默认1天
+    logicExpireSeconds = RedisTTL.CACHE.CLIENT_HOME_DEFAULT, // 默认1天
   ): Promise<T> {
     // 1. 获取带有逻辑过期信息的缓存数据
     const cache = await this.redisService.getWithLogicExpire<T>(key);
@@ -72,7 +79,7 @@ export class ClientHomeService {
       }
 
       // 2.2 逻辑已过期，尝试获取互斥锁异步刷新
-      if (await this.redisService.tryLock(key, 10)) {
+      if (await tryBusinessLock()) {
         // 获取锁成功，开启异步更新
         void (async () => {
           try {
@@ -85,7 +92,7 @@ export class ClientHomeService {
             );
           } finally {
             // 释放锁
-            await this.redisService.unlock(key);
+            await unlockBusinessLock();
           }
         })();
       }
@@ -96,7 +103,7 @@ export class ClientHomeService {
 
     // 3. 缓存未击中 (或者物理过期)
     // 尝试获取互斥锁进行同步数据重建
-    if (await this.redisService.tryLock(key, 10)) {
+    if (await tryBusinessLock()) {
       try {
         // 再次检查 (双重检查锁)
         const secondCheck = await this.redisService.getWithLogicExpire<T>(key);
@@ -111,13 +118,15 @@ export class ClientHomeService {
         );
         return dbData;
       } finally {
-        await this.redisService.unlock(key);
+        await unlockBusinessLock();
       }
     } else {
       // 未抢到锁的请求，等待一段时间后重试
       await new Promise((resolve) => setTimeout(resolve, 50));
       return this.getCachedDataWithLogicExpire(
         key,
+        tryBusinessLock,
+        unlockBusinessLock,
         dataFetcher,
         logicExpireSeconds,
       );

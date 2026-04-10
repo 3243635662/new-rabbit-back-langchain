@@ -112,7 +112,7 @@ export class MerchantController {
   }
 
   /**
-   * 按品牌获取商品列表
+   * 按品牌获取商品列表（商品/SPU维度）
    */
   @Get('brand-goods')
   async getGoodsByBrand(
@@ -126,5 +126,22 @@ export class MerchantController {
       paginationOptions,
     );
     return resFormatMethod(0, '获取品牌商品成功', goods);
+  }
+
+  /**
+   * 根据商品ID获取SKU列表
+   */
+  @Get('goods-skus')
+  async getSkusByGoodsId(
+    @Req() req: { user: JwtPayloadType },
+    @Query('goodsId') goodsId: string,
+    @PaginateOptions() paginationOptions: PaginationOptionsType,
+  ) {
+    const skus = await this.merchantService.getSkusByGoodsId(
+      req.user,
+      Number(goodsId),
+      paginationOptions,
+    );
+    return resFormatMethod(0, '获取商品SKU成功', skus);
   }
 }

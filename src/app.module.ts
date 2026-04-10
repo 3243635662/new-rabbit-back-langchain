@@ -22,6 +22,8 @@ import { OrderModule } from './modules/order/order.module';
 import { SeedModule } from './modules/db/seed/seed.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { CouponModule } from './modules/coupon/coupon.module';
+import { ScheduleModule } from '@nestjs/schedule';
 @Module({
   imports: [
     MenuModule,
@@ -58,6 +60,8 @@ import { AdminModule } from './modules/admin/admin.module';
     SeedModule,
     InventoryModule,
     AdminModule,
+    CouponModule,
+    ScheduleModule.forRoot(),
   ],
   controllers: [AppController],
   providers: [

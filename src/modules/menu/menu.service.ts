@@ -1,6 +1,7 @@
 import { MenuResType } from '../../types/menu.type';
 import { RedisService, BloomFilters } from '../db/redis/redis.service';
 import { RedisKeys } from '../../common/constants/redis-key.constant';
+import { RedisTTL } from '../../common/constants/redis-TTL.constant';
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Menu } from './entities/menu.entity';
@@ -92,8 +93,7 @@ export class MenuService implements OnModuleInit {
 
     // 3. 缓存失效或过期，尝试加互斥锁进行回源
     // 如果是逻辑过期，cachedMenus 可能还有旧数据可以用，我们这里简单实现，加锁回源
-    const lockKey = RedisKeys.LOCK.getLockKey(cacheKey);
-    const hasLock = await this.redisService.tryLock(lockKey, 10);
+    const hasLock = await this.redisService.tryMenuRouteLock(roleId, 10);
 
     if (hasLock) {
       try {
@@ -126,7 +126,8 @@ export class MenuService implements OnModuleInit {
         await this.redisService.addItem(BloomFilters.ROLE_IDS, roleId);
 
         // 5. 设置缓存，带逻辑过期时间（随机偏移防止雪崩）
-        const expireSeconds = 3600 + Math.floor(Math.random() * 9999999);
+        const expireSeconds =
+          RedisTTL.CACHE.MENU_ROUTE_BASE + Math.floor(Math.random() * 9999999);
         await this.redisService.setWithLogicExpire(
           cacheKey,
           result,
@@ -136,7 +137,7 @@ export class MenuService implements OnModuleInit {
         return result;
       } finally {
         // 解锁
-        await this.redisService.unlock(lockKey);
+        await this.redisService.unlockMenuRouteLock(roleId);
       }
     } else {
       // 6. 如果没拿到锁，通常说明有人在回源，我们可以等待后重试，或直接返回旧数据（如果是逻辑过期）

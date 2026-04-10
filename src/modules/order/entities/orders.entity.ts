@@ -1,48 +1,85 @@
 import {
   Entity,
-  PrimaryGeneratedColumn,
+  PrimaryColumn,
   Column,
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
   OneToMany,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { User } from '../../user/entities/user.entity';
-import { OrderItem } from './order_items.entity'; // 订单详情
+import { OrderItem } from './order_items.entity';
+
+/**
+ * 订单状态枚举
+ * 与数据库 orders.status 字段对应
+ */
+export enum OrderStatus {
+  PENDING_PAYMENT = 1, // 待支付
+  PAID = 2, // 已支付
+  PENDING_SHIPMENT = 3, // 待发货
+  SHIPPED = 4, // 已发货
+  RECEIVED = 5, // 已收货
+  COMPLETED = 6, // 已完成
+  CANCELLED = 7, // 已取消
+  AFTER_SALE = 8, // 售后中
+  TIMEOUT = 9, // 已超时（支付超时自动取消）
+}
 
 @Entity('orders')
+@Index(['userId', 'createdAt'])
+@Index(['orderNo'])
+@Index(['status'])
+@Index(['createdAt'])
 export class Order {
-  @PrimaryGeneratedColumn()
-  id: number;
+  @PrimaryColumn({
+    type: 'bigint',
+    comment: '订单ID (Snowflake生成)',
+  })
+  id: string;
 
   // ----------------------
-  // 1. 基础信息
+  // 基础信息
   // ----------------------
-  @Column({ unique: true, comment: '订单号' })
-  orderNo: string; // 如：20260325xxxx
+  @Column({
+    unique: true,
+    length: 50,
+    comment: '业务订单号 (展示给用户)',
+  })
+  orderNo: string;
 
   @Column({
-    default: 1,
+    type: 'tinyint',
+    default: OrderStatus.PENDING_PAYMENT,
     comment:
-      '订单状态: 1-待支付, 2-待发货, 3-待收货, 4-已完成, 5-已取消, 6-售后',
+      '订单状态 (1-待支付 2-已支付 3-待发货 4-已发货 5-已收货 6-已完成 7-已取消 8-售后中 9-已超时)',
   })
-  status: number;
+  status: OrderStatus;
 
   // ----------------------
-  // 2. 关联用户
+  // 关联用户
   // ----------------------
-  @Column()
+  @Column({
+    type: 'bigint',
+    comment: '用户ID',
+  })
   userId: string;
 
-  @ManyToOne(() => User)
+  @ManyToOne(() => User, { eager: false })
   @JoinColumn({ name: 'userId' })
   user: User;
 
   // ----------------------
-  // 3. 金额信息
+  // 金额信息
   // ----------------------
-  @Column({ type: 'decimal', precision: 10, scale: 2, comment: '订单总金额' })
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    comment: '订单总金额',
+  })
   totalAmount: number;
 
   @Column({
@@ -58,33 +95,58 @@ export class Order {
   payAmount: number;
 
   // ----------------------
-  // 4. 收货信息快照 (非常重要！防止用户修改地址影响历史订单)
+  // 收货信息快照
   // ----------------------
-  @Column({ type: 'json', comment: '收货地址快照 (姓名/电话/地址)' })
+  @Column({ type: 'json', comment: '收货地址快照' })
   addressSnapshot: {
     name: string;
     phone: string;
     address: string;
+    province?: string;
+    city?: string;
+    district?: string;
+    postalCode?: string;
   };
 
   // ----------------------
-  // 5. 支付信息
+  // 支付信息
   // ----------------------
-  @Column({ nullable: true, comment: '支付方式 (微信/支付宝等)' })
+  @Column({
+    nullable: true,
+    length: 20,
+    comment: '支付方式',
+  })
   paymentMethod: string;
 
   @Column({ nullable: true, comment: '支付时间' })
   paidAt: Date;
 
+  @Column({
+    nullable: true,
+    length: 100,
+    comment: '支付流水号',
+  })
+  paymentNo: string;
+
   // ----------------------
-  // 6. 关联子订单
+  // 关联子订单
   // ----------------------
-  @OneToMany(() => OrderItem, (item) => item.order)
+  @OneToMany(() => OrderItem, (item) => item.order, {
+    cascade: true,
+    eager: false,
+  })
   items: OrderItem[];
 
-  @CreateDateColumn()
+  @Column({
+    nullable: true,
+    type: 'text',
+    comment: '订单备注',
+  })
+  remark: string;
+
+  @CreateDateColumn({ comment: '创建时间' })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ comment: '更新时间' })
   updatedAt: Date;
 }
