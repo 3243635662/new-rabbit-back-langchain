@@ -93,7 +93,7 @@ export class CouponService {
     // 校验门槛金额
     // 对于 CATEGORY/GOODS 类型，门槛基于命中商品金额；对于 ALL 类型，门槛基于订单总额
     const thresholdAmount =
-      coupon.scopeType === 'ALL' ? totalAmount : matchedAmount;
+      coupon.scopeType === 'ALL' ? totalAmount : matchedAmount; // 门槛金额
 
     if (thresholdAmount < Number(coupon.minAmount)) {
       throw new BadRequestException(`未满足满${coupon.minAmount}元的使用条件`);
@@ -129,7 +129,7 @@ export class CouponService {
     const manager = queryRunner?.manager ?? this.couponRepo.manager;
     await manager.update(UserCoupon, couponId, {
       status: 'USED',
-      orderId: Number(orderId),
+      orderId,
     });
   }
 

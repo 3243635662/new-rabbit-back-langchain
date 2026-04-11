@@ -122,6 +122,7 @@ export class OrderService {
           orderItem.count = item.count;
           orderItem.price = sku.price;
           orderItem.totalPrice = sku.price * item.count;
+          orderItem.shippingStatus = 0; // 待发货
 
           orderItems.push(orderItem);
 
@@ -171,10 +172,7 @@ export class OrderService {
         name: address.name,
         phone: address.phone,
         address: address.detail,
-        province: address.provinceName,
-        city: address.cityName,
-        district: address.districtName,
-        postalCode: address.streetCode,
+        areaCode: address.areaCode,
       };
 
       // 保存订单

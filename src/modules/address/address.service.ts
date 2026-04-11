@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Address } from './entities/address.entity';
+import { AreaService } from './area.service';
 import { JwtPayloadType } from '../../types/auth.type';
 import type { PaginationOptionsType } from '../../types/pagination.type';
 import { IPaginationOptions, paginate } from 'nestjs-typeorm-paginate';
@@ -11,6 +12,7 @@ export class AddressService {
   constructor(
     @InjectRepository(Address)
     private readonly addressRepo: Repository<Address>,
+    private readonly areaService: AreaService,
   ) {}
 
   /**
@@ -50,8 +52,36 @@ export class AddressService {
 
     const paginationData = await paginate<Address>(qb, paginateOptions);
 
+    // 批量补全区划名称
+    const codes = paginationData.items
+      .map((item) => item.areaCode)
+      .filter(Boolean);
+    const pathMap = new Map<
+      string,
+      Awaited<ReturnType<typeof this.areaService.getFullAreaPath>>
+    >();
+
+    if (codes.length > 0) {
+      // 去重查询
+      const uniqueCodes = [...new Set(codes)];
+      for (const code of uniqueCodes) {
+        pathMap.set(code, await this.areaService.getFullAreaPath(code));
+      }
+    }
+
+    const list = paginationData.items.map((item) => {
+      const path = pathMap.get(item.areaCode);
+      return {
+        ...item,
+        province: path?.province?.name ?? null,
+        city: path?.city?.name ?? null,
+        district: path?.district?.name ?? null,
+        street: path?.street?.name ?? null,
+      };
+    });
+
     return {
-      list: paginationData.items,
+      list,
       total: paginationData.meta.totalItems,
       page: paginationData.meta.currentPage,
       limit: paginationData.meta.itemsPerPage,

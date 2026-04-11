@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, Repository, IsNull } from 'typeorm';
+import { Brackets, In, Repository, IsNull } from 'typeorm';
 import { Merchant } from './entities/merchant.entity';
 import { Goods } from '../goods/entities/goods.entity';
 import { Categories } from '../goods/entities/categories.entity';
@@ -14,8 +14,13 @@ import { Spec } from '../goods/entities/spec.entity';
 import { SpecValue } from '../goods/entities/spec_value.entity';
 import { GoodsInfo } from '../goods/entities/goodInfo.entity';
 import { Brands } from '../goods/entities/brands.entity';
+import { OrderStatus } from '../order/entities/orders.entity';
+import {
+  OrderItem,
+  ShippingStatus,
+} from '../order/entities/order_items.entity';
 import { JwtPayloadType } from '../../types/auth.type';
-import type { PaginationOptionsType } from '../../types/pagination.type';
+import { PaginationOptionsType } from '../../types/pagination.type';
 import { IPaginationOptions, paginate } from 'nestjs-typeorm-paginate';
 import { timeFormatMethod } from '../../utils/timeFormat.util';
 import { createGoodsDto } from './dto/createGoods.dto';
@@ -41,6 +46,8 @@ export class MerchantService {
     private readonly goodsInfoRepo: Repository<GoodsInfo>,
     @InjectRepository(Brands)
     private readonly brandsRepo: Repository<Brands>,
+    @InjectRepository(OrderItem)
+    private readonly orderItemRepo: Repository<OrderItem>,
   ) {}
 
   //* 获取商家的商品列表 (SKU级细分)
@@ -149,7 +156,7 @@ export class MerchantService {
     };
   }
 
-  //* 获取商家的分类树
+  // *获取商家的分类树
   async getMerchantCategories(
     payload: JwtPayloadType,
   ): Promise<CategoryTreeNode[]> {
@@ -610,6 +617,393 @@ export class MerchantService {
       totalPage: paginationData.meta.totalPages,
       page: paginationData.meta.currentPage,
       limit: paginationData.meta.itemsPerPage,
+    };
+  }
+  // *获取商家的订单列表（以 OrderItem 为主维度）
+  async getMerchantOrders(
+    payload: JwtPayloadType,
+    options: PaginationOptionsType,
+  ) {
+    const { id: userId } = payload;
+
+    // 1. 获取当前用户对应的商家
+    const merchant = await this.merchantRepo.findOne({
+      where: { userId: userId.toString() },
+      select: ['id'],
+    });
+
+    if (!merchant) {
+      return {
+        list: [],
+        total: 0,
+        page: options.page || 1,
+        limit: options.limit || 10,
+        totalPage: 0,
+      };
+    }
+
+    // 2. 构建查询：以 order_item 为主表，关联订单和 SKU
+    const qb = this.orderItemRepo
+      .createQueryBuilder('oi')
+      .leftJoinAndSelect('oi.order', 'order')
+      .leftJoinAndSelect('oi.sku', 'sku')
+      .leftJoinAndSelect('sku.goods', 'goods')
+      .where('goods.merchantId = :merchantId', { merchantId: merchant.id });
+
+    // 3. 订单号搜索
+    if (options.keyword) {
+      qb.andWhere('order.orderNo LIKE :keyword', {
+        keyword: `%${options.keyword}%`,
+      });
+    }
+
+    // 4. 发货状态筛选（逗号分隔，如 "0,1"）
+    if (options.status) {
+      const statusList: number[] = options.status
+        .split(',')
+        .map((s) => Number(s.trim()))
+        .filter((n) => !isNaN(n) && n >= 0 && n <= 2);
+
+      if (statusList.length > 0) {
+        qb.andWhere('oi.shippingStatus IN (:...statusList)', { statusList });
+      }
+    }
+
+    // 5. 时间范围筛选（基于订单创建时间）
+    if (options.startTime) {
+      const startTime = options.startTime;
+      qb.andWhere('order.createdAt >= :startTime', { startTime });
+    }
+    if (options.endTime) {
+      const endTime = options.endTime;
+      qb.andWhere('order.createdAt <= :endTime', { endTime });
+    }
+
+    // 6. 排序（默认按订单创建时间倒序）
+    const allowedSortFields = ['createdAt', 'shippingStatus', 'price'];
+    const sortField =
+      options.sort && allowedSortFields.includes(options.sort)
+        ? options.sort
+        : 'createdAt';
+    const sortOrder = options.order === 'ASC' ? 'ASC' : 'DESC';
+
+    if (sortField === 'createdAt') {
+      qb.orderBy('order.createdAt', sortOrder);
+    } else if (sortField === 'shippingStatus') {
+      qb.orderBy('oi.shippingStatus', sortOrder);
+    } else {
+      qb.orderBy(`oi.${sortField}`, sortOrder);
+    }
+
+    // 7. 分页
+    const paginateOptions: IPaginationOptions = {
+      page: options.page || 1,
+      limit: options.limit || 10,
+    };
+
+    const paginationData = await paginate<OrderItem>(qb, paginateOptions);
+
+    // 8. 格式化输出
+    const shippingStatusMap: Record<number, string> = {
+      0: '待发货',
+      1: '已发货',
+      2: '已收货',
+      3: '售后中',
+    };
+
+    const orderStatusMap: Record<number, string> = {
+      1: '待支付',
+      2: '已支付',
+      7: '已取消',
+      9: '已超时',
+    };
+
+    const formattedItems = paginationData.items.map((oi) => ({
+      // 订单项信息
+      orderItemId: oi.id,
+      skuId: oi.skuId,
+      skuName: oi.skuName,
+      skuCode: oi.skuCode,
+      specs: oi.sku?.specs || [],
+      picture: oi.sku?.picture || DEFAULT_GOODS_PICTURE,
+      count: oi.count,
+      price: oi.price,
+      totalPrice: oi.totalPrice,
+      // 发货状态
+      shippingStatus: oi.shippingStatus,
+      shippingStatusLabel: shippingStatusMap[oi.shippingStatus] || '未知',
+      shippedAt: oi.shippedAt ? timeFormatMethod(oi.shippedAt) : null,
+      // 所属订单信息
+      orderId: oi.orderId,
+      orderNo: oi.order?.orderNo || '',
+      orderStatus: oi.order?.status,
+      orderStatusLabel: orderStatusMap[oi.order?.status] || '未知',
+      totalAmount: oi.order?.totalAmount,
+      payAmount: oi.order?.payAmount,
+      addressSnapshot: oi.order?.addressSnapshot,
+      paymentMethod: oi.order?.paymentMethod,
+      paidAt: oi.order?.paidAt ? timeFormatMethod(oi.order.paidAt) : null,
+      remark: oi.remark,
+      createdAt: oi.order?.createdAt
+        ? timeFormatMethod(oi.order.createdAt)
+        : '',
+    }));
+
+    return {
+      list: formattedItems,
+      total: paginationData.meta.totalItems,
+      totalPage: paginationData.meta.totalPages,
+      page: paginationData.meta.currentPage,
+      limit: paginationData.meta.itemsPerPage,
+    };
+  }
+
+  // *导出商家订单
+  async exportMerchantOrders(
+    payload: JwtPayloadType,
+    options: PaginationOptionsType,
+  ) {
+    const exportOptions: PaginationOptionsType = {
+      ...options,
+      page: 1,
+      limit: 10000,
+    };
+    const result = await this.getMerchantOrders(payload, exportOptions);
+    return result.list;
+  }
+
+  // *商家确认发货（OrderItem 级别）
+  async shipOrderItems(payload: JwtPayloadType, orderItemIds: string[]) {
+    const { id: userId } = payload;
+    const merchant = await this.merchantRepo.findOne({
+      where: { userId: userId.toString() },
+      select: ['id'],
+    });
+
+    if (!merchant) {
+      throw new ForbiddenException('当前用户不是商户');
+    }
+
+    // 1. 查询这些订单项，并关联 SKU → Goods 验证归属
+    const items = await this.orderItemRepo.find({
+      where: { id: In(orderItemIds) },
+      relations: ['sku', 'sku.goods', 'order'],
+    });
+
+    if (items.length === 0) {
+      throw new NotFoundException('未找到订单项');
+    }
+
+    // 2. 过滤出属于当前商家且可发货的订单项
+    const now = new Date();
+    const shippableItems: OrderItem[] = [];
+
+    for (const item of items) {
+      // 验证归属：SKU → Goods → merchantId
+      if (item.sku?.goods?.merchantId !== merchant.id) {
+        continue;
+      }
+      // 只有待发货状态才能发货
+      if (item.shippingStatus !== ShippingStatus.PENDING) {
+        continue;
+      }
+      // 订单必须是已支付状态才能发货
+      if (item.order?.status !== OrderStatus.PAID) {
+        continue;
+      }
+      shippableItems.push(item);
+    }
+
+    if (shippableItems.length === 0) {
+      throw new ForbiddenException('没有可发货的订单项');
+    }
+
+    // 3. 更新发货状态
+    for (const item of shippableItems) {
+      await this.orderItemRepo.update(
+        { id: item.id },
+        { shippingStatus: ShippingStatus.SHIPPED, shippedAt: now },
+      );
+    }
+
+    return {
+      shippedCount: shippableItems.length,
+      skippedCount: orderItemIds.length - shippableItems.length,
+    };
+  }
+
+  // *批量操作商家订单项状态（OrderItem 级别）
+  async batchUpdateOrderItemStatus(
+    payload: JwtPayloadType,
+    orderItemIds: string[],
+    targetStatus: ShippingStatus,
+  ) {
+    const { id: userId } = payload;
+    const merchant = await this.merchantRepo.findOne({
+      where: { userId: userId.toString() },
+      select: ['id'],
+    });
+
+    if (!merchant) {
+      throw new ForbiddenException('当前用户不是商户');
+    }
+
+    // 1. 查询这些订单项，并关联 SKU → Goods 验证归属
+    const items = await this.orderItemRepo.find({
+      where: { id: In(orderItemIds) },
+      relations: ['sku', 'sku.goods', 'order'],
+    });
+
+    if (items.length === 0) {
+      throw new NotFoundException('未找到订单项');
+    }
+
+    // 2. 定义允许的状态转换
+    const allowedTransitions: Record<number, ShippingStatus[]> = {
+      [ShippingStatus.PENDING]: [ShippingStatus.SHIPPED],
+      [ShippingStatus.SHIPPED]: [ShippingStatus.RECEIVED],
+      [ShippingStatus.RECEIVED]: [ShippingStatus.AFTER_SALE],
+    };
+
+    // 3. 过滤出属于当前商家且可操作的订单项
+    const now = new Date();
+    const updatableItems: OrderItem[] = [];
+
+    for (const item of items) {
+      // 验证归属：SKU → Goods → merchantId
+      if (item.sku?.goods?.merchantId !== merchant.id) {
+        continue;
+      }
+      // 订单必须是已支付状态
+      if (item.order?.status !== OrderStatus.PAID) {
+        continue;
+      }
+      // 校验状态转换是否合法
+      const allowed = allowedTransitions[item.shippingStatus];
+      if (allowed && allowed.includes(targetStatus)) {
+        updatableItems.push(item);
+      }
+    }
+
+    if (updatableItems.length === 0) {
+      throw new ForbiddenException('所选订单项不支持该状态变更');
+    }
+
+    // 4. 批量更新
+    const updateData: Partial<OrderItem> = {
+      shippingStatus: targetStatus,
+    };
+    if (targetStatus === ShippingStatus.SHIPPED) {
+      updateData.shippedAt = now;
+    }
+    if (targetStatus === ShippingStatus.RECEIVED) {
+      updateData.receivedAt = now;
+    }
+
+    await this.orderItemRepo.update(
+      { id: In(updatableItems.map((i) => i.id)) },
+      updateData,
+    );
+
+    return {
+      updatedCount: updatableItems.length,
+      skippedCount: orderItemIds.length - updatableItems.length,
+    };
+  }
+
+  // *确认收货（OrderItem 级别，用户确认收货）
+  async confirmOrderItems(payload: JwtPayloadType, orderItemIds: string[]) {
+    const { id: userId } = payload;
+    const merchant = await this.merchantRepo.findOne({
+      where: { userId: userId.toString() },
+      select: ['id'],
+    });
+
+    if (!merchant) {
+      throw new ForbiddenException('当前用户不是商户');
+    }
+
+    const items = await this.orderItemRepo.find({
+      where: { id: In(orderItemIds) },
+      relations: ['sku', 'sku.goods', 'order'],
+    });
+
+    if (items.length === 0) {
+      throw new NotFoundException('未找到订单项');
+    }
+
+    const now = new Date();
+    const confirmableItems: OrderItem[] = [];
+
+    for (const item of items) {
+      if (item.sku?.goods?.merchantId !== merchant.id) continue;
+      if (item.shippingStatus !== ShippingStatus.SHIPPED) continue;
+      if (item.order?.status !== OrderStatus.PAID) continue;
+      confirmableItems.push(item);
+    }
+
+    if (confirmableItems.length === 0) {
+      throw new ForbiddenException('没有可确认收货的订单项');
+    }
+
+    await this.orderItemRepo.update(
+      { id: In(confirmableItems.map((i) => i.id)) },
+      { shippingStatus: ShippingStatus.RECEIVED, receivedAt: now },
+    );
+
+    return {
+      confirmedCount: confirmableItems.length,
+      skippedCount: orderItemIds.length - confirmableItems.length,
+    };
+  }
+
+  // *申请售后（OrderItem 级别）
+  async applyAfterSale(payload: JwtPayloadType, orderItemIds: string[]) {
+    const { id: userId } = payload;
+    const merchant = await this.merchantRepo.findOne({
+      where: { userId: userId.toString() },
+      select: ['id'],
+    });
+
+    if (!merchant) {
+      throw new ForbiddenException('当前用户不是商户');
+    }
+
+    const items = await this.orderItemRepo.find({
+      where: { id: In(orderItemIds) },
+      relations: ['sku', 'sku.goods', 'order'],
+    });
+
+    if (items.length === 0) {
+      throw new NotFoundException('未找到订单项');
+    }
+
+    const afterSaleItems: OrderItem[] = [];
+
+    for (const item of items) {
+      if (item.sku?.goods?.merchantId !== merchant.id) continue;
+      // 只有已发货或已收货的订单项可以申请售后
+      if (
+        item.shippingStatus !== ShippingStatus.SHIPPED &&
+        item.shippingStatus !== ShippingStatus.RECEIVED
+      )
+        continue;
+      if (item.order?.status !== OrderStatus.PAID) continue;
+      afterSaleItems.push(item);
+    }
+
+    if (afterSaleItems.length === 0) {
+      throw new ForbiddenException('没有可申请售后的订单项');
+    }
+
+    await this.orderItemRepo.update(
+      { id: In(afterSaleItems.map((i) => i.id)) },
+      { shippingStatus: ShippingStatus.AFTER_SALE },
+    );
+
+    return {
+      afterSaleCount: afterSaleItems.length,
+      skippedCount: orderItemIds.length - afterSaleItems.length,
     };
   }
 }

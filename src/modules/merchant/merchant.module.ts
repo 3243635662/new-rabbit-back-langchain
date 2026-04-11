@@ -7,6 +7,7 @@ import { Goods } from '../goods/entities/goods.entity';
 import { Categories } from '../goods/entities/categories.entity';
 import { GoodsSku } from '../goods/entities/goods_sku.entity';
 import { Brands } from '../goods/entities/brands.entity';
+import { OrderItem } from '../order/entities/order_items.entity';
 
 import { Spec } from '../goods/entities/spec.entity';
 import { SpecValue } from '../goods/entities/spec_value.entity';
@@ -23,6 +24,7 @@ import { GoodsInfo } from '../goods/entities/goodInfo.entity';
       SpecValue,
       GoodsInfo,
       Brands,
+      OrderItem,
     ]),
   ],
   controllers: [MerchantController],

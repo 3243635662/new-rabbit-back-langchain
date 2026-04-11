@@ -27,6 +27,9 @@ export const PaginateOptions = createParamDecorator(
       order,
       category,
       price,
+      status,
+      startTime,
+      endTime,
     } = request.query;
     return {
       page: Number(page) || 1,
@@ -36,6 +39,9 @@ export const PaginateOptions = createParamDecorator(
       order: (order as string)?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC',
       category: (category as string) || '',
       price: Number(price) || 0,
+      status: (status as string) || '',
+      startTime: (startTime as string) || '',
+      endTime: (endTime as string) || '',
     };
   },
 );

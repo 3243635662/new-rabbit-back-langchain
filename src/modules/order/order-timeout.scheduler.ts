@@ -221,7 +221,7 @@ export class OrderTimeoutScheduler {
     try {
       // 查找该订单使用的优惠券
       const userCoupons = await queryRunner.manager.find(UserCoupon, {
-        where: { orderId: Number(orderId), status: 'USED' },
+        where: { orderId, status: 'USED' },
       });
 
       if (userCoupons.length > 0) {

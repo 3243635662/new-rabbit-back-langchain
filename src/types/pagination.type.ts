@@ -18,4 +18,13 @@ export interface PaginationOptionsType {
   category?: string;
 
   price?: number;
+
+  // 订单状态筛选 (逗号分隔，如 "1,2,3")
+  status?: string;
+
+  // 时间范围 - 开始时间
+  startTime?: string;
+
+  // 时间范围 - 结束时间
+  endTime?: string;
 }

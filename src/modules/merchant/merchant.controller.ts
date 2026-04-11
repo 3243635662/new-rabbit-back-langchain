@@ -5,6 +5,7 @@ import { JwtPayloadType } from '../../types/auth.type';
 import { PaginateOptions } from '../../common/decorators/pagination.decorator';
 import type { PaginationOptionsType } from '../../types/pagination.type';
 import { createGoodsDto } from './dto/createGoods.dto';
+import { ShippingStatus } from '../order/entities/order_items.entity';
 
 @Controller('merchant')
 export class MerchantController {
@@ -143,5 +144,97 @@ export class MerchantController {
       paginationOptions,
     );
     return resFormatMethod(0, '获取商品SKU成功', skus);
+  }
+
+  /**
+   * 获取商家的订单列表（含分页、状态筛选、时间范围）
+   */
+  @Get('orders')
+  async getOrders(
+    @Req() req: { user: JwtPayloadType },
+    @PaginateOptions({ defaultLimit: 10, maxLimit: 50 })
+    paginationOptions: PaginationOptionsType,
+  ) {
+    const result = await this.merchantService.getMerchantOrders(
+      req.user,
+      paginationOptions,
+    );
+    return resFormatMethod(0, '订单列表查询成功', result);
+  }
+
+  /**
+   * 导出商家订单
+   */
+  @Get('orders/export')
+  async exportOrders(
+    @Req() req: { user: JwtPayloadType },
+    @PaginateOptions() paginationOptions: PaginationOptionsType,
+  ) {
+    const list = await this.merchantService.exportMerchantOrders(
+      req.user,
+      paginationOptions,
+    );
+    return resFormatMethod(0, '导出成功', list);
+  }
+
+  /**
+   * 批量更新订单项状态（OrderItem 级别）
+   */
+  @Post('orders/batch-item-status')
+  async batchUpdateOrderItemStatus(
+    @Req() req: { user: JwtPayloadType },
+    @Body() body: { orderItemIds: string[]; targetStatus: number },
+  ) {
+    const result = await this.merchantService.batchUpdateOrderItemStatus(
+      req.user,
+      body.orderItemIds,
+      body.targetStatus as ShippingStatus,
+    );
+    return resFormatMethod(0, '批量操作成功', result);
+  }
+
+  /**
+   * 商家确认发货（OrderItem 级别）
+   */
+  @Post('orders/ship')
+  async shipOrderItems(
+    @Req() req: { user: JwtPayloadType },
+    @Body() body: { orderItemIds: string[] },
+  ) {
+    const result = await this.merchantService.shipOrderItems(
+      req.user,
+      body.orderItemIds,
+    );
+    return resFormatMethod(0, '发货成功', result);
+  }
+
+  /**
+   * 确认收货（OrderItem 级别）
+   */
+  @Post('orders/confirm')
+  async confirmOrderItems(
+    @Req() req: { user: JwtPayloadType },
+    @Body() body: { orderItemIds: string[] },
+  ) {
+    const result = await this.merchantService.confirmOrderItems(
+      req.user,
+      body.orderItemIds,
+    );
+    return resFormatMethod(0, '确认收货成功', result);
+  }
+
+  /**
+   * 申请售后（OrderItem 级别）
+   */
+  @Post('orders/after-sale')
+  async applyAfterSale(
+    @Req() req: { user: JwtPayloadType },
+    @Body() body: { orderItemIds: string[] },
+  ) {
+    const result = await this.merchantService.applyAfterSale(
+      req.user,
+      body.orderItemIds,
+    );
+    return resFormatMethod(0, '售后申请成功', result);
   }
 }

@@ -275,22 +275,6 @@ export const RedisKeys = {
       `order:pending:payment:list:${userId}:${createdAtTimestamp}`,
 
     /**
-     * 待发货订单列表
-     * 格式：order:pending:shipment:list
-     * @example order:pending:shipment:list
-     *
-     * 待发货订单列表
-     * 格式：order:pending:shipment:list
-     * @example order:pending:shipment:list
-     *
-     * *说明：
-     * - 使用 Redis Set 存储所有待发货的订单 ID
-     * - 用于发货管理
-     * - 无过期时间，手动管理
-     */
-    PENDING_SHIPMENT_LIST: 'order:pending:shipment:list',
-
-    /**
      * 订单统计信息（全局）
      * 格式：order:statistics:global
      * @example order:statistics:global

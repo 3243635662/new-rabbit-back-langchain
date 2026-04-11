@@ -47,7 +47,7 @@ export class UserCoupon {
 
   // 订单使用后，记录订单ID，防止重复使用，也方便反查
   @Column({ nullable: true, comment: '使用的订单ID' })
-  orderId: number;
+  orderId: string;
 
   // ----------------------
   // 3. 有效期 (冗余字段，防止模板修改影响已领取的券)

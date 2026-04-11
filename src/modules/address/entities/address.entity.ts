@@ -10,6 +10,7 @@ import {
   Index,
 } from 'typeorm';
 import { User } from '../../user/entities/user.entity';
+import { Area } from './area.entity';
 
 @Entity('address')
 export class Address {
@@ -38,42 +39,20 @@ export class Address {
   phone: string;
 
   // ----------------------
-  // 3. 地区信息 (编码 + 名称 双存储)
+  // 3. 地区信息 (只存最细粒度的区划编码，通过 area 表 pid 链追溯上级)
   // ----------------------
 
-  @Column({ length: 20, name: 'province_code', comment: '省编码' })
-  provinceCode: string;
-
-  @Column({ length: 50, name: 'province_name', comment: '省名称' })
-  provinceName: string;
-
-  @Column({ length: 20, name: 'city_code', comment: '市编码' })
-  cityCode: string;
-
-  @Column({ length: 50, name: 'city_name', comment: '市名称' })
-  cityName: string;
-
-  @Column({ length: 20, name: 'district_code', comment: '区/县编码' })
-  districtCode: string;
-
-  @Column({ length: 50, name: 'district_name', comment: '区/县名称' })
-  districtName: string;
-
+  @Index()
   @Column({
-    length: 20,
-    name: 'street_code',
-    nullable: true,
-    comment: '街道编码',
-  })
-  streetCode: string;
-
-  @Column({
+    name: 'area_code',
     length: 50,
-    name: 'street_name',
-    nullable: true,
-    comment: '街道名称',
+    comment: '行政区划编码(area.ext_id)',
   })
-  streetName: string;
+  areaCode: string;
+
+  @ManyToOne(() => Area, (area) => area.extId)
+  @JoinColumn({ name: 'area_code', referencedColumnName: 'extId' })
+  area: Area;
 
   // ----------------------
   // 4. 详细地址
