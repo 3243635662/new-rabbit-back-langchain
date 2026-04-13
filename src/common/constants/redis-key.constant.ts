@@ -43,6 +43,7 @@ export const RedisKeys = {
     USER_IDS: 'bloom:user:ids', // 用户 ID 布隆过滤器
     ORDER_IDS: 'bloom:order:ids', // 订单 ID 布隆过滤器
     ROLE_IDS: 'bloom:role:ids', // 角色 ID 布隆过滤器
+    AREA_IDS: 'bloom:area:ids', // 地区 ID 布隆过滤器
   },
 
   // *═══════════════════════════════════════════════════════
@@ -130,6 +131,13 @@ export const RedisKeys = {
      */
     getClientHomeSideRecommendationLockKey: () =>
       `lock:clientHome:sideRecommendation`,
+
+    /**
+     * 地区级联缓存重建锁（防缓存击穿）
+     * 格式：lock:area:cascade:{pid}
+     * @param pid 父级ID
+     */
+    getCascadeAreaLockKey: (pid: number) => `lock:area:cascade:${pid}`,
   },
 
   // *═══════════════════════════════════════════════════════
@@ -298,5 +306,10 @@ export const RedisKeys = {
      * - 包含各状态订单数量
      */
     getUserOrderStatsKey: (userId: string) => `order:user:stats:${userId}`,
+  },
+  // 地区相关键
+  AREA: {
+    // 级联地区缓存
+    getCascadeAreaKey: (pid: string) => `area:cascade:${pid}`,
   },
 } as const;

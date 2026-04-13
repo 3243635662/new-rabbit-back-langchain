@@ -19,6 +19,7 @@ import {
   OrderItem,
   ShippingStatus,
 } from '../order/entities/order_items.entity';
+import { InventoryService } from '../inventory/inventory.service';
 import { JwtPayloadType } from '../../types/auth.type';
 import { PaginationOptionsType } from '../../types/pagination.type';
 import { IPaginationOptions, paginate } from 'nestjs-typeorm-paginate';
@@ -48,6 +49,7 @@ export class MerchantService {
     private readonly brandsRepo: Repository<Brands>,
     @InjectRepository(OrderItem)
     private readonly orderItemRepo: Repository<OrderItem>,
+    private readonly inventoryService: InventoryService,
   ) {}
 
   //* 获取商家的商品列表 (SKU级细分)
@@ -77,6 +79,7 @@ export class MerchantService {
       .leftJoinAndSelect('sku.goods', 'goods')
       .leftJoinAndSelect('goods.category', 'category')
       .leftJoinAndSelect('goods.brandRelation', 'brandRelation')
+      .leftJoinAndSelect('sku.inventory', 'inventory')
       .where('goods.merchantId = :merchantId', { merchantId: merchant.id });
 
     // 关键词过滤 (商品名称 或 SKU规格内容)
@@ -135,7 +138,7 @@ export class MerchantService {
         specs: sku.specs,
         specsLabel,
         price: sku.price,
-        stock: sku.stock,
+        stock: sku.inventory?.stock ?? 0,
         skuCode: sku.skuCode,
         brand: sku.goods?.brandRelation?.name || '无品牌',
         picture: sku.picture || DEFAULT_GOODS_PICTURE,
@@ -231,7 +234,6 @@ export class MerchantService {
         merchantId: merchant.id,
         mainPicture: body.mainPicture,
         brandId: brandId,
-        warningStock: body.warningStock || 0,
       });
 
       const savedGoods = await manager.save(Goods, goods);
@@ -284,7 +286,6 @@ export class MerchantService {
         const defaultSku = manager.create(GoodsSku, {
           goodsId: savedGoods.id,
           price: body.price,
-          stock: body.stock,
           skuCode: `SKU${Date.now()}001`, // 默认 SKU 编码
           specs: [], // 无规格
           picture: body.mainPicture || DEFAULT_GOODS_PICTURE,
@@ -312,7 +313,6 @@ export class MerchantService {
           const sku = manager.create(GoodsSku, {
             goodsId: savedGoods.id,
             price: body.price,
-            stock: body.stock,
             skuCode: `SKU${Date.now()}${skuIdx.toString().padStart(3, '0')}`,
             specs: combo.map((c) => ({ name: c.name, value: c.value })),
             picture: skuPicture,
@@ -324,6 +324,15 @@ export class MerchantService {
 
       // 保存所有 SKU
       await manager.save(GoodsSku, allSkus);
+
+      // 批量创建库存记录
+      await this.inventoryService.batchInitStock(
+        allSkus.map((sku) => ({
+          skuId: sku.id,
+          stock: body.stock,
+          warningStock: body.warningStock || 0,
+        })),
+      );
 
       // 如果没有传主图，使用第一个 SKU 的图片
       if (!body.mainPicture && allSkus.length > 0) {
@@ -519,7 +528,6 @@ export class MerchantService {
         categoryLabel,
         brandId: goods.brandId,
         brand: brandLabel,
-        warningStock: goods.warningStock,
         picture: goods.mainPicture || DEFAULT_GOODS_PICTURE,
         status: goods.status ?? true,
         isReviewed: goods.isReviewed ?? false,
@@ -573,6 +581,7 @@ export class MerchantService {
       .leftJoinAndSelect('sku.goods', 'goods')
       .leftJoinAndSelect('goods.category', 'category')
       .leftJoinAndSelect('goods.brandRelation', 'brandRelation')
+      .leftJoinAndSelect('sku.inventory', 'inventory')
       .where('sku.goodsId = :goodsId', { goodsId })
       .andWhere('goods.merchantId = :merchantId', { merchantId: merchant.id })
       .orderBy('sku.createdAt', 'DESC');
@@ -597,7 +606,7 @@ export class MerchantService {
         specs: sku.specs,
         specsLabel,
         price: sku.price,
-        stock: sku.stock,
+        stock: sku.inventory?.stock ?? 0,
         skuCode: sku.skuCode,
         brand: sku.goods?.brandRelation?.name || '无品牌',
         picture: sku.picture || DEFAULT_GOODS_PICTURE,

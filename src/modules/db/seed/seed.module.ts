@@ -13,6 +13,7 @@ import { User } from '../../user/entities/user.entity';
 import { Role } from '../../role/entities/role.entity';
 import { HomeBanner } from '../../clientHome/entities/home-banner.entity';
 import { HomeCategory } from '../../clientHome/entities/home-category.entity';
+import { InventoryModule } from '../../inventory/inventory.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { HomeCategory } from '../../clientHome/entities/home-category.entity';
       HomeBanner,
       HomeCategory,
     ]),
+    InventoryModule,
   ],
   providers: [SeedService],
   controllers: [SeedController],

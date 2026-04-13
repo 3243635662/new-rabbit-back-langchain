@@ -4,12 +4,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, LessThan } from 'typeorm';
 import { Order, OrderStatus } from './entities/orders.entity';
 import { OrderItem } from './entities/order_items.entity';
-import { GoodsSku } from '../goods/entities/goods_sku.entity';
-import { InventoryLog } from '../inventory/entities/inventory_logs.entity';
 import { RedisService } from '../db/redis/redis.service';
 import { RedisKeys } from '../../common/constants/redis-key.constant';
 import { UserCoupon } from '../coupon/entities/user-coupon.entity';
 import { RedisTTL } from '../../common/constants/redis-TTL.constant';
+import { InventoryService } from '../inventory/inventory.service';
 
 /**
  * 订单超时定时任务调度器
@@ -42,12 +41,9 @@ export class OrderTimeoutScheduler {
     private orderRepo: Repository<Order>,
     @InjectRepository(OrderItem)
     private orderItemRepo: Repository<OrderItem>,
-    @InjectRepository(GoodsSku)
-    private skuRepo: Repository<GoodsSku>,
-    @InjectRepository(InventoryLog)
-    private inventoryLogRepo: Repository<InventoryLog>,
     private readonly redisService: RedisService,
     private readonly dataSource: DataSource,
+    private readonly inventoryService: InventoryService,
   ) {}
 
   /**
@@ -164,27 +160,21 @@ export class OrderTimeoutScheduler {
         where: { orderId: order.id },
       });
 
-      // 4. 回滚库存 + 记录库存日志
+      // 4. 回滚库存 + 记录库存日志（通过 InventoryService）
       for (const item of orderItems) {
-        const sku = await queryRunner.manager.findOne(GoodsSku, {
-          where: { id: item.skuId },
-          lock: { mode: 'pessimistic_write' },
-        });
-
-        if (sku) {
-          // 恢复库存
-          sku.stock += item.count;
-          await queryRunner.manager.save(GoodsSku, sku);
-
-          // 记录库存变动日志
-          const inventoryLog = new InventoryLog();
-          inventoryLog.skuId = item.skuId;
-          inventoryLog.change = item.count; // 正数表示入库
-          inventoryLog.currentStock = sku.stock;
-          inventoryLog.type = 'REFUND'; // 退货/超时回滚
-          inventoryLog.relatedId = order.orderNo;
-          inventoryLog.remark = `订单超时取消，回滚库存`;
-          await queryRunner.manager.save(InventoryLog, inventoryLog);
+        try {
+          await this.inventoryService.restoreStock(
+            item.skuId,
+            item.count,
+            'REFUND',
+            order.orderNo,
+            '订单超时取消，回滚库存',
+            queryRunner,
+          );
+        } catch (error) {
+          this.logger.warn(
+            `回滚库存失败: skuId=${item.skuId}, ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
       }
 

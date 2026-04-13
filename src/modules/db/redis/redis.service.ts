@@ -44,6 +44,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       await this.ensureFilterExists(BloomFilters.USER_IDS);
       await this.ensureFilterExists(BloomFilters.ORDER_IDS);
       await this.ensureFilterExists(BloomFilters.ROLE_IDS);
+      await this.ensureFilterExists(BloomFilters.AREA_IDS);
       this.logger.log('✅ 布隆过滤器已初始化');
     } catch (error) {
       this.logger.error('❌ 初始化布隆过滤器失败:', error);
@@ -226,6 +227,20 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   async unlockClientHomeSideRecommendationLock(): Promise<void> {
     const lockKey = RedisKeys.LOCK.getClientHomeSideRecommendationLockKey();
+    await this.unlockByKey(lockKey);
+  }
+
+  // *地区级联缓存重建锁（防缓存击穿）
+  async tryCascadeAreaLock(
+    pid: number,
+    expire: number = RedisTTL.LOCK.AREA_CASCADE,
+  ): Promise<boolean> {
+    const lockKey = RedisKeys.LOCK.getCascadeAreaLockKey(pid);
+    return this.tryLockByKey(lockKey, expire);
+  }
+
+  async unlockCascadeAreaLock(pid: number): Promise<void> {
+    const lockKey = RedisKeys.LOCK.getCascadeAreaLockKey(pid);
     await this.unlockByKey(lockKey);
   }
 

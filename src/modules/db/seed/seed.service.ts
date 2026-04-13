@@ -8,6 +8,7 @@ import { Merchant } from '../../merchant/entities/merchant.entity';
 import { GoodsSku } from '../../goods/entities/goods_sku.entity';
 import { Role } from '../../role/entities/role.entity';
 import { RedisService, BloomFilters } from '../redis/redis.service';
+import { InventoryService } from '../../inventory/inventory.service';
 import { BcryptUtil } from '../../../utils/bcrypt.util';
 import { HomeBanner } from '../../clientHome/entities/home-banner.entity';
 import { HomeCategory } from '../../clientHome/entities/home-category.entity';
@@ -39,6 +40,7 @@ export class SeedService {
     @InjectRepository(HomeCategory)
     private readonly homeCategoryRepo: Repository<HomeCategory>,
     private readonly redisService: RedisService,
+    private readonly inventoryService: InventoryService,
   ) {}
 
   //*初始化超级管理员
@@ -126,15 +128,23 @@ export class SeedService {
           goodsId: goods.id,
           skuCode: `SKU-${goods.id}-${(index + 1).toString().padStart(3, '0')}`,
           price: 1999.0, // 初始默认价格，实际业务中可从 goods 表取基准价增加
-          stock: 100, // 默认库存
           picture: skuPicture,
           specs: specList,
         });
       });
 
       if (skusToSave.length > 0) {
-        await this.skuRepo.save(skusToSave);
-        totalCreated += skusToSave.length;
+        const savedSkus = await this.skuRepo.save(skusToSave);
+
+        // 批量创建库存记录
+        await this.inventoryService.batchInitStock(
+          savedSkus.map((sku) => ({
+            skuId: sku.id,
+            stock: 100,
+          })),
+        );
+
+        totalCreated += savedSkus.length;
       }
     }
 

@@ -37,9 +37,6 @@ export class Goods {
   @JoinColumn({ name: 'brandId' })
   brandRelation: Brands;
 
-  @Column({ default: 0, comment: '库存预警值' })
-  warningStock: number;
-
   @Column({ nullable: true, comment: '商品分类ID' })
   categoryId: number;
 

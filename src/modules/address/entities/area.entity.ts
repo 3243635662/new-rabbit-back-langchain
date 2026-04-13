@@ -1,8 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, Index } from 'typeorm';
+import { Entity, PrimaryColumn, Column, Index } from 'typeorm';
 
 @Entity('area')
 export class Area {
-  @PrimaryGeneratedColumn()
+  @PrimaryColumn()
   id: number;
 
   @Index()

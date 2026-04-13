@@ -28,6 +28,7 @@ export const RedisTTL = {
     MENU_ROUTE: 10, // 菜单路由锁 (10秒) - 防止缓存击穿
     CLIENT_HOME_CAROUSEL: 10, // 首页轮播图锁 (10秒) - 防止缓存击穿
     CLIENT_HOME_SIDE_RECOMMENDATION: 10, // 首页侧边推荐锁 (10秒) - 防止缓存击穿
+    AREA_CASCADE: 10, // 地区级联锁 (10秒) - 防止缓存击穿
   },
 
   /**
@@ -37,6 +38,8 @@ export const RedisTTL = {
     CLIENT_HOME_DEFAULT: 86400, // 首页默认缓存 (1天) - 客户端首页轮播图和推荐
 
     MENU_ROUTE_BASE: 36000000, // 菜单路由基础缓存 (1小时) - 角色菜单路由
+
+    AREA_CASCADE: 86400, // 地区级联缓存 (1天) - 区划数据变更极少
 
     ORDER_NO_COUNTER: 172800, // 订单号计数器 (2天) - 防止内存溢出
     ORDER_NO_MAP: 3600, // 订单号映射 (1小时) - 通过业务订单号快速查询订单ID

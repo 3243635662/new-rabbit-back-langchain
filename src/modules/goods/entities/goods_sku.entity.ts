@@ -3,11 +3,13 @@ import {
   PrimaryGeneratedColumn,
   Column,
   ManyToOne,
+  OneToOne,
   JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { Goods } from './goods.entity';
+import { Inventory } from '../../inventory/entities/inventory.entity';
 
 @Entity('goods_sku')
 export class GoodsSku {
@@ -29,8 +31,9 @@ export class GoodsSku {
   })
   price: number;
 
-  @Column({ default: 0, comment: 'SKU具体库存量' })
-  stock: number;
+  // 库存已迁移到 inventory 表，通过 inventory 关联获取
+  @OneToOne(() => Inventory, (inventory) => inventory.sku)
+  inventory: Inventory;
 
   @Column({ nullable: true, comment: 'SKU 编码 (唯一)' })
   skuCode: string;

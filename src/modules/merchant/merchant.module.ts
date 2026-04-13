@@ -12,6 +12,7 @@ import { OrderItem } from '../order/entities/order_items.entity';
 import { Spec } from '../goods/entities/spec.entity';
 import { SpecValue } from '../goods/entities/spec_value.entity';
 import { GoodsInfo } from '../goods/entities/goodInfo.entity';
+import { InventoryModule } from '../inventory/inventory.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { GoodsInfo } from '../goods/entities/goodInfo.entity';
       Brands,
       OrderItem,
     ]),
+    InventoryModule,
   ],
   controllers: [MerchantController],
   providers: [MerchantService],

@@ -10,7 +10,6 @@ import {
   Index,
 } from 'typeorm';
 import { User } from '../../user/entities/user.entity';
-import { Area } from './area.entity';
 
 @Entity('address')
 export class Address {
@@ -39,7 +38,7 @@ export class Address {
   phone: string;
 
   // ----------------------
-  // 3. 地区信息 (只存最细粒度的区划编码，通过 area 表 pid 链追溯上级)
+  // 3. 地区信息 (只存最细粒度的区划编码，通过 AreaService 追溯上级)
   // ----------------------
 
   @Index()
@@ -49,10 +48,6 @@ export class Address {
     comment: '行政区划编码(area.ext_id)',
   })
   areaCode: string;
-
-  @ManyToOne(() => Area, (area) => area.extId)
-  @JoinColumn({ name: 'area_code', referencedColumnName: 'extId' })
-  area: Area;
 
   // ----------------------
   // 4. 详细地址

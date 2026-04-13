@@ -6,17 +6,16 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-// import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource } from 'typeorm';
 import { Address } from '../address/entities/address.entity';
 import { RedisService } from '../db/redis/redis.service';
 import { GoodsSku } from '../goods/entities/goods_sku.entity';
-import { InventoryLog } from '../inventory/entities/inventory_logs.entity';
 import { OrderItem } from './entities/order_items.entity';
 import { Order } from './entities/orders.entity';
 import { SnowflakeIdService } from '../../common/services/snowflake-id.service';
 import { OrderNoGeneratorService } from '../../common/services/order-no-generator.service';
 import { CouponService } from '../coupon/coupon.service';
+import { InventoryService } from '../inventory/inventory.service';
 import { RedisKeys } from '../../common/constants/redis-key.constant';
 
 @Injectable()
@@ -24,21 +23,12 @@ export class OrderService {
   private readonly logger = new Logger(OrderService.name);
 
   constructor(
-    // @InjectRepository(Order)
-    // private orderRepo: Repository<Order>,
-    // @InjectRepository(OrderItem)
-    // private orderItemRepo: Repository<OrderItem>,
-    // @InjectRepository(GoodsSku)
-    // private skuRepo: Repository<GoodsSku>,
-    // @InjectRepository(Address)
-    // private addressRepo: Repository<Address>,
-    // @InjectRepository(InventoryLog)
-    // private inventoryLogRepo: Repository<InventoryLog>,
-    private readonly snowflakeIdService: SnowflakeIdService, // 雪花ID服务
+    private readonly snowflakeIdService: SnowflakeIdService,
     private readonly redisService: RedisService,
-    private readonly dataSource: DataSource, // TypeORM 数据源，用于事务
-    private readonly orderNoGeneratorService: OrderNoGeneratorService, // 订单号生成服务
-    private readonly couponService: CouponService, // 优惠券服务
+    private readonly dataSource: DataSource,
+    private readonly orderNoGeneratorService: OrderNoGeneratorService,
+    private readonly couponService: CouponService,
+    private readonly inventoryService: InventoryService,
   ) {}
 
   /**
@@ -98,15 +88,21 @@ export class OrderService {
           const sku = await queryRunner.manager.findOne(GoodsSku, {
             where: { id: item.skuId },
             relations: ['goods'],
-            lock: { mode: 'pessimistic_read' }, // 悲观锁 并发修改
+            lock: { mode: 'pessimistic_read' },
           });
 
           if (!sku) {
             throw new NotFoundException('商品不存在');
           }
 
-          // 检查库存
-          if (sku.stock < item.count) {
+          // 检查库存（通过 inventory 表）
+          try {
+            await this.inventoryService.checkStock(
+              item.skuId,
+              item.count,
+              queryRunner,
+            );
+          } catch {
             throw new BadRequestException('商品库存不足');
           }
 
@@ -180,23 +176,21 @@ export class OrderService {
       // 保存订单项
       await queryRunner.manager.save(OrderItem, orderItems);
 
-      // 扣减库存 & 记录库存日志
+      // 扣减库存 & 记录库存日志（通过 InventoryService）
       for (const item of createOrderDto.items) {
-        const sku = await queryRunner.manager.findOne(GoodsSku, {
-          where: { id: item.skuId },
-          lock: { mode: 'pessimistic_write' },
-        });
-        if (sku) {
-          sku.stock -= item.count;
-          await queryRunner.manager.save(GoodsSku, sku);
-
-          const inventoryLog = new InventoryLog();
-          inventoryLog.skuId = item.skuId;
-          inventoryLog.change = -item.count;
-          inventoryLog.currentStock = sku.stock;
-          inventoryLog.type = 'ORDER';
-          inventoryLog.relatedId = orderNo;
-          await queryRunner.manager.save(InventoryLog, inventoryLog);
+        try {
+          await this.inventoryService.deductStock(
+            item.skuId,
+            item.count,
+            'ORDER',
+            orderNo,
+            queryRunner,
+          );
+        } catch (e) {
+          this.logger.error(
+            `扣减库存失败: skuId=${item.skuId}, ${e instanceof Error ? e.message : String(e)}`,
+          );
+          throw new BadRequestException('商品库存不足');
         }
       }
 

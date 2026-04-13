@@ -1,6 +1,7 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { AreaService } from './area.service';
 import { resFormatMethod } from '../../utils/resFormat.util';
+import { Public } from '../../common/decorators/public.decorator';
 
 @Controller('area')
 export class AreaController {
@@ -10,6 +11,7 @@ export class AreaController {
    * 获取下级区划列表（省市区街道级联）
    * GET /area/children?pid=0
    */
+  @Public()
   @Get('children')
   async getChildren(@Query('pid') pid?: string) {
     const list = await this.areaService.getChildren(pid ? Number(pid) : 0);
@@ -33,6 +35,7 @@ export class AreaController {
    * 模糊搜索区划（支持名称、拼音、拼音首字母）
    * GET /area/search?keyword=邯山
    */
+  @Public()
   @Get('search')
   async search(
     @Query('keyword') keyword: string,

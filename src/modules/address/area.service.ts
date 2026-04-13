@@ -1,24 +1,103 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like } from 'typeorm';
 import { Area } from './entities/area.entity';
+import { RedisService } from '../db/redis/redis.service';
+import { RedisKeys } from '../../common/constants/redis-key.constant';
+import { RedisTTL } from '../../common/constants/redis-TTL.constant';
 
 @Injectable()
-export class AreaService {
+export class AreaService implements OnModuleInit {
+  private readonly logger = new Logger(AreaService.name);
+
   constructor(
     @InjectRepository(Area)
     private readonly areaRepo: Repository<Area>,
+    private readonly redisService: RedisService,
   ) {}
+
+  async onModuleInit() {
+    await this.warmUpAreaCache();
+  }
+
+  /**
+   * 预热区划缓存：将所有区划 ext_id 写入布隆过滤器 + 预热省级缓存
+   */
+  async warmUpAreaCache() {
+    try {
+      const areas = await this.areaRepo.find({ select: ['extId'] });
+      const bloomKey = RedisKeys.BLOOM.AREA_IDS;
+
+      for (const area of areas) {
+        await this.redisService.addItem(bloomKey, area.extId);
+      }
+
+      this.logger.log(
+        `✅ 区划缓存预热完成，共加载 ${areas.length} 条区划到布隆过滤器`,
+      );
+
+      // 预热省级数据（pid=0）
+      void this.getChildren(0);
+    } catch (error) {
+      this.logger.error('❌ 区划缓存预热失败:', error);
+    }
+  }
+
+  /**
+   * 检查区划编码是否存在（布隆过滤器，防缓存穿透）
+   */
+  async areaCodeExists(extId: string): Promise<boolean> {
+    return this.redisService.itemExists(RedisKeys.BLOOM.AREA_IDS, extId);
+  }
 
   /**
    * 根据父级ID获取下级区划列表（级联选择用）
+   * 三防缓存：布隆防穿透 + 互斥锁防击穿 + 随机TTL防雪崩
    * @param pid 父级ID，0 表示查省级
    */
-  async getChildren(pid = 0) {
-    return this.areaRepo.find({
-      where: { pid },
-      order: { id: 'ASC' },
-    });
+  async getChildren(pid = 0): Promise<Area[]> {
+    const cacheKey = RedisKeys.AREA.getCascadeAreaKey(String(pid));
+
+    // 1. 查缓存（带逻辑过期，防雪崩）
+    const { data: cached, isExpired } =
+      await this.redisService.getWithLogicExpire<Area[]>(cacheKey);
+
+    if (cached && !isExpired) {
+      return cached;
+    }
+
+    // 2. 缓存失效，加互斥锁回源（防击穿）
+    const hasLock = await this.redisService.tryCascadeAreaLock(pid);
+
+    if (hasLock) {
+      try {
+        const areas = await this.areaRepo.find({
+          where: { pid },
+          order: { id: 'ASC' },
+        });
+
+        // 设置缓存，带逻辑过期 + 随机偏移（防雪崩）
+        const expireSeconds =
+          Number(RedisTTL.CACHE.AREA_CASCADE) +
+          Math.floor(Math.random() * 3600);
+        await this.redisService.setWithLogicExpire(
+          cacheKey,
+          areas,
+          expireSeconds,
+        );
+
+        return areas;
+      } finally {
+        await this.redisService.unlockCascadeAreaLock(pid);
+      }
+    } else {
+      // 没拿到锁，返回旧数据或等重试
+      if (cached) {
+        return cached;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return this.getChildren(pid);
+    }
   }
 
   /**

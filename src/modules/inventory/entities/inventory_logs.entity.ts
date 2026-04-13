@@ -7,7 +7,7 @@ import {
   JoinColumn,
   Index,
 } from 'typeorm';
-import { GoodsSku } from '../../goods/entities/goods_sku.entity';
+import { Inventory } from './inventory.entity';
 
 @Entity('inventory_logs')
 export class InventoryLog {
@@ -15,15 +15,15 @@ export class InventoryLog {
   id: number;
 
   // ----------------------
-  // 1. 关联SKU
+  // 1. 关联库存记录
   // ----------------------
   @Index() // 经常需要查询某个SKU的变动记录
   @Column({ name: 'sku_id', comment: '关联的商品SKU ID' })
   skuId: number;
 
-  @ManyToOne(() => GoodsSku)
-  @JoinColumn({ name: 'sku_id' })
-  sku: GoodsSku;
+  @ManyToOne(() => Inventory, (inventory) => inventory.logs)
+  @JoinColumn({ name: 'sku_id', referencedColumnName: 'skuId' })
+  inventory: Inventory;
 
   // ----------------------
   // 2. 变动数量 (核心逻辑)
@@ -52,16 +52,16 @@ export class InventoryLog {
   type: string;
 
   @Column({ nullable: true, comment: '关联单据ID (如订单号、售后单号)' })
-  relatedId: string; // 比如下单扣减时，这里存 orderNo
+  relatedId: string | null; // 比如下单扣减时，这里存 orderNo
 
   // ----------------------
   // 4. 操作信息
   // ----------------------
   @Column({ nullable: true, comment: '操作人ID (系统自动或管理员)' })
-  operatorId: string;
+  operatorId: string | null;
 
   @Column({ length: 255, nullable: true, comment: '备注说明' })
-  remark: string;
+  remark: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
