@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Address } from './entities/address.entity';
@@ -6,6 +6,9 @@ import { AreaService } from './area.service';
 import { JwtPayloadType } from '../../types/auth.type';
 import type { PaginationOptionsType } from '../../types/pagination.type';
 import { IPaginationOptions, paginate } from 'nestjs-typeorm-paginate';
+import { CreateAddressDto } from './dto/createAddress.dto';
+import { UpdateAddressDto } from './dto/updateAddress.dto';
+import { UpdateAddressLabelDto } from './dto/updateAddressLabel.dto';
 
 @Injectable()
 export class AddressService {
@@ -87,5 +90,97 @@ export class AddressService {
       limit: paginationData.meta.itemsPerPage,
       totalPage: paginationData.meta.totalPages,
     };
+  }
+
+  /**
+   * 用户新增地址
+   */
+  async addAddress(payload: JwtPayloadType, dto: CreateAddressDto) {
+    const { id: userId } = payload;
+
+    // 如果新增的是默认地址，先将该用户其他默认地址取消
+    if (dto.isDefault) {
+      await this.addressRepo.update(
+        { userId, isDefault: true },
+        { isDefault: false },
+      );
+    }
+
+    const address = this.addressRepo.create({
+      userId,
+      ...dto,
+    });
+
+    return this.addressRepo.save(address);
+  }
+
+  /**
+   * 修改地址标签
+   */
+  async updateLabel(
+    payload: JwtPayloadType,
+    addressId: string,
+    dto: UpdateAddressLabelDto,
+  ) {
+    const { id: userId } = payload;
+
+    const address = await this.addressRepo.findOne({
+      where: { id: addressId, userId },
+    });
+
+    if (!address) {
+      throw new NotFoundException('地址不存在');
+    }
+
+    address.label = dto.label ?? address.label;
+    return this.addressRepo.save(address);
+  }
+
+  /**
+   * 修改地址
+   */
+  async updateAddress(
+    payload: JwtPayloadType,
+    addressId: string,
+    dto: UpdateAddressDto,
+  ) {
+    const { id: userId } = payload;
+
+    const address = await this.addressRepo.findOne({
+      where: { id: addressId, userId },
+    });
+
+    if (!address) {
+      throw new NotFoundException('地址不存在');
+    }
+
+    // 如果修改为默认地址，先将该用户其他默认地址取消
+    if (dto.isDefault) {
+      await this.addressRepo.update(
+        { userId, isDefault: true },
+        { isDefault: false },
+      );
+    }
+
+    Object.assign(address, dto);
+    return this.addressRepo.save(address);
+  }
+
+  /**
+   * 删除地址（软删除）
+   */
+  async deleteAddress(payload: JwtPayloadType, addressId: string) {
+    const { id: userId } = payload;
+
+    const address = await this.addressRepo.findOne({
+      where: { id: addressId, userId },
+    });
+
+    if (!address) {
+      throw new NotFoundException('地址不存在');
+    }
+
+    await this.addressRepo.softRemove(address);
+    return { id: addressId };
   }
 }

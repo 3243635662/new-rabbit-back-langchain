@@ -51,16 +51,26 @@ export class InventoryLog {
   })
   type: string;
 
-  @Column({ nullable: true, comment: '关联单据ID (如订单号、售后单号)' })
+  @Column({
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+    comment: '关联单据ID (如订单号、售后单号)',
+  })
   relatedId: string | null; // 比如下单扣减时，这里存 orderNo
 
   // ----------------------
   // 4. 操作信息
   // ----------------------
-  @Column({ nullable: true, comment: '操作人ID (系统自动或管理员)' })
+  @Column({
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+    comment: '操作人ID (系统自动或管理员)',
+  })
   operatorId: string | null;
 
-  @Column({ length: 255, nullable: true, comment: '备注说明' })
+  @Column({ type: 'varchar', length: 255, nullable: true, comment: '备注说明' })
   remark: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
