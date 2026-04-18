@@ -24,6 +24,7 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { CouponModule } from './modules/coupon/coupon.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { LangChainModule } from './langchain/langchain.module';
 @Module({
   imports: [
     MenuModule,
@@ -62,6 +63,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     AdminModule,
     CouponModule,
     ScheduleModule.forRoot(),
+    LangChainModule,
   ],
   controllers: [AppController],
   providers: [

@@ -18,3 +18,5 @@ export class Role {
   @Column({ default: '' })
   desc: string;
 }
+
+// 1:Admin 2:MerchantAdmin 3:User

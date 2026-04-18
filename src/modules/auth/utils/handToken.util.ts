@@ -101,6 +101,21 @@ export class HandleTokenService {
   };
 
   /**
+   * 从 query 参数中提取并验证 token（用于 SSE 等 EventSource 场景）
+   * @param token query 中的 token 字符串
+   * @returns 验证后的 JWT payload
+   * @throws UnauthorizedException 当token无效时
+   */
+  verifyTokenFromQuery = async (token: string): Promise<JwtPayloadType> => {
+    if (!token) {
+      throw new UnauthorizedException('请先登录');
+    }
+    // 兼容前端传 "Bearer xxx" 或纯 token 的情况
+    const pureToken = token.startsWith('Bearer ') ? token.slice(7) : token;
+    return this.verifyToken(pureToken);
+  };
+
+  /**
    * 检查token是否即将过期（在指定时间内）
    * @param payload JWT payload
    * @param minutesBeforeExpiration 提前多少分钟检查（默认5分钟）
