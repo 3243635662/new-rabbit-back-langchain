@@ -10,31 +10,30 @@ import {
   Sse,
 } from '@nestjs/common';
 import { LangChainService } from './langchain.service';
-import { EmbeddingService } from './embedding.service';
 import { ChatService } from './chat.service';
 import { resFormatMethod } from '../utils/resFormat.util';
 import { Observable } from 'rxjs';
 import { MessageEvent } from '@nestjs/common';
-import { Public } from '../common/decorators/public.decorator';
 import { ChatDto } from './dto/chat.dto';
-import {
-  ChatMemoryDto,
-  CreateSessionDto,
-  UpdateSessionTitleDto,
-} from './dto/chat-memory.dto';
+import { CreateSessionDto, UpdateSessionTitleDto } from './dto/session.dto';
 import { JwtPayloadType } from '../types/auth.type';
-import { HandleTokenService } from '../modules/auth/utils/handToken.util';
 import { getRoleTypeByRoleId } from './prompts/agent.prompt';
 
 @Controller('ai')
 export class LangChainController {
   constructor(
     private readonly langChainService: LangChainService,
-    private readonly embeddingService: EmbeddingService,
     private readonly chatService: ChatService,
-    private readonly handleTokenService: HandleTokenService,
   ) {}
 
+  // ══════════════════════════════════════════════════════
+  // 基础对话接口
+  // ══════════════════════════════════════════════════════
+
+  /**
+   * 简单对话（无记忆）
+   * POST /ai/chat
+   */
   @Post('chat')
   async chat(@Body() dto: ChatDto, @Req() req: { user: JwtPayloadType }) {
     const role = getRoleTypeByRoleId(req.user.roleId);
@@ -42,19 +41,19 @@ export class LangChainController {
     return resFormatMethod(0, 'success', reply);
   }
 
-  @Public()
+  /**
+   * 流式对话（无记忆）
+   * SSE /ai/streaming-chat
+   */
   @Sse('streaming-chat')
   streamingChat(
     @Query('message') message: string,
-    @Query('token') token: string,
+    @Req() req: { user: JwtPayloadType },
   ): Observable<MessageEvent> {
+    const role = getRoleTypeByRoleId(req.user.roleId);
     return new Observable((subscriber) => {
       void (async () => {
         try {
-          const payload =
-            await this.handleTokenService.verifyTokenFromQuery(token);
-          const role = getRoleTypeByRoleId(payload.roleId);
-
           for await (const chunk of this.langChainService.streamChat(
             message,
             role,
@@ -69,121 +68,6 @@ export class LangChainController {
         }
       })();
     });
-  }
-
-  @Post('embed')
-  async embed(@Body() dto: ChatDto) {
-    const vector = await this.embeddingService.embedQuery(dto.message);
-    return resFormatMethod(0, 'success', {
-      dimension: vector.length,
-      preview: vector.slice(0, 5),
-    });
-  }
-
-  @Post('few-shot')
-  async fewShot(@Body() dto: ChatDto) {
-    const reply = await this.langChainService.fewShotChat(dto.message);
-    return resFormatMethod(0, 'success', reply);
-  }
-
-  @Post('chat-with-history')
-  async chatWithHistory(
-    @Body() dto: ChatDto,
-    @Req() req: { user: JwtPayloadType },
-  ) {
-    const role = getRoleTypeByRoleId(req.user.roleId);
-    const reply = await this.langChainService.chatWithHistory(
-      dto.message,
-      role,
-    );
-    return resFormatMethod(0, 'success', reply);
-  }
-
-  // ========== Chain 链式接口（SSE 流式） ==========
-
-  @Public()
-  @Sse('chain/translate')
-  streamTranslateChain(
-    @Query('text') text: string,
-    @Query('inputLanguage') inputLanguage: string,
-    @Query('outputLanguage') outputLanguage: string,
-  ): Observable<MessageEvent> {
-    return new Observable((subscriber) => {
-      void (async () => {
-        try {
-          for await (const chunk of this.langChainService.streamTranslateChain(
-            text,
-            inputLanguage || '中文',
-            outputLanguage || '英语',
-          )) {
-            subscriber.next({
-              data: JSON.stringify(chunk),
-            } as MessageEvent);
-          }
-          subscriber.complete();
-        } catch (e) {
-          subscriber.error(e);
-        }
-      })();
-    });
-  }
-
-  @Public()
-  @Sse('chain/product-naming')
-  streamProductNamingChain(
-    @Query('product') product: string,
-  ): Observable<MessageEvent> {
-    return new Observable((subscriber) => {
-      void (async () => {
-        try {
-          for await (const chunk of this.langChainService.streamProductNamingChain(
-            product,
-          )) {
-            subscriber.next({
-              data: JSON.stringify(chunk),
-            } as MessageEvent);
-          }
-          subscriber.complete();
-        } catch (e) {
-          subscriber.error(e);
-        }
-      })();
-    });
-  }
-
-  // ========== 自定义函数链接口 ==========
-
-  @Public()
-  @Post('chain/custom')
-  async customChain(@Body() dto: ChatDto) {
-    const reply = await this.langChainService.customChainChat(dto.message);
-    return resFormatMethod(0, 'success', reply);
-  }
-
-  // ========== 会话记忆接口（旧版 InMemory，保留兼容） ==========
-
-  @Public()
-  @Post('chat-memory')
-  async chatWithMemory(@Body() dto: ChatMemoryDto) {
-    const reply = await this.langChainService.chatWithMemory(
-      dto.message,
-      dto.sessionId,
-    );
-    return resFormatMethod(0, 'success', reply);
-  }
-
-  @Public()
-  @Post('chat-memory/history')
-  async getChatHistory(@Query('sessionId') sessionId: string) {
-    const history = await this.langChainService.getChatHistory(sessionId);
-    return resFormatMethod(0, 'success', history);
-  }
-
-  @Public()
-  @Post('chat-memory/clear')
-  clearChatHistory(@Query('sessionId') sessionId: string) {
-    this.langChainService.clearChatHistory(sessionId);
-    return resFormatMethod(0, 'success', '已清除');
   }
 
   // ══════════════════════════════════════════════════════
