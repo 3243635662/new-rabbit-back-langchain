@@ -133,3 +133,21 @@ export const productNamingPrompt = ChatPromptTemplate.fromMessages([
 // 3. 输出解析器
 export const stringOutputParser = new StringOutputParser();
 export const listOutputParser = new CommaSeparatedListOutputParser();
+
+// ========== 自定义函数链模板 ==========
+
+// RAG 提示模板 - {context} 是检索到的文档内容，{question} 是用户问题
+export const ragPrompt = ChatPromptTemplate.fromMessages([
+  SystemMessagePromptTemplate.fromTemplate(
+    `你是一个电商知识库助手。请根据以下参考资料回答用户的问题。
+
+参考资料：
+{context}
+
+要求：
+- 只基于参考资料回答，不要编造
+- 如果参考资料中没有相关内容，回答"知识库中暂无相关信息"
+- 回答要精简准确`,
+  ),
+  HumanMessagePromptTemplate.fromTemplate('{question}'),
+]);

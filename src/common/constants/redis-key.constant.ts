@@ -312,4 +312,48 @@ export const RedisKeys = {
     // 级联地区缓存
     getCascadeAreaKey: (pid: string) => `area:cascade:${pid}`,
   },
+
+  // *═══════════════════════════════════════════════════════
+  // *AI 聊天记忆模块 (Chat Memory)
+  // *═══════════════════════════════════════════════════════
+  CHAT: {
+    /**
+     * 会话消息历史（Redis List 临时层）
+     * 格式：chat:history:{sessionId}
+     * @param sessionId 会话ID
+     * @example chat:history:1709875234567890123
+     *
+     * *说明：
+     * - 存储当前活跃会话的完整消息列表
+     * - 每条消息以 JSON 字符串存储
+     * - 7天不活跃自动过期（每次对话续期）
+     * - 用户关闭会话 / 定时任务同步到 MySQL 后可清理
+     */
+    getHistoryKey: (sessionId: string) => `chat:history:${sessionId}`,
+
+    /**
+     * 用户活跃会话集合（Redis Set）
+     * 格式：chat:user:sessions:{userId}
+     * @param userId 用户ID
+     * @example chat:user:sessions:1234567890123456789
+     *
+     * *说明：
+     * - 记录用户当前在 Redis 中的活跃会话ID
+     * - 用于定时任务批量同步到 MySQL
+     * - 7天过期
+     */
+    getUserSessionsKey: (userId: string) => `chat:user:sessions:${userId}`,
+
+    /**
+     * 会话同步锁（防止并发同步）
+     * 格式：chat:sync:lock:{sessionId}
+     * @param sessionId 会话ID
+     * @example chat:sync:lock:1709875234567890123
+     *
+     * *说明：
+     * - 防止定时任务与手动同步并发执行
+     * - 30秒过期
+     */
+    getSyncLockKey: (sessionId: string) => `chat:sync:lock:${sessionId}`,
+  },
 } as const;
