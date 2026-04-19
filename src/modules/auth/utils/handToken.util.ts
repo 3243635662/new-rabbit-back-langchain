@@ -80,7 +80,21 @@ export class HandleTokenService {
   };
 
   /**
+   * 从 query 参数中提取 token（用于 SSE 等 EventSource 场景）
+   * @param context 执行上下文
+   * @returns token 字符串或 undefined
+   */
+  extractTokenFromQuery = (context: ExecutionContext): string | undefined => {
+    const request = context.switchToHttp().getRequest<Request>();
+    const token = request.query?.token as string | undefined;
+    if (!token || typeof token !== 'string') return undefined;
+    // 兼容前端传 "Bearer xxx" 或纯 token
+    return token.startsWith('Bearer ') ? token.slice(7) : token;
+  };
+
+  /**
    * 从HTTP请求中提取并验证JWT token的完整流程
+   * 优先从 header 提取，header 无 token 时降级从 query 提取（SSE 场景）
    * @param context 执行上下文
    * @returns 验证后的JWT payload
    * @throws UnauthorizedException 当token无效时
@@ -88,13 +102,15 @@ export class HandleTokenService {
   extractAndVerifyToken = async (
     context: ExecutionContext,
   ): Promise<boolean> => {
-    // 1. 从请求头中提取token
-    const token = this.extractTokenFromHeader(context);
+    // 1. 优先从请求头中提取 token
+    const token =
+      this.extractTokenFromHeader(context) ||
+      this.extractTokenFromQuery(context);
     if (!token) {
       throw new UnauthorizedException('请先登录');
     }
 
-    // 3. 验证token并将payload挂载到请求对象 下次使用时可以直接从请求对象中获取
+    // 2. 验证token并将payload挂载到请求对象 下次使用时可以直接从请求对象中获取
     const request = context.switchToHttp().getRequest<Request>();
     request['user'] = await this.verifyToken(token);
     return true;

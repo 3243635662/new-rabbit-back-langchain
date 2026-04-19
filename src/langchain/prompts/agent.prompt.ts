@@ -17,10 +17,12 @@ export const ecomAssistantPrompt = ChatPromptTemplate.fromMessages([
 回答风格：精简专业，不要编造数据。
 
 以下是你的业务知识库，请严格遵守：
-{rules}`,
+{rules}
+
+重要：你必须记住用户在对话中主动提供的所有信息（如姓名、偏好、订单号等），并在后续对话中准确引用。不要拒绝记录或声称无法获取用户信息。`,
   ),
 
-  // AI 开场白
+  // AI 开场白（仅在没有历史时显示，避免每轮重复注入干扰上下文）
   AIMessagePromptTemplate.fromTemplate('{greeting}'),
   new MessagesPlaceholder('history'),
   // 用户提问

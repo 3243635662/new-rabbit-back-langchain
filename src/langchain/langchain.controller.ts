@@ -303,19 +303,18 @@ export class LangChainController {
    * SSE /ai/session/:sessionId/streaming-chat
    *
    * 流程与 chatWithPersistentMemory 一致，但响应是流式
+   * SSE 无法设置 Authorization header，token 通过 query 传入，AuthGuard 内部兼容
    */
   @Sse('session/:sessionId/streaming-chat')
   streamingChatWithPersistentMemory(
     @Param('sessionId') sessionId: string,
     @Query('message') message: string,
-    @Query('message') token: string,
+    @Req() req: { user: JwtPayloadType },
   ): Observable<MessageEvent> {
     return new Observable((subscriber) => {
       void (async () => {
         try {
-          const payload =
-            await this.handleTokenService.verifyTokenFromQuery(token);
-          const role = getRoleTypeByRoleId(payload.roleId);
+          const role = getRoleTypeByRoleId(req.user.roleId);
 
           // ① 从 Redis/MySQL 获取历史消息
           const history = await this.chatService.getMessages(sessionId);

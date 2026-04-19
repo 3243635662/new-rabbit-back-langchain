@@ -55,17 +55,19 @@ export class LangChainService {
   }
 
   // 模板构建消息列表
+  // 有历史时不再注入 greeting，避免每轮重复插入"假"AI消息干扰上下文
   private async buildMessages(
     prompt: string,
     role: RoleType = 'merchant',
     history: BaseMessage[] = [],
   ): Promise<BaseMessage[]> {
     const config = ROLE_CONFIG[role];
+    const hasHistory = history && history.length > 0;
     const messages = await ecomAssistantPrompt.formatMessages({
       role: config.role,
       duty: config.duty,
       rules: config.rules,
-      greeting: config.greeting,
+      greeting: hasHistory ? '' : config.greeting,
       history,
       question: prompt,
     });
