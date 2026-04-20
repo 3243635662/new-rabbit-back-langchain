@@ -1,0 +1,223 @@
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import {
+  KnowledgeBase,
+  DocType,
+  IngestStatus,
+} from './entities/knowledge-base.entity';
+import { Merchant } from '../merchant/entities/merchant.entity';
+import { QiniuService } from '../qiniu/qiniu.service';
+
+const ALLOWED_MIME_MAP: Record<string, DocType> = {
+  'application/json': DocType.JSON,
+  'text/csv': DocType.CSV,
+  'application/pdf': DocType.PDF,
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+    DocType.DOCX,
+  'text/plain': DocType.TXT,
+};
+
+export interface PresignResult {
+  uploadToken: string;
+  key: string;
+  domain: string;
+}
+
+export interface ConfirmBody {
+  qiniuKey: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+}
+
+@Injectable()
+export class KnowledgeBaseService {
+  private readonly logger = new Logger(KnowledgeBaseService.name);
+
+  constructor(
+    @InjectRepository(KnowledgeBase)
+    private readonly kbRepo: Repository<KnowledgeBase>,
+    @InjectRepository(Merchant)
+    private readonly merchantRepo: Repository<Merchant>,
+    @InjectQueue('rag-queue') private readonly ragQueue: Queue,
+    private readonly qiniuService: QiniuService,
+  ) {}
+
+  /**
+   * 生成客户端直传七牛的凭证
+   * key 前缀绑定 merchantId，防止客户端乱传路径
+   */
+  generatePresign = async (
+    fileName: string,
+    userId: string,
+  ): Promise<PresignResult> => {
+    const merchant = await this.merchantRepo.findOne({
+      where: { userId },
+      select: ['id'],
+    });
+    if (!merchant) {
+      throw new NotFoundException('当前用户未关联商户');
+    }
+
+    const merchantId = merchant.id.toString();
+    const key = `rag/raw/${merchantId}/${Date.now()}-${fileName}`;
+    const { token, domain } = this.qiniuService.generateUploadToken(key);
+
+    return { uploadToken: token, key, domain: domain || '' };
+  };
+
+  /**
+   * 客户端直传七牛成功后，回调确认 → 创建 DB 记录 + 推入队列
+   * 服务器全程不接触文件内容，零内存/带宽
+   */
+  confirmUpload = async (body: ConfirmBody, userId: string) => {
+    const { qiniuKey, fileName, mimeType, fileSize } = body;
+
+    // 1. 校验 MIME
+    const docType = ALLOWED_MIME_MAP[mimeType];
+    if (!docType) {
+      throw new BadRequestException(
+        `不支持的文件类型: ${mimeType}，仅支持 json/csv/pdf/docx/txt`,
+      );
+    }
+
+    // 2. 校验商户 + key 前缀安全（防止客户端传别人的 key）
+    const merchant = await this.merchantRepo.findOne({
+      where: { userId },
+      select: ['id'],
+    });
+    if (!merchant) {
+      throw new NotFoundException('当前用户未关联商户');
+    }
+
+    const merchantId = merchant.id.toString();
+    if (!qiniuKey.startsWith(`rag/raw/${merchantId}/`)) {
+      throw new BadRequestException('qiniuKey 与当前商户不匹配');
+    }
+
+    // 3. 写入数据库（状态 pending）
+    const qiniuUrl = this.qiniuService.buildUrl(qiniuKey);
+    const record = this.kbRepo.create({
+      fileName,
+      docType,
+      mimeType,
+      fileSize,
+      qiniuKey,
+      qiniuUrl,
+      chunkCount: 0,
+      status: IngestStatus.PENDING,
+      merchantId: merchant.id,
+    });
+    await this.kbRepo.save(record);
+
+    // 4. 推入 BullMQ 队列（只传 qiniuKey，轻量解耦）
+    const job = await this.ragQueue.add(
+      'process-document',
+      { qiniuKey, merchantId },
+      {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
+        removeOnComplete: { age: 86400, count: 100 },
+        removeOnFail: { age: 172800 },
+      },
+    );
+
+    // 5. 回写 taskId
+    record.taskId = job.id || '';
+    await this.kbRepo.save(record);
+
+    this.logger.log(
+      `商户 ${merchantId} 确认上传已入队: ${fileName} → taskId: ${job.id}`,
+    );
+
+    return {
+      id: record.id,
+      fileName: record.fileName,
+      docType: record.docType,
+      status: record.status,
+      taskId: record.taskId,
+      merchantId: record.merchantId,
+      qiniuUrl: record.qiniuUrl,
+      createdAt: record.createdAt,
+    };
+  };
+
+  /**
+   * 查询任务处理进度
+   */
+  getTaskStatus = async (taskId: string) => {
+    const job = await this.ragQueue.getJob(taskId);
+    if (!job) {
+      const record = await this.kbRepo.findOne({ where: { taskId } });
+      if (record) {
+        return {
+          taskId,
+          status: record.status,
+          progress: record.status === IngestStatus.COMPLETED ? 100 : 0,
+          chunkCount: record.chunkCount,
+          failReason: record.failReason,
+        };
+      }
+      return { taskId, status: 'not_found', progress: 0 };
+    }
+
+    const state = await job.getState();
+    const progress = (job.progress as number) || 0;
+
+    return {
+      taskId,
+      status: state,
+      progress,
+      failReason: state === 'failed' ? job.failedReason : null,
+    };
+  };
+
+  /**
+   * 查询商户的知识库文档列表
+   */
+  listByMerchant = async (userId: string) => {
+    const merchant = await this.merchantRepo.findOne({
+      where: { userId },
+      select: ['id'],
+    });
+    if (!merchant) {
+      throw new NotFoundException('当前用户未关联商户');
+    }
+
+    return this.kbRepo.find({
+      where: { merchantId: merchant.id },
+      order: { createdAt: 'DESC' },
+    });
+  };
+
+  /**
+   * 删除知识库文档记录
+   */
+  remove = async (id: number, userId: string) => {
+    const merchant = await this.merchantRepo.findOne({
+      where: { userId },
+      select: ['id'],
+    });
+    if (!merchant) {
+      throw new NotFoundException('当前用户未关联商户');
+    }
+
+    const record = await this.kbRepo.findOne({
+      where: { id, merchantId: merchant.id },
+    });
+    if (!record) {
+      throw new NotFoundException('文档不存在或不属于当前商户');
+    }
+
+    await this.kbRepo.remove(record);
+    return { id };
+  };
+}

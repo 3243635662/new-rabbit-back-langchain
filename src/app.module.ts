@@ -25,6 +25,8 @@ import { AdminModule } from './modules/admin/admin.module';
 import { CouponModule } from './modules/coupon/coupon.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { LangChainModule } from './langchain/langchain.module';
+import { QiniuModule } from './modules/qiniu/qiniu.module';
+import { KnowledgeBaseModule } from './modules/knowledge-base/knowledge-base.module';
 @Module({
   imports: [
     MenuModule,
@@ -64,6 +66,8 @@ import { LangChainModule } from './langchain/langchain.module';
     CouponModule,
     ScheduleModule.forRoot(),
     LangChainModule,
+    QiniuModule,
+    KnowledgeBaseModule,
   ],
   controllers: [AppController],
   providers: [

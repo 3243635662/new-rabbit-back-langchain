@@ -1,27 +1,9 @@
-import { Controller, Post, Param } from '@nestjs/common';
-import { MerchantRagService } from './merchant-rag.service';
-import { resFormatMethod } from '../../../utils/resFormat.util';
-import * as path from 'path';
+import { Controller } from '@nestjs/common';
 
+/**
+ * MerchantRagController - 已废弃
+ * 上传接口已迁移到 KnowledgeBaseController + BullMQ 队列
+ * 保留空 Controller 避免路由冲突，后续可删除
+ */
 @Controller('merchant-rag')
-export class MerchantRagController {
-  constructor(private readonly merchantRagService: MerchantRagService) {}
-
-  /**
-   * 测试：解析 CSV 并注入商户元数据
-   * POST /merchant-rag/ingest/:merchantId
-   */
-  @Post('ingest/:merchantId')
-  async ingestCsv(@Param('merchantId') merchantId: string) {
-    const csvPath = path.join(
-      process.cwd(),
-      'src',
-      'assets',
-      'csv',
-      'ecommerce_rules.csv',
-    );
-
-    const result = await this.merchantRagService.ingestCsv(csvPath, merchantId);
-    return resFormatMethod(0, 'success', result);
-  }
-}
+export class MerchantRagController {}
