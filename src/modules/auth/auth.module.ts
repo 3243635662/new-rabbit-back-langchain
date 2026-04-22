@@ -17,7 +17,7 @@ import { AuthGuard } from './auth.guard';
         secret: configService.get<string>('TOKEN_SECRET_KEY'),
         global: true,
         signOptions: {
-          expiresIn: '1Year',
+          expiresIn: '365d',
         },
       }),
     }),

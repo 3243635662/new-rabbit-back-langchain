@@ -20,6 +20,10 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly configService: ConfigService) {}
   private client: Redis;
   private readonly logger = new Logger(RedisService.name);
+
+  getClient(): Redis {
+    return this.client;
+  }
   private readonly BLOOM_KEY = RedisKeys.BLOOM.USER_IDS;
   private readonly BLOOM_INITIAL_CAPACITY = 100000; // 初始容量
   private readonly BLOOM_ERROR_RATE = 0.01; // 误判率

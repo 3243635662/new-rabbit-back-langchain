@@ -32,9 +32,13 @@ export class LangChainService {
     prompt: string,
     role: RoleType = 'merchant',
     history: BaseMessage[] = [],
+    knowledgeBase = '',
   ): Promise<BaseMessage[]> => {
     const config = ROLE_CONFIG[role];
     const hasHistory = history && history.length > 0;
+    const kbText = knowledgeBase
+      ? `以下是从商户知识库检索到的参考资料，请基于这些资料回答用户问题（如果知识库中没有直接答案，请结合你的专业知识回答，不要编造数据）：\n\n${knowledgeBase}`
+      : '';
     const messages = await ecomAssistantPrompt.formatMessages({
       role: config.role,
       duty: config.duty,
@@ -42,13 +46,19 @@ export class LangChainService {
       greeting: hasHistory ? '' : config.greeting,
       history,
       question: prompt,
+      knowledgeBase: kbText,
     });
     return messages;
   };
 
   // 简单的对话方法（无记忆）
-  chat = async (prompt: string, role?: RoleType) => {
-    const messages: BaseMessage[] = await this.buildMessages(prompt, role);
+  chat = async (prompt: string, role?: RoleType, knowledgeBase?: string) => {
+    const messages: BaseMessage[] = await this.buildMessages(
+      prompt,
+      role,
+      [],
+      knowledgeBase,
+    );
     const response = await this.model.invoke(messages);
     return response.content;
   };
@@ -59,12 +69,14 @@ export class LangChainService {
     prompt: string,
     role?: RoleType,
     externalHistory?: BaseMessage[],
+    knowledgeBase?: string,
   ) => {
     const history = externalHistory || [];
     const messages: BaseMessage[] = await this.buildMessages(
       prompt,
       role,
       history,
+      knowledgeBase,
     );
     const response = await this.model.invoke(messages);
     return response.content;
@@ -77,12 +89,14 @@ export class LangChainService {
     prompt: string,
     role?: RoleType,
     externalHistory?: BaseMessage[],
+    knowledgeBase?: string,
   ) {
     const history = externalHistory || [];
     const messages: BaseMessage[] = await this.buildMessages(
       prompt,
       role,
       history,
+      knowledgeBase,
     );
     const stream = await this.model.stream(messages);
 

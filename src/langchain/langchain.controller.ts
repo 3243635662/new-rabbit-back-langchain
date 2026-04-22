@@ -9,6 +9,8 @@ import {
   Req,
   Sse,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { LangChainService } from './langchain.service';
 import { ChatService } from './chat.service';
 import { resFormatMethod } from '../utils/resFormat.util';
@@ -18,13 +20,40 @@ import { ChatDto } from './dto/chat.dto';
 import { CreateSessionDto, UpdateSessionTitleDto } from './dto/session.dto';
 import { JwtPayloadType } from '../types/auth.type';
 import { getRoleTypeByRoleId } from './prompts/agent.prompt';
+import { MerchantRagService } from './rag/merchant-rag/merchant-rag.service';
+import { Merchant } from '../modules/merchant/entities/merchant.entity';
+import { Public } from '../common/decorators/public.decorator';
 
 @Controller('ai')
 export class LangChainController {
   constructor(
     private readonly langChainService: LangChainService,
     private readonly chatService: ChatService,
+    private readonly merchantRagService: MerchantRagService,
+    @InjectRepository(Merchant)
+    private readonly merchantRepo: Repository<Merchant>,
   ) {}
+
+  /**
+   * 根据用户身份检索知识库上下文
+   * 仅商户角色（roleId === 2）会检索商户知识库
+   */
+  private retrieveKnowledgeBase = async (
+    message: string,
+    userId: string,
+    roleId: number,
+  ): Promise<string> => {
+    if (roleId !== 2) return '';
+    const merchant = await this.merchantRepo.findOne({
+      where: { userId },
+      select: ['id'],
+    });
+    if (!merchant) return '';
+    return this.merchantRagService.retrieveContext(
+      message,
+      merchant.id.toString(),
+    );
+  };
 
   // ══════════════════════════════════════════════════════
   // 基础对话接口
@@ -37,7 +66,16 @@ export class LangChainController {
   @Post('chat')
   async chat(@Body() dto: ChatDto, @Req() req: { user: JwtPayloadType }) {
     const role = getRoleTypeByRoleId(req.user.roleId);
-    const reply = await this.langChainService.chat(dto.message, role);
+    const kbContext = await this.retrieveKnowledgeBase(
+      dto.message,
+      req.user.id,
+      req.user.roleId,
+    );
+    const reply = await this.langChainService.chat(
+      dto.message,
+      role,
+      kbContext,
+    );
     return resFormatMethod(0, 'success', reply);
   }
 
@@ -54,9 +92,16 @@ export class LangChainController {
     return new Observable((subscriber) => {
       void (async () => {
         try {
+          const kbContext = await this.retrieveKnowledgeBase(
+            message,
+            req.user.id,
+            req.user.roleId,
+          );
           for await (const chunk of this.langChainService.streamChat(
             message,
             role,
+            [],
+            kbContext,
           )) {
             subscriber.next({
               data: JSON.stringify(chunk),
@@ -163,18 +208,26 @@ export class LangChainController {
     // ① 从 Redis/MySQL 获取历史消息
     const history = await this.chatService.getMessages(sessionId);
 
-    // ② 拼消息列表 → LLM 生成回答
+    // ② 检索商户知识库上下文
+    const kbContext = await this.retrieveKnowledgeBase(
+      dto.message,
+      req.user.id,
+      req.user.roleId,
+    );
+
+    // ③ 拼消息列表 → LLM 生成回答
     const reply = await this.langChainService.chatWithHistory(
       dto.message,
       role,
       history,
+      kbContext,
     );
 
-    // ③ Human + AI 消息追加到 Redis
+    // ④ Human + AI 消息追加到 Redis
     await this.chatService.appendMessage(sessionId, 'human', dto.message);
     await this.chatService.appendMessage(sessionId, 'ai', reply as string);
 
-    // ④ 异步同步到 MySQL（不阻塞响应）
+    // ⑤ 异步同步到 MySQL（不阻塞响应）
     this.chatService.syncToMySQL(sessionId).catch((err) => {
       this.chatService['logger'].error(`异步同步失败:`, err);
     });
@@ -189,6 +242,7 @@ export class LangChainController {
    * 流程与 chatWithPersistentMemory 一致，但响应是流式
    * SSE 无法设置 Authorization header，token 通过 query 传入，AuthGuard 内部兼容
    */
+  @Public()
   @Sse('session/:sessionId/streaming-chat')
   streamingChatWithPersistentMemory(
     @Param('sessionId') sessionId: string,
@@ -203,10 +257,17 @@ export class LangChainController {
           // ① 从 Redis/MySQL 获取历史消息
           const history = await this.chatService.getMessages(sessionId);
 
-          // ② 记录用户消息到 Redis
+          // ② 检索商户知识库上下文
+          const kbContext = await this.retrieveKnowledgeBase(
+            message,
+            req.user.id,
+            req.user.roleId,
+          );
+
+          // ③ 记录用户消息到 Redis
           await this.chatService.appendMessage(sessionId, 'human', message);
 
-          // ③ 流式调用 LLM
+          // ④ 流式调用 LLM
           let fullContent = '';
           let fullReasoning = '';
 
@@ -214,6 +275,7 @@ export class LangChainController {
             message,
             role,
             history,
+            kbContext,
           )) {
             fullContent += chunk.content;
             fullReasoning += chunk.reasoning || '';
@@ -222,7 +284,7 @@ export class LangChainController {
             } as MessageEvent);
           }
 
-          // ④ AI 完整回复追加到 Redis
+          // ⑤ AI 完整回复追加到 Redis
           await this.chatService.appendMessage(
             sessionId,
             'ai',
@@ -230,7 +292,7 @@ export class LangChainController {
             fullReasoning || undefined,
           );
 
-          // ⑤ 异步同步到 MySQL
+          // ⑥ 异步同步到 MySQL
           this.chatService.syncToMySQL(sessionId).catch((err) => {
             this.chatService['logger'].error(`异步同步失败:`, err);
           });

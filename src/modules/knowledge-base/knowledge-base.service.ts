@@ -15,10 +15,12 @@ import {
 } from './entities/knowledge-base.entity';
 import { Merchant } from '../merchant/entities/merchant.entity';
 import { QiniuService } from '../qiniu/qiniu.service';
+import { MerchantRagService } from '../../langchain/rag/merchant-rag/merchant-rag.service';
 
 export interface RAGJobData {
   qiniuKey: string;
   merchantId: string;
+  fileName: string;
 }
 
 const ALLOWED_MIME_MAP: Record<string, DocType> = {
@@ -54,6 +56,7 @@ export class KnowledgeBaseService {
     private readonly merchantRepo: Repository<Merchant>,
     @InjectQueue('rag-queue') private readonly ragQueue: Queue<RAGJobData>,
     private readonly qiniuService: QiniuService,
+    private readonly merchantRagService: MerchantRagService,
   ) {}
 
   /**
@@ -144,10 +147,10 @@ export class KnowledgeBaseService {
     });
     await this.kbRepo.save(record);
 
-    // 推入 BullMQ 队列（只传 qiniuKey，轻量解耦）
+    // 推入 BullMQ 队列（传 qiniuKey + fileName，fileName 用于去重判断）
     const job = await this.ragQueue.add(
       'process-document',
-      { qiniuKey, merchantId },
+      { qiniuKey, merchantId, fileName },
       {
         attempts: 3,
         backoff: { type: 'exponential', delay: 5000 },
@@ -226,6 +229,7 @@ export class KnowledgeBaseService {
 
   /**
    * 删除知识库文档记录
+   * 同时清理 ChromaDB 向量数据和七牛云文件
    */
   remove = async (id: number, userId: string) => {
     const merchant = await this.merchantRepo.findOne({
@@ -243,6 +247,20 @@ export class KnowledgeBaseService {
       throw new NotFoundException('文档不存在或不属于当前商户');
     }
 
+    // 1. 删除 ChromaDB 中的向量数据
+    await this.merchantRagService
+      .deleteDocumentsBySourceFile(
+        record.merchantId.toString(),
+        record.fileName,
+      )
+      .catch((err) => {
+        this.logger.warn(`删除向量数据失败: ${(err as Error).message}`);
+      });
+
+    // 2. 删除七牛云文件
+    await this.qiniuService.deleteFile(record.qiniuKey).catch(() => {});
+
+    // 3. 删除数据库记录
     await this.kbRepo.remove(record);
     return { id };
   };

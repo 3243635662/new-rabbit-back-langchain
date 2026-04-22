@@ -27,13 +27,6 @@ export class AuthGuard implements CanActivate {
     payload并设置request['user'],
     后面的这些接口需要验证的接口都会统一从request['user']中取数据
      */
-    try {
-      if (await this.handleTokenService.extractAndVerifyToken(context)) {
-        return true;
-      }
-    } catch {
-      return false;
-    }
-    return false;
+    return this.handleTokenService.extractAndVerifyToken(context);
   }
 }

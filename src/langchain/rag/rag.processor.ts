@@ -17,6 +17,7 @@ import { RedisService } from '../../modules/db/redis/redis.service';
 export interface RAGJobData {
   qiniuKey: string;
   merchantId: string;
+  fileName: string;
 }
 
 /** key → MIME 映射（从 qiniuKey 的扩展名推断） */
@@ -65,7 +66,7 @@ export class RagProcessor extends WorkerHost {
   };
 
   override process = async (job: Job<RAGJobData>): Promise<void> => {
-    const { qiniuKey, merchantId } = job.data;
+    const { qiniuKey, merchantId, fileName } = job.data;
     let localFilePath = '';
 
     try {
@@ -103,7 +104,8 @@ export class RagProcessor extends WorkerHost {
         localFilePath,
         mimeType,
         merchantId,
-        (p, s, m) => this.pushProgress(job, p, s, m),
+        fileName,
+        (p: number, s: string, m: string) => this.pushProgress(job, p, s, m),
       );
 
       // ─── 4. 更新数据库记录 → completed ───

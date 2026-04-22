@@ -8,12 +8,13 @@ import { CommonModule } from '../common/common.module';
 import { ChatSession } from './entities/chat-session.entity';
 import { ChatMessage } from './entities/chat-message.entity';
 import { RagModule } from './rag/rag.module';
+import { Merchant } from '../modules/merchant/entities/merchant.entity';
 
 @Module({
   imports: [
     AuthModule,
     CommonModule,
-    TypeOrmModule.forFeature([ChatSession, ChatMessage]),
+    TypeOrmModule.forFeature([ChatSession, ChatMessage, Merchant]),
     RagModule,
   ],
   controllers: [LangChainController],

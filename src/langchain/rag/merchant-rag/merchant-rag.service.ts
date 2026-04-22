@@ -16,12 +16,13 @@ export class MerchantRagService {
 
   /**
    * 根据 MIME 类型选择 Loader 解析文档
-   * → 注入商户元数据 → 文本切分 → 存入 ChromaDB
+   * 注入商户元数据 → 文本切分 → 存入 ChromaDB
    */
   ingestDocument = async (
     filePath: string,
     mimeType: string,
     merchantId: string,
+    fileName: string,
     onProgress?: (
       progress: number,
       status: string,
@@ -30,7 +31,7 @@ export class MerchantRagService {
   ) => {
     await fs.access(filePath);
 
-    // 1. 根据 MIME 选择 Loader
+    // 根据 MIME 类型 选择 Loader
     void onProgress?.(30, 'parsing', '正在解析文档...');
     const docs = await this.loadDocument(filePath, mimeType);
 
@@ -38,13 +39,17 @@ export class MerchantRagService {
       throw new Error('文档为空或格式无效');
     }
 
-    // 2. 注入商户元数据（实现数据隔离）
+    // 1. 先删除该商户该文件名的历史向量（重复上传同名文件时去重）
+    void onProgress?.(35, 'cleaning', '正在清理历史向量...');
+    await this.deleteDocumentsBySourceFile(merchantId, fileName);
+
+    // 2. 注入商户元数据（实现数据隔离，sourceFile 存原始文件名用于后续检索和删除）
     docs.forEach((doc, idx) => {
       doc.metadata = {
         ...doc.metadata,
         tenantType: 'merchant',
         merchantId,
-        sourceFile: path.basename(filePath),
+        sourceFile: fileName,
         rowIndex: idx,
       };
     });
@@ -215,6 +220,24 @@ export class MerchantRagService {
    */
   retrieveContext = (query: string, merchantId: string, k = 3) => {
     return this.ragService.retrieveContext(query, 'merchant', merchantId, k);
+  };
+
+  /**
+   * 按商户ID和文件名删除向量（用于去重和文档删除）
+   */
+  deleteDocumentsBySourceFile = async (
+    merchantId: string,
+    sourceFile: string,
+  ): Promise<void> => {
+    // ChromaDB delete 的 where 只允许 1 个顶层操作符，必须用 $and 包裹多条件
+    await this.ragService.deleteDocuments({
+      $and: [
+        { tenantType: 'merchant' },
+        { merchantId: { $eq: merchantId } },
+        { sourceFile: { $eq: sourceFile } },
+      ],
+    } as unknown as import('chromadb').Where);
+    this.logger.log(`商户 ${merchantId} 文件 ${sourceFile} 的历史向量已清理`);
   };
 
   /** 清理临时文件 */

@@ -27,6 +27,8 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { LangChainModule } from './langchain/langchain.module';
 import { QiniuModule } from './modules/qiniu/qiniu.module';
 import { KnowledgeBaseModule } from './modules/knowledge-base/knowledge-base.module';
+import { BullModule } from '@nestjs/bullmq';
+import Redis from 'ioredis';
 @Module({
   imports: [
     MenuModule,
@@ -65,6 +67,17 @@ import { KnowledgeBaseModule } from './modules/knowledge-base/knowledge-base.mod
     AdminModule,
     CouponModule,
     ScheduleModule.forRoot(),
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        connection: new Redis({
+          host: configService.get<string>('REDIS_HOST'),
+          port: configService.get<number>('REDIS_PORT'),
+          maxRetriesPerRequest: null,
+        }),
+      }),
+    }),
     LangChainModule,
     QiniuModule,
     KnowledgeBaseModule,

@@ -118,7 +118,7 @@ export class KnowledgeBaseController {
 
       const init = async () => {
         try {
-          //  先推送缓存的最新状态
+          //  先推缓存的最新状态
           const cached = (await this.redisService.getProgressCache(
             taskId,
           )) as ProgressPayload | null;
