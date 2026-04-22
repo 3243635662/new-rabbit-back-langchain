@@ -47,9 +47,6 @@ export const RedisKeys = {
   },
 
   // *═══════════════════════════════════════════════════════
-  // *互斥锁 (Mutex Locks - 用于解决缓存雪崩/击穿)
-  // *═══════════════════════════════════════════════════════
-  // *═══════════════════════════════════════════════════════
   // *定时任务锁 (Scheduler Locks - 防止多实例重复执行)
   // *═══════════════════════════════════════════════════════
   SCHEDULER: {
@@ -65,6 +62,9 @@ export const RedisKeys = {
     ORDER_TIMEOUT_LOCK: 'scheduler:order:timeout:lock',
   },
 
+  // *═══════════════════════════════════════════════════════
+  // *互斥锁 (Mutex Locks - 用于解决缓存雪崩/击穿)
+  // *═══════════════════════════════════════════════════════
   LOCK: {
     /**
      * 获取互斥锁 Key
@@ -151,7 +151,9 @@ export const RedisKeys = {
     getUserInfoKey: (id: string) => `user:info:${id}`,
   },
 
-  // 菜单模块
+  // *═══════════════════════════════════════════════════════
+  // *菜单模块 (Menu)
+  // *═══════════════════════════════════════════════════════
   MENU: {
     /**
      * 获取角色路由 Key
@@ -330,7 +332,15 @@ export const RedisKeys = {
      * 格式：rag:progress:{taskId}
      * @param taskId BullMQ 任务 ID
      */
-    getProgressKey: (taskId: string) => `rag:progress:${taskId}`,
+    // 任务进度channel
+    getProgressChannel: (taskId: string) => `rag:progress:${taskId}`,
+
+    /**
+     * 任务进度数据缓存（SSE 兜底）
+     * 格式：rag:progress:data:{taskId}
+     * @param taskId BullMQ 任务 ID
+     */
+    getProgressDataKey: (taskId: string) => `rag:progress:data:${taskId}`,
   },
 
   CHAT: {

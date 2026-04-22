@@ -20,6 +20,9 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@bull-board/api": "^7.0.0",
+    "@bull-board/express": "^7.0.0",
+    "@bull-board/ui": "^7.0.0",
     "@langchain/community": "^1.1.27",
     "@langchain/core": "^1.1.40",
     "@langchain/openai": "^1.4.4",

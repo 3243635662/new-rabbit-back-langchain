@@ -1,0 +1,2 @@
+src/app.controller.spec.ts(19,28): error TS2339: Property 'getHello' does not exist on type 'AppController'.
+src/modules/qiniu/qiniu.controller.spec.ts(2,33): error TS2307: Cannot find module './qiniu.controller' or its corresponding type declarations.

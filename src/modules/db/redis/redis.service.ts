@@ -332,4 +332,40 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   private async unlockByKey(lockKey: string): Promise<void> {
     await this.client.del(lockKey);
   }
+
+  // ─── RAG 实时进度推送（SSE + Redis Pub/Sub） ───
+
+  // 向指定 taskId 频道发布实时进度
+  async publishProgress(
+    taskId: string,
+    data: {
+      progress: number;
+      status: string;
+      message?: string;
+      failReason?: string;
+    },
+  ) {
+    const channel = RedisKeys.RAG.getProgressChannel(taskId);
+    await this.client.publish(channel, JSON.stringify(data));
+  }
+
+  /** 缓存最新进度（SSE 连接时先推缓存，防消息丢失） */
+  async setProgressCache(taskId: string, data: object, expireSeconds = 3600) {
+    const key = RedisKeys.RAG.getProgressDataKey(taskId);
+    await this.client.set(key, JSON.stringify(data), 'EX', expireSeconds);
+  }
+
+  /** 读取缓存进度 */
+  async getProgressCache(
+    taskId: string,
+  ): Promise<Record<string, unknown> | null> {
+    const key = RedisKeys.RAG.getProgressDataKey(taskId);
+    const data = await this.client.get(key);
+    return data ? (JSON.parse(data) as Record<string, unknown>) : null;
+  }
+
+  /** 创建独立订阅客户端（SSE 用，必须独立连接） */
+  createSubscriber(): Redis {
+    return this.client.duplicate();
+  }
 }

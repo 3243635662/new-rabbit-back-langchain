@@ -22,10 +22,16 @@ export class MerchantRagService {
     filePath: string,
     mimeType: string,
     merchantId: string,
+    onProgress?: (
+      progress: number,
+      status: string,
+      message: string,
+    ) => void | Promise<void>,
   ) => {
     await fs.access(filePath);
 
     // 1. 根据 MIME 选择 Loader
+    void onProgress?.(30, 'parsing', '正在解析文档...');
     const docs = await this.loadDocument(filePath, mimeType);
 
     if (docs.length === 0) {
@@ -44,6 +50,7 @@ export class MerchantRagService {
     });
 
     // 3. 文本切分
+    void onProgress?.(50, 'splitting', '正在切分文本...');
     const splitter = new RecursiveCharacterTextSplitter({
       chunkSize: 800,
       chunkOverlap: 100,
@@ -52,6 +59,7 @@ export class MerchantRagService {
     const chunks = await splitter.splitDocuments(docs);
 
     // 4. 调用 RagService 存入向量库
+    void onProgress?.(70, 'embedding', '正在向量化并入库...');
     const count = await this.ragService.addDocuments(chunks);
 
     this.logger.log(`商户 ${merchantId} 知识库入库成功: ${count} 个片段`);

@@ -201,12 +201,22 @@ export class UserService implements OnModuleInit {
     if (cacheData.data && !cacheData.isExpired) {
       return cacheData.data;
     }
-    const user = await this.userRepository.findOneBy({ id });
+    const user = await this.userRepository.findOne({
+      where: { id },
+      relations: ['merchant'],
+    });
     if (!user) {
       throw new BadRequestException('用户不存在');
     }
+
+    // 商家角色时，附加 merchantId
+    const result = user as User & { merchantId?: number };
+    if (user.merchant) {
+      result.merchantId = user.merchant.id;
+    }
+
     // 设置缓存
     await this.redisService.setWithLogicExpire(cacheKey, user, 60 * 60 * 24);
-    return user;
+    return result;
   }
 }

@@ -16,6 +16,11 @@ import {
 import { Merchant } from '../merchant/entities/merchant.entity';
 import { QiniuService } from '../qiniu/qiniu.service';
 
+export interface RAGJobData {
+  qiniuKey: string;
+  merchantId: string;
+}
+
 const ALLOWED_MIME_MAP: Record<string, DocType> = {
   'application/json': DocType.JSON,
   'text/csv': DocType.CSV,
@@ -47,7 +52,7 @@ export class KnowledgeBaseService {
     private readonly kbRepo: Repository<KnowledgeBase>,
     @InjectRepository(Merchant)
     private readonly merchantRepo: Repository<Merchant>,
-    @InjectQueue('rag-queue') private readonly ragQueue: Queue,
+    @InjectQueue('rag-queue') private readonly ragQueue: Queue<RAGJobData>,
     private readonly qiniuService: QiniuService,
   ) {}
 
@@ -75,21 +80,13 @@ export class KnowledgeBaseService {
   };
 
   /**
-   * 客户端直传七牛成功后，回调确认 → 创建 DB 记录 + 推入队列
+   * 客户端直传七牛成功后，回调确认 → 校验文件真实性 → 创建 DB 记录 + 推入队列
    * 服务器全程不接触文件内容，零内存/带宽
    */
   confirmUpload = async (body: ConfirmBody, userId: string) => {
     const { qiniuKey, fileName, mimeType, fileSize } = body;
 
-    // 1. 校验 MIME
-    const docType = ALLOWED_MIME_MAP[mimeType];
-    if (!docType) {
-      throw new BadRequestException(
-        `不支持的文件类型: ${mimeType}，仅支持 json/csv/pdf/docx/txt`,
-      );
-    }
-
-    // 2. 校验商户 + key 前缀安全（防止客户端传别人的 key）
+    //  校验商户 + key 前缀安全（防止客户端传别人的 key）
     const merchant = await this.merchantRepo.findOne({
       where: { userId },
       select: ['id'],
@@ -103,13 +100,42 @@ export class KnowledgeBaseService {
       throw new BadRequestException('qiniuKey 与当前商户不匹配');
     }
 
-    // 3. 写入数据库（状态 pending）
+    //  查询文件实际元信息，校验文件存在性
+    const fileStat = await this.qiniuService.statFile(qiniuKey);
+    if (!fileStat) {
+      throw new BadRequestException('文件不存在于七牛云，请确认上传是否成功');
+    }
+
+    //  以七牛实际 mimeType 为准校验，客户端上报不一致则删文件
+    const actualMime = fileStat.mimeType || mimeType;
+    const docType = ALLOWED_MIME_MAP[actualMime];
+    if (!docType) {
+      await this.qiniuService.deleteFile(qiniuKey);
+      this.logger.warn(
+        `商户 ${merchantId} 文件类型不支持: 实际=${actualMime}，已删除文件`,
+      );
+      throw new BadRequestException(
+        `不支持的文件类型: ${actualMime}，仅支持 json/csv/pdf/docx/txt，文件已删除`,
+      );
+    }
+
+    if (fileStat.mimeType && fileStat.mimeType !== mimeType) {
+      await this.qiniuService.deleteFile(qiniuKey);
+      this.logger.warn(
+        `商户 ${merchantId} 上报 mimeType=${mimeType}，实际=${fileStat.mimeType}，已删除文件`,
+      );
+      throw new BadRequestException(
+        `文件类型不一致：上报 ${mimeType}，实际 ${fileStat.mimeType}，文件已删除`,
+      );
+    }
+
+    //  写入数据库（状态 pending），mimeType/fileSize 以七牛实际值为准
     const qiniuUrl = this.qiniuService.buildUrl(qiniuKey);
     const record = this.kbRepo.create({
       fileName,
       docType,
-      mimeType,
-      fileSize,
+      mimeType: actualMime,
+      fileSize: fileStat.fsize || fileSize,
       qiniuKey,
       qiniuUrl,
       chunkCount: 0,
@@ -118,7 +144,7 @@ export class KnowledgeBaseService {
     });
     await this.kbRepo.save(record);
 
-    // 4. 推入 BullMQ 队列（只传 qiniuKey，轻量解耦）
+    // 推入 BullMQ 队列（只传 qiniuKey，轻量解耦）
     const job = await this.ragQueue.add(
       'process-document',
       { qiniuKey, merchantId },
@@ -130,7 +156,7 @@ export class KnowledgeBaseService {
       },
     );
 
-    // 5. 回写 taskId
+    //  回写 taskId
     record.taskId = job.id || '';
     await this.kbRepo.save(record);
 
