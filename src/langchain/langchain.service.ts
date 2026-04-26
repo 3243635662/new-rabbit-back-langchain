@@ -11,14 +11,14 @@ export class LangChainService {
 
   constructor(private readonly configService: ConfigService) {
     this.model = new ChatOpenAI({
-      apiKey: this.configService.get<string>('BAISHAN_DASHSCOPE_API_KEY'),
+      apiKey: this.configService.get<string>('GLM_DASHSCOPE_API_KEY'),
       configuration: {
-        baseURL: this.configService.get<string>('BAISHAN_DASHSCOPE_BASE_URL'),
+        baseURL: this.configService.get<string>('GLM_DASHSCOPE_BASE_URL'),
       },
-      modelName: 'DeepSeek-R1-0528-Qwen3-8B',
+      modelName: this.configService.get<string>('MODEL_NAME') || '',
+      streaming: true,
       modelKwargs: {
         enable_thinking: true,
-        streaming: true,
       },
     });
   }
@@ -37,7 +37,7 @@ export class LangChainService {
     const config = ROLE_CONFIG[role];
     const hasHistory = history && history.length > 0;
     const kbText = knowledgeBase
-      ? `以下是从商户知识库检索到的参考资料，请基于这些资料回答用户问题（如果知识库中没有直接答案，请结合你的专业知识回答，不要编造数据）：\n\n${knowledgeBase}`
+      ? `以下是从商户知识库检索到的参考资料，请基于这些资料回答用户问题（如果知识库中没有直接答案，请结合你的专业知识回答，不要编造数据 思考过程使用中文）：\n\n${knowledgeBase}`
       : '';
     const messages = await ecomAssistantPrompt.formatMessages({
       role: config.role,

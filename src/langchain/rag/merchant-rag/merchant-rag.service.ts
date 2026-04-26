@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import { Injectable, Logger } from '@nestjs/common';
 import { PDFLoader } from '@langchain/community/document_loaders/fs/pdf';
 import { DocxLoader } from '@langchain/community/document_loaders/fs/docx';
@@ -12,7 +13,7 @@ import { Document } from '@langchain/core/documents';
 export class MerchantRagService {
   private readonly logger = new Logger(MerchantRagService.name);
 
-  constructor(private readonly ragService: RagService) {}
+  constructor(private readonly ragService: RagService) { }
 
   /**
    * 根据 MIME 类型选择 Loader 解析文档
@@ -29,6 +30,7 @@ export class MerchantRagService {
       message: string,
     ) => void | Promise<void>,
   ) => {
+    // 文件存在性检查
     await fs.access(filePath);
 
     // 根据 MIME 类型 选择 Loader
@@ -44,9 +46,12 @@ export class MerchantRagService {
     await this.deleteDocumentsBySourceFile(merchantId, fileName);
 
     // 2. 注入商户元数据（实现数据隔离，sourceFile 存原始文件名用于后续检索和删除）
+    // 注意：ChromaDB metadata 只支持标量类型，需剔除 pdf 等嵌套对象字段
     docs.forEach((doc, idx) => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { pdf: _pdf, ...restMeta } = doc.metadata || {};
       doc.metadata = {
-        ...doc.metadata,
+        ...restMeta,
         tenantType: 'merchant',
         merchantId,
         sourceFile: fileName,
@@ -218,7 +223,7 @@ export class MerchantRagService {
   /**
    * 检索商户相关知识
    */
-  retrieveContext = (query: string, merchantId: string, k = 3) => {
+  retrieveContext = (query: string, merchantId: string, k = 5) => {
     return this.ragService.retrieveContext(query, 'merchant', merchantId, k);
   };
 
@@ -242,6 +247,6 @@ export class MerchantRagService {
 
   /** 清理临时文件 */
   cleanupTemp = async (filePath: string) => {
-    await fs.unlink(filePath).catch(() => {});
+    await fs.unlink(filePath).catch(() => { });
   };
 }

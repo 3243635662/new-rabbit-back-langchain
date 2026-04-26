@@ -1,7 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bullmq';
-import { RagController } from './rag.controller';
 import { RagService } from './rag.service';
 import { RagProcessor } from './rag.processor';
 import { EmbeddingService } from '../embedding.service';
@@ -15,7 +14,6 @@ import { QiniuModule } from '../../modules/qiniu/qiniu.module';
     TypeOrmModule.forFeature([KnowledgeBase]),
     forwardRef(() => QiniuModule),
   ],
-  controllers: [RagController],
   providers: [RagService, RagProcessor, EmbeddingService, MerchantRagService],
   exports: [RagService, MerchantRagService],
 })

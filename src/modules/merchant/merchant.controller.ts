@@ -199,11 +199,11 @@ export class MerchantController {
   @Post('orders/ship')
   async shipOrderItems(
     @Req() req: { user: JwtPayloadType },
-    @Body() body: { orderItemIds: string[] },
+    @Body() body: { orderItemId: string },
   ) {
     const result = await this.merchantService.shipOrderItems(
       req.user,
-      body.orderItemIds,
+      body.orderItemId,
     );
     return resFormatMethod(0, '发货成功', result);
   }
@@ -214,11 +214,11 @@ export class MerchantController {
   @Post('orders/confirm')
   async confirmOrderItems(
     @Req() req: { user: JwtPayloadType },
-    @Body() body: { orderItemIds: string[] },
+    @Body() body: { orderItemId: string },
   ) {
     const result = await this.merchantService.confirmOrderItems(
       req.user,
-      body.orderItemIds,
+      body.orderItemId,
     );
     return resFormatMethod(0, '确认收货成功', result);
   }
@@ -229,11 +229,11 @@ export class MerchantController {
   @Post('orders/after-sale')
   async applyAfterSale(
     @Req() req: { user: JwtPayloadType },
-    @Body() body: { orderItemIds: string[] },
+    @Body() body: { orderItemId: string },
   ) {
     const result = await this.merchantService.applyAfterSale(
       req.user,
-      body.orderItemIds,
+      body.orderItemId,
     );
     return resFormatMethod(0, '售后申请成功', result);
   }

@@ -383,4 +383,49 @@ export const RedisKeys = {
      */
     getSyncLockKey: (sessionId: string) => `chat:sync:lock:${sessionId}`,
   },
+
+  // *═══════════════════════════════════════════════════════
+  // *库存模块 (Inventory)
+  // *═══════════════════════════════════════════════════════
+  INVENTORY: {
+    /**
+     * 商家库存列表缓存（分页）
+     * 格式：inventory:merchant:list:{merchantId}:{page}:{limit}:{keyword}:{isWarning}
+     * @param merchantId 商家 ID
+     * @param page 页码
+     * @param limit 每页数量
+     * @param keyword 搜索关键词
+     * @param isWarning 是否仅看预警库存
+     */
+    getMerchantListKey: (
+      merchantId: number,
+      page: number,
+      limit: number,
+      keyword: string,
+      isWarning: string,
+    ) =>
+      `inventory:merchant:list:${merchantId}:${page}:${limit}:${keyword || '_'}:${isWarning || '_'}`,
+
+    /**
+     * 单个库存详情缓存
+     * 格式：inventory:detail:{inventoryId}
+     * @param inventoryId 库存记录 ID
+     */
+    getDetailKey: (inventoryId: number) => `inventory:detail:${inventoryId}`,
+
+    /**
+     * SKU 库存统计缓存（累计出入库）
+     * 格式：inventory:stats:{skuId}
+     * @param skuId SKU ID
+     */
+    getStatsKey: (skuId: number) => `inventory:stats:${skuId}`,
+
+    /**
+     * 商家库存列表缓存前缀（用于批量清除）
+     * 格式：inventory:merchant:list:{merchantId}:
+     * @param merchantId 商家 ID
+     */
+    getMerchantListPrefix: (merchantId: number) =>
+      `inventory:merchant:list:${merchantId}:`,
+  },
 } as const;

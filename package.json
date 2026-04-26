@@ -49,7 +49,7 @@
     "nestjs-typeorm-paginate": "^4.1.0",
     "nodejs-snowflake": "^2.0.1",
     "nodemailer": "^8.0.3",
-    "pdf-parse": "^2.4.5",
+    "pdf-parse": "^1.1.4",
     "qiniu": "^7.15.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",

@@ -782,7 +782,7 @@ export class MerchantService {
   }
 
   // *商家确认发货（OrderItem 级别）
-  async shipOrderItems(payload: JwtPayloadType, orderItemIds: string[]) {
+  async shipOrderItems(payload: JwtPayloadType, orderItemId: string) {
     const { id: userId } = payload;
     const merchant = await this.merchantRepo.findOne({
       where: { userId: userId.toString() },
@@ -793,52 +793,37 @@ export class MerchantService {
       throw new ForbiddenException('当前用户不是商户');
     }
 
-    // 1. 查询这些订单项，并关联 SKU → Goods 验证归属
-    const items = await this.orderItemRepo.find({
-      where: { id: In(orderItemIds) },
+    // 1. 查询该订单项，并关联 SKU → Goods 验证归属
+    const item = await this.orderItemRepo.findOne({
+      where: { id: orderItemId },
       relations: ['sku', 'sku.goods', 'order'],
     });
 
-    if (items.length === 0) {
+    if (!item) {
       throw new NotFoundException('未找到订单项');
     }
 
-    // 2. 过滤出属于当前商家且可发货的订单项
-    const now = new Date();
-    const shippableItems: OrderItem[] = [];
-
-    for (const item of items) {
-      // 验证归属：SKU → Goods → merchantId
-      if (item.sku?.goods?.merchantId !== merchant.id) {
-        continue;
-      }
-      // 只有待发货状态才能发货
-      if (item.shippingStatus !== ShippingStatus.PENDING) {
-        continue;
-      }
-      // 订单必须是已支付状态才能发货
-      if (item.order?.status !== OrderStatus.PAID) {
-        continue;
-      }
-      shippableItems.push(item);
+    // 2. 校验归属与状态
+    if (item.sku?.goods?.merchantId !== merchant.id) {
+      throw new ForbiddenException('该订单项不属于当前商户');
     }
-
-    if (shippableItems.length === 0) {
-      throw new ForbiddenException('没有可发货的订单项');
+    if (item.shippingStatus !== ShippingStatus.PENDING) {
+      throw new ForbiddenException('该订单项不处于待发货状态');
+    }
+    if (item.order?.status !== OrderStatus.PAID) {
+      throw new ForbiddenException('订单未支付，无法发货');
     }
 
     // 3. 更新发货状态
-    for (const item of shippableItems) {
-      await this.orderItemRepo.update(
-        { id: item.id },
-        { shippingStatus: ShippingStatus.SHIPPED, shippedAt: now },
-      );
-    }
+    await this.orderItemRepo.update(
+      { id: orderItemId },
+      {
+        shippingStatus: ShippingStatus.SHIPPED,
+        shippedAt: new Date(),
+      },
+    );
 
-    return {
-      shippedCount: shippableItems.length,
-      skippedCount: orderItemIds.length - shippableItems.length,
-    };
+    return { orderItemId };
   }
 
   // *批量操作商家订单项状态（OrderItem 级别）
@@ -921,7 +906,7 @@ export class MerchantService {
   }
 
   // *确认收货（OrderItem 级别，用户确认收货）
-  async confirmOrderItems(payload: JwtPayloadType, orderItemIds: string[]) {
+  async confirmOrderItems(payload: JwtPayloadType, orderItemId: string) {
     const { id: userId } = payload;
     const merchant = await this.merchantRepo.findOne({
       where: { userId: userId.toString() },
@@ -932,42 +917,38 @@ export class MerchantService {
       throw new ForbiddenException('当前用户不是商户');
     }
 
-    const items = await this.orderItemRepo.find({
-      where: { id: In(orderItemIds) },
+    const item = await this.orderItemRepo.findOne({
+      where: { id: orderItemId },
       relations: ['sku', 'sku.goods', 'order'],
     });
 
-    if (items.length === 0) {
+    if (!item) {
       throw new NotFoundException('未找到订单项');
     }
 
-    const now = new Date();
-    const confirmableItems: OrderItem[] = [];
-
-    for (const item of items) {
-      if (item.sku?.goods?.merchantId !== merchant.id) continue;
-      if (item.shippingStatus !== ShippingStatus.SHIPPED) continue;
-      if (item.order?.status !== OrderStatus.PAID) continue;
-      confirmableItems.push(item);
+    if (item.sku?.goods?.merchantId !== merchant.id) {
+      throw new ForbiddenException('该订单项不属于当前商户');
     }
-
-    if (confirmableItems.length === 0) {
-      throw new ForbiddenException('没有可确认收货的订单项');
+    if (item.shippingStatus !== ShippingStatus.SHIPPED) {
+      throw new ForbiddenException('该订单项不处于已发货状态');
+    }
+    if (item.order?.status !== OrderStatus.PAID) {
+      throw new ForbiddenException('订单未支付，无法确认收货');
     }
 
     await this.orderItemRepo.update(
-      { id: In(confirmableItems.map((i) => i.id)) },
-      { shippingStatus: ShippingStatus.RECEIVED, receivedAt: now },
+      { id: orderItemId },
+      {
+        shippingStatus: ShippingStatus.RECEIVED,
+        receivedAt: new Date(),
+      },
     );
 
-    return {
-      confirmedCount: confirmableItems.length,
-      skippedCount: orderItemIds.length - confirmableItems.length,
-    };
+    return { orderItemId };
   }
 
   // *申请售后（OrderItem 级别）
-  async applyAfterSale(payload: JwtPayloadType, orderItemIds: string[]) {
+  async applyAfterSale(payload: JwtPayloadType, orderItemId: string) {
     const { id: userId } = payload;
     const merchant = await this.merchantRepo.findOne({
       where: { userId: userId.toString() },
@@ -978,42 +959,35 @@ export class MerchantService {
       throw new ForbiddenException('当前用户不是商户');
     }
 
-    const items = await this.orderItemRepo.find({
-      where: { id: In(orderItemIds) },
+    const item = await this.orderItemRepo.findOne({
+      where: { id: orderItemId },
       relations: ['sku', 'sku.goods', 'order'],
     });
 
-    if (items.length === 0) {
+    if (!item) {
       throw new NotFoundException('未找到订单项');
     }
 
-    const afterSaleItems: OrderItem[] = [];
-
-    for (const item of items) {
-      if (item.sku?.goods?.merchantId !== merchant.id) continue;
-      // 只有已发货或已收货的订单项可以申请售后
-      if (
-        item.shippingStatus !== ShippingStatus.SHIPPED &&
-        item.shippingStatus !== ShippingStatus.RECEIVED
-      )
-        continue;
-      if (item.order?.status !== OrderStatus.PAID) continue;
-      afterSaleItems.push(item);
+    if (item.sku?.goods?.merchantId !== merchant.id) {
+      throw new ForbiddenException('该订单项不属于当前商户');
     }
-
-    if (afterSaleItems.length === 0) {
-      throw new ForbiddenException('没有可申请售后的订单项');
+    // 只有已发货或已收货的订单项可以申请售后
+    if (
+      item.shippingStatus !== ShippingStatus.SHIPPED &&
+      item.shippingStatus !== ShippingStatus.RECEIVED
+    ) {
+      throw new ForbiddenException('该订单项不处于可售后状态');
+    }
+    if (item.order?.status !== OrderStatus.PAID) {
+      throw new ForbiddenException('订单未支付，无法申请售后');
     }
 
     await this.orderItemRepo.update(
-      { id: In(afterSaleItems.map((i) => i.id)) },
+      { id: orderItemId },
       { shippingStatus: ShippingStatus.AFTER_SALE },
     );
 
-    return {
-      afterSaleCount: afterSaleItems.length,
-      skippedCount: orderItemIds.length - afterSaleItems.length,
-    };
+    return { orderItemId };
   }
 }
 
