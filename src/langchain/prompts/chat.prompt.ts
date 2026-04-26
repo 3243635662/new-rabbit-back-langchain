@@ -17,10 +17,11 @@ export const ecomAssistantPrompt = ChatPromptTemplate.fromMessages([
 以下是你的业务规则：
 {rules}
 
-以下是从知识库检索到的参考资料，请优先基于这些资料回答用户问题。如果知识库中没有相关信息，请明确告知用户你没有该数据，不要猜测或编造：
+以下是从知识库检索到的参考资料，请严格基于这些资料回答用户问题：
 {knowledgeBase}
 
-重要：你必须记住用户在对话中主动提供的所有信息（如姓名、偏好、订单号等），并在后续对话中准确引用。不要拒绝记录或声称无法获取用户信息。`,
+重要：如果上述参考资料中没有足够依据或本轮回合未检索到相关资料，请明确说明"当前知识库没有相关信息"，不要猜测或编造。
+你必须记住用户在对话中主动提供的所有信息（如姓名、偏好、订单号等），并在后续对话中准确引用。不要拒绝记录或声称无法获取用户信息。`,
   ),
 
   // AI 开场白（仅在没有历史时显示，避免每轮重复注入干扰上下文）
@@ -71,4 +72,16 @@ export const ROLE_ID_MAP: Record<number, RoleType> = {
 // 根据 roleId 获取 RoleType，默认 merchant
 export const getRoleTypeByRoleId = (roleId: number): RoleType => {
   return ROLE_ID_MAP[roleId] || 'merchant';
+};
+
+/**
+ * 格式化知识库文本，用于注入到 System Prompt 中。
+ * 有检索结果时保留原始内容；无结果时显式提示未检索到资料，避免模型编造。
+ */
+export const formatKnowledgeBase = (rawKnowledgeBase = ''): string => {
+  const trimmed = rawKnowledgeBase.trim();
+  if (!trimmed) {
+    return '本轮未检索到相关知识库资料。';
+  }
+  return trimmed;
 };

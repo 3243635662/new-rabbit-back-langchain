@@ -2,8 +2,12 @@ import { ChatOpenAI } from '@langchain/openai';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { BaseMessage } from '@langchain/core/messages';
-import type { RoleType } from './prompts/agent.prompt';
-import { ecomAssistantPrompt, ROLE_CONFIG } from './prompts/agent.prompt';
+import type { RoleType } from './prompts/chat.prompt';
+import {
+  ecomAssistantPrompt,
+  ROLE_CONFIG,
+  formatKnowledgeBase,
+} from './prompts/chat.prompt';
 
 @Injectable()
 export class LangChainService {
@@ -36,9 +40,7 @@ export class LangChainService {
   ): Promise<BaseMessage[]> => {
     const config = ROLE_CONFIG[role];
     const hasHistory = history && history.length > 0;
-    const kbText = knowledgeBase
-      ? `以下是从商户知识库检索到的参考资料，请基于这些资料回答用户问题（如果知识库中没有直接答案，请结合你的专业知识回答，不要编造数据 思考过程使用中文）：\n\n${knowledgeBase}`
-      : '';
+    const kbText = formatKnowledgeBase(knowledgeBase);
     const messages = await ecomAssistantPrompt.formatMessages({
       role: config.role,
       duty: config.duty,

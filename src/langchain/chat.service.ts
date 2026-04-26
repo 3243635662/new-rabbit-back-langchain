@@ -152,12 +152,12 @@ export class ChatService {
    */
   getMessages = async (sessionId: string): Promise<BaseMessage[]> => {
     const rawMessages = await this.getRawMessages(sessionId);
-    return rawMessages.map((m) => {
-      if (m.role === 'human') return new HumanMessage(m.content);
-      if (m.role === 'ai') return new AIMessage(m.content);
-      // system 消息不参与 LangChain history，但保留在记录中
-      return new HumanMessage(m.content);
-    });
+    return rawMessages
+      .filter((m) => m.role !== 'system')
+      .map((m) => {
+        if (m.role === 'human') return new HumanMessage(m.content);
+        return new AIMessage(m.content);
+      });
   };
 
   /**
@@ -241,7 +241,7 @@ export class ChatService {
       // 只追加差量
       if (cached.length > dbCount) {
         const newMessages = cached.slice(dbCount);
-        for (const item of newMessages) {
+        const msgs = newMessages.map((item) => {
           const parsed = JSON.parse(item) as RedisChatMessage;
           const msg = new ChatMessage();
           msg.id = this.snowflakeId.generate();
@@ -249,8 +249,10 @@ export class ChatService {
           msg.role = parsed.role as MessageRole;
           msg.content = parsed.content;
           msg.reasoning = parsed.reasoning || null;
-          await this.messageRepo.save(msg);
-        }
+          return msg;
+        });
+
+        await this.messageRepo.insert(msgs);
 
         // 更新会话标题（如果是第一条消息）
         if (dbCount === 0) {

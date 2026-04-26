@@ -50,7 +50,7 @@ export class RagService {
       this.configService.get<string>('BAISHAN_DASHSCOPE_BASE_URL') ||
       'https://api.edgefn.net/v1';
     this.RERANK_SCORE_THRESHOLD =
-      this.configService.get<number>('RERANK_SCORE_THRESHOLD') ?? 0.35;
+      Number(this.configService.get('RERANK_SCORE_THRESHOLD')) || 0.35;
   }
 
   /** 避免 ChromaDB getCollection 时加载 DefaultEmbeddingFunction 的占位实现 */
@@ -58,7 +58,9 @@ export class RagService {
     generate: () => Promise.resolve<number[][]>([]),
   };
 
-  private getVectorStore = async () => {
+  private vectorStorePromise?: Promise<Chroma>;
+
+  private createVectorStore = async (): Promise<Chroma> => {
     const { host, port, ssl } = this.parseChromaUrl(this.CHROMA_URL);
     const client = new ChromaClient({ host, port, ssl });
     await client.getOrCreateCollection({
@@ -70,6 +72,13 @@ export class RagService {
       collectionName: this.COLLECTION_NAME,
       index: client,
     });
+  };
+
+  private getVectorStore = async (): Promise<Chroma> => {
+    if (!this.vectorStorePromise) {
+      this.vectorStorePromise = this.createVectorStore();
+    }
+    return this.vectorStorePromise;
   };
 
   /**
@@ -116,7 +125,9 @@ export class RagService {
   };
 
   /**
-   * 检索并拼接为 LLM 可读格式
+   * 检索并拼接为 LLM 可读格式。
+   * 区分"未检索到候选"与"候选相关性低于阈值"两种状态，
+   * 后者会返回显式提示语，引导模型回答"知识库中没有足够依据"。
    */
   retrieveContext = async (
     query: string,
@@ -132,10 +143,16 @@ export class RagService {
     if (candidates.length === 0) return '';
 
     // 若候选数大于目标数，则执行重排序；否则直接使用召回结果
-    const topDocs =
-      candidates.length > k
-        ? await this.rerankDocuments(query, candidates, k)
-        : candidates;
+    let topDocs: Document[];
+    if (candidates.length > k) {
+      const result = await this.rerankDocuments(query, candidates, k);
+      if (result.isLowRelevance) {
+        return '检索到的参考资料相关性均低于有效阈值，当前知识库中没有足够依据。';
+      }
+      topDocs = result.documents;
+    } else {
+      topDocs = candidates;
+    }
 
     return topDocs
       .map((doc, i) => `[参考资料${i + 1}] ${doc.pageContent}`)
@@ -143,17 +160,18 @@ export class RagService {
   };
 
   /**
-   * 调用白山智算重排序 API 对候选文档进行二次精排
+   * 调用白山智算重排序 API 对候选文档进行二次精排。
+   * 返回文档列表及低相关性标志，用于区分"无候选"与"候选全部低于阈值"。
    */
   rerankDocuments = async (
     query: string,
     documents: Document[],
     topN: number,
-  ): Promise<Document[]> => {
-    if (documents.length === 0) return [];
+  ): Promise<{ documents: Document[]; isLowRelevance: boolean }> => {
+    if (documents.length === 0) return { documents: [], isLowRelevance: false };
     if (!this.API_KEY) {
       this.logger.warn('BAISHAN_DASHSCOPE_API_KEY 未配置，跳过重排序');
-      return documents.slice(0, topN);
+      return { documents: documents.slice(0, topN), isLowRelevance: false };
     }
 
     try {
@@ -178,20 +196,30 @@ export class RagService {
       }
 
       const data = (await response.json()) as RerankResponse;
-      const sortedDocs = data.results
-        .filter((r) => r.relevance_score >= this.RERANK_SCORE_THRESHOLD)
+      const filtered = data.results.filter(
+        (r) => r.relevance_score >= this.RERANK_SCORE_THRESHOLD,
+      );
+
+      if (filtered.length === 0) {
+        this.logger.warn(
+          `重排序后所有文档相关性均低于阈值 ${this.RERANK_SCORE_THRESHOLD}，判定为低相关性`,
+        );
+        return { documents: [], isLowRelevance: true };
+      }
+
+      const sortedDocs = filtered
         .map((r) => documents[r.index])
         .filter((d): d is Document => d != null);
 
       this.logger.log(
         `重排序完成，召回 ${documents.length} 个候选，过滤阈值 ${this.RERANK_SCORE_THRESHOLD}，返回 ${sortedDocs.length} 个结果`,
       );
-      return sortedDocs;
+      return { documents: sortedDocs, isLowRelevance: false };
     } catch (error) {
       this.logger.error(
         `重排序失败: ${(error as Error).message}，降级使用原始向量检索结果`,
       );
-      return documents.slice(0, topN);
+      return { documents: documents.slice(0, topN), isLowRelevance: false };
     }
   };
 

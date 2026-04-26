@@ -19,7 +19,7 @@ import { MessageEvent } from '@nestjs/common';
 import { ChatDto } from './dto/chat.dto';
 import { CreateSessionDto, UpdateSessionTitleDto } from './dto/session.dto';
 import { JwtPayloadType } from '../types/auth.type';
-import { getRoleTypeByRoleId } from './prompts/agent.prompt';
+import { getRoleTypeByRoleId } from './prompts/chat.prompt';
 import { MerchantRagService } from './rag/merchant-rag/merchant-rag.service';
 import { Merchant } from '../modules/merchant/entities/merchant.entity';
 import { Public } from '../common/decorators/public.decorator';
