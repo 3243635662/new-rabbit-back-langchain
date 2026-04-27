@@ -2,7 +2,7 @@
 /dist
 /node_modules
 /build
-
+/docs
 # Logs
 logs
 *.log
@@ -29,11 +29,12 @@ lerna-debug.log*
 *.sublime-workspace
 
 # IDE - VSCode
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
+.vscode
+
+# AI / Editor internal
+.codeflicker
+.codebuddy
+.agents
 
 # dotenv environment variable files
 .env

@@ -91,9 +91,9 @@ GET /inventory/merchant/list?page=1&limit=10&keyword=把手&isWarning=1
 | specsLabel   | 规格文本，如 "颜色: 蓝色 / 尺码: XL"      |
 | cargoNo      | 货号（当前取 SKU 编码）                   |
 | goodsStatus  | 商品状态，"上架" 或 "下架"                |
-| status       | 上架状态布尔值                            |
+| status       | 商品状态，"上架" 或 "下架"                |
 | totalOut     | 累计出库数量（从库存日志统计）            |
-| totalIn      | 累计入库数量（从库存日志统计）            |
+| totalIn      | 累计出库数量（从库存日志统计）            |
 | stock        | 当前可用库存                              |
 | warningStock | 库存预警值                                |
 | isWarning    | 是否已触发预警                            |

@@ -13,12 +13,7 @@ import {
 import { MerchantRagService } from './merchant-rag/merchant-rag.service';
 import { QiniuService } from '../../modules/qiniu/qiniu.service';
 import { RedisService } from '../../modules/db/redis/redis.service';
-
-export interface RAGJobData {
-  qiniuKey: string;
-  merchantId: string;
-  fileName: string;
-}
+import { RAGJobData } from '../../types/rag.type';
 
 /** key → MIME 映射（从 qiniuKey 的扩展名推断） */
 const EXT_MIME_MAP: Record<string, string> = {

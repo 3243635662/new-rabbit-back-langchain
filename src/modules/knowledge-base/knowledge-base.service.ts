@@ -16,12 +16,7 @@ import {
 import { Merchant } from '../merchant/entities/merchant.entity';
 import { QiniuService } from '../qiniu/qiniu.service';
 import { MerchantRagService } from '../../langchain/rag/merchant-rag/merchant-rag.service';
-
-export interface RAGJobData {
-  qiniuKey: string;
-  merchantId: string;
-  fileName: string;
-}
+import { RAGJobData } from '../../types/rag.type';
 
 const ALLOWED_MIME_MAP: Record<string, DocType> = {
   'application/json': DocType.JSON,

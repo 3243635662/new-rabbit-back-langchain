@@ -5,6 +5,7 @@ import { ChromaClient } from 'chromadb';
 import type { Where } from 'chromadb';
 import { Document } from '@langchain/core/documents';
 import { EmbeddingService } from '../embedding.service';
+import { RetrievalTrace } from '../../types/rag.type';
 
 interface RerankResult {
   index: number;
@@ -24,13 +25,8 @@ interface RerankResponse {
 @Injectable()
 export class RagService {
   private readonly logger = new Logger(RagService.name);
-  //  chroma 连接URL
   private readonly CHROMA_URL: string;
-
-  // 库名
   private readonly COLLECTION_NAME: string;
-
-  // 白山智算重排序配置
   private readonly API_KEY: string;
   private readonly BASE_URL: string;
   private readonly RERANK_SCORE_THRESHOLD: number;
@@ -82,13 +78,18 @@ export class RagService {
   };
 
   /**
-   * 向量化并存入 ChromaDB（复用已有 collection，避免重复创建）
+   * 向量化并存入 ChromaDB（分批写入，避免大文件一次性塞爆）
    */
   addDocuments = async (documents: Document[]): Promise<number> => {
     if (documents.length === 0) return 0;
 
     const vectorStore = await this.getVectorStore();
-    await vectorStore.addDocuments(documents);
+    const batchSize = 100;
+
+    for (let i = 0; i < documents.length; i += batchSize) {
+      const batch = documents.slice(i, i + batchSize);
+      await vectorStore.addDocuments(batch);
+    }
 
     this.logger.log(`知识库入库成功: ${documents.length} 个片段`);
     return documents.length;
@@ -104,6 +105,18 @@ export class RagService {
   ): Promise<Document[]> => {
     const vectorStore = await this.getVectorStore();
     return vectorStore.similaritySearch(query, k, filter);
+  };
+
+  /**
+   * 带租户隔离的相似度检索（返回分数）
+   */
+  similaritySearchWithScore = async (
+    query: string,
+    filter?: Where,
+    k = 3,
+  ): Promise<[Document, number][]> => {
+    const vectorStore = await this.getVectorStore();
+    return vectorStore.similaritySearchWithScore(query, k, filter);
   };
 
   /**
@@ -135,47 +148,174 @@ export class RagService {
     merchantId?: string,
     k = 5,
   ): Promise<string> => {
+    const { context } = await this.retrieveContextWithTrace(
+      query,
+      tenantType,
+      merchantId,
+      k,
+    );
+    return context;
+  };
+
+  /**
+   * 检索并返回上下文 + 可观测 trace。
+   * context 拼接包含正文和来源元信息，便于 LLM 溯源和调试。
+   */
+  retrieveContextWithTrace = async (
+    query: string,
+    tenantType: 'platform' | 'merchant',
+    merchantId?: string,
+    k = 5,
+  ): Promise<{ context: string; trace: RetrievalTrace }> => {
     const filter = this.buildTenantFilter(tenantType, merchantId);
-    // 扩大召回数量，至少召回 20 个或 k*4 个候选，用于后续重排序
     const candidateK = Math.max(k * 4, 20);
-    const candidates = await this.similaritySearch(query, filter, candidateK);
 
-    if (candidates.length === 0) return '';
+    const candidatesWithScore = await this.similaritySearchWithScore(
+      query,
+      filter,
+      candidateK,
+    );
+    const candidates = candidatesWithScore.map(([doc]) => doc);
+    const scoreMap = new Map(
+      candidatesWithScore.map(([doc, score]) => [doc, score]),
+    );
 
-    // 若候选数大于目标数，则执行重排序；否则直接使用召回结果
-    let topDocs: Document[];
+    const trace: RetrievalTrace = {
+      query,
+      retrievedCount: candidates.length,
+      rerankedCount: 0,
+      finalContextCount: 0,
+      finalDocs: [],
+    };
+
+    if (candidates.length === 0) {
+      return { context: '', trace };
+    }
+
+    let topDocs: Document[] = [];
+    let rerankScores: number[] = [];
+
     if (candidates.length > k) {
       const result = await this.rerankDocuments(query, candidates, k);
+      trace.rerankedCount = candidates.length;
+
       if (result.isLowRelevance) {
-        return '检索到的参考资料相关性均低于有效阈值，当前知识库中没有足够依据。';
+        return {
+          context:
+            '检索到的参考资料相关性均低于有效阈值，当前知识库中没有足够依据。',
+          trace,
+        };
       }
+
       topDocs = result.documents;
+      rerankScores = result.rerankScores;
     } else {
       topDocs = candidates;
     }
 
-    return topDocs
-      .map((doc, i) => `[参考资料${i + 1}] ${doc.pageContent}`)
-      .join('\n\n');
+    trace.finalContextCount = topDocs.length;
+    trace.finalDocs = topDocs.map((doc, index) => {
+      const meta = (doc.metadata || {}) as Record<string, unknown>;
+
+      return {
+        fileName:
+          (meta.sourceFile as string) || (meta.source as string) || 'unknown',
+        documentType: meta.documentType as string | undefined,
+        score: scoreMap.get(doc) ?? 0,
+        rerankScore: rerankScores[index],
+        chunkIndex: typeof meta.chunkIndex === 'number' ? meta.chunkIndex : -1,
+        page: typeof meta.page === 'number' ? meta.page : undefined,
+        sheetName:
+          typeof meta.sheetName === 'string' ? meta.sheetName : undefined,
+        rowIndex: typeof meta.rowIndex === 'number' ? meta.rowIndex : undefined,
+        section: typeof meta.section === 'string' ? meta.section : undefined,
+        contentHash:
+          typeof meta.contentHash === 'string' ? meta.contentHash : undefined,
+        contentPreview: doc.pageContent.slice(0, 200),
+      };
+    });
+
+    const context = topDocs
+      .map((doc, index) => {
+        const meta = (doc.metadata || {}) as Record<string, unknown>;
+        const sourceFile =
+          (meta.sourceFile as string) || (meta.source as string) || 'unknown';
+        const parts: string[] = [];
+
+        parts.push(`[参考资料 ${index + 1}]`);
+        parts.push(`来源文件：${sourceFile}`);
+
+        if (meta.documentType != null) {
+          parts.push(
+            `文件类型：${String(meta.documentType as string | number | boolean)}`,
+          );
+        }
+
+        if (meta.page != null) {
+          parts.push(`页码：${String(meta.page as string | number | boolean)}`);
+        }
+
+        if (meta.sheetName != null) {
+          parts.push(
+            `工作表：${String(meta.sheetName as string | number | boolean)}`,
+          );
+        }
+
+        if (meta.rowIndex != null) {
+          parts.push(
+            `行号：${String(meta.rowIndex as string | number | boolean)}`,
+          );
+        }
+
+        if (meta.section != null) {
+          parts.push(
+            `模块：${String(meta.section as string | number | boolean)}`,
+          );
+        }
+
+        if (meta.chunkIndex != null) {
+          parts.push(
+            `片段序号：${String(meta.chunkIndex as string | number | boolean)}`,
+          );
+        }
+
+        parts.push('内容：');
+        parts.push(doc.pageContent);
+
+        return parts.join('\n');
+      })
+      .join('\n\n---\n\n');
+
+    return { context, trace };
   };
 
   /**
    * 调用白山智算重排序 API 对候选文档进行二次精排。
-   * 返回文档列表及低相关性标志，用于区分"无候选"与"候选全部低于阈值"。
+   * 返回文档列表、低相关性标志及重排序分数，用于 trace。
    */
   rerankDocuments = async (
     query: string,
     documents: Document[],
     topN: number,
-  ): Promise<{ documents: Document[]; isLowRelevance: boolean }> => {
-    if (documents.length === 0) return { documents: [], isLowRelevance: false };
+  ): Promise<{
+    documents: Document[];
+    isLowRelevance: boolean;
+    rerankScores: number[];
+  }> => {
+    if (documents.length === 0)
+      return { documents: [], isLowRelevance: false, rerankScores: [] };
     if (!this.API_KEY) {
       this.logger.warn('BAISHAN_DASHSCOPE_API_KEY 未配置，跳过重排序');
-      return { documents: documents.slice(0, topN), isLowRelevance: false };
+      return {
+        documents: documents.slice(0, topN),
+        isLowRelevance: false,
+        rerankScores: [],
+      };
     }
 
     try {
-      const response = await fetch(`${this.BASE_URL}/rerank`, {
+      const url = this.BASE_URL.replace(/\/$/, '') + '/rerank';
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -204,22 +344,31 @@ export class RagService {
         this.logger.warn(
           `重排序后所有文档相关性均低于阈值 ${this.RERANK_SCORE_THRESHOLD}，判定为低相关性`,
         );
-        return { documents: [], isLowRelevance: true };
+        return { documents: [], isLowRelevance: true, rerankScores: [] };
       }
 
       const sortedDocs = filtered
         .map((r) => documents[r.index])
         .filter((d): d is Document => d != null);
+      const rerankScores = filtered.map((r) => r.relevance_score);
 
       this.logger.log(
         `重排序完成，召回 ${documents.length} 个候选，过滤阈值 ${this.RERANK_SCORE_THRESHOLD}，返回 ${sortedDocs.length} 个结果`,
       );
-      return { documents: sortedDocs, isLowRelevance: false };
+      return {
+        documents: sortedDocs,
+        isLowRelevance: false,
+        rerankScores,
+      };
     } catch (error) {
       this.logger.error(
         `重排序失败: ${(error as Error).message}，降级使用原始向量检索结果`,
       );
-      return { documents: documents.slice(0, topN), isLowRelevance: false };
+      return {
+        documents: documents.slice(0, topN),
+        isLowRelevance: false,
+        rerankScores: [],
+      };
     }
   };
 

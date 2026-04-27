@@ -11,112 +11,52 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { LangChainService } from './langchain.service';
 import { ChatService } from './chat.service';
+import { AgentsService } from './agents/agents.service';
 import { resFormatMethod } from '../utils/resFormat.util';
 import { Observable } from 'rxjs';
 import { MessageEvent } from '@nestjs/common';
-import { ChatDto } from './dto/chat.dto';
 import { CreateSessionDto, UpdateSessionTitleDto } from './dto/session.dto';
 import { JwtPayloadType } from '../types/auth.type';
-import { getRoleTypeByRoleId } from './prompts/chat.prompt';
-import { MerchantRagService } from './rag/merchant-rag/merchant-rag.service';
 import { Merchant } from '../modules/merchant/entities/merchant.entity';
 import { Public } from '../common/decorators/public.decorator';
+import { AgentRuntimeContext } from '../types/agent.type';
 
 @Controller('ai')
 export class LangChainController {
   constructor(
-    private readonly langChainService: LangChainService,
     private readonly chatService: ChatService,
-    private readonly merchantRagService: MerchantRagService,
+    private readonly agentsService: AgentsService,
     @InjectRepository(Merchant)
     private readonly merchantRepo: Repository<Merchant>,
   ) {}
 
-  /**
-   * 根据用户身份检索知识库上下文
-   * 仅商户角色（roleId === 2）会检索商户知识库
-   */
-  private retrieveKnowledgeBase = async (
-    message: string,
-    userId: string,
-    roleId: number,
-  ): Promise<string> => {
-    if (roleId !== 2) return '';
-    const merchant = await this.merchantRepo.findOne({
-      where: { userId },
-      select: ['id'],
-    });
-    if (!merchant) return '';
-    return this.merchantRagService.retrieveContext(
-      message,
-      merchant.id.toString(),
-    );
+  /** 根据用户身份构建 Agent 运行时上下文 */
+  private buildAgentContext = async (
+    req: { user: JwtPayloadType },
+    sessionId?: string,
+  ): Promise<AgentRuntimeContext> => {
+    let merchantId: string | undefined;
+
+    if (req.user.roleId === 2) {
+      const merchant = await this.merchantRepo.findOne({
+        where: { userId: req.user.id },
+        select: ['id'],
+      });
+      if (merchant) {
+        merchantId = merchant.id.toString();
+      }
+    }
+
+    return {
+      ...req.user,
+      sessionId: sessionId || 'default-session',
+      merchantId,
+    };
   };
 
   // ══════════════════════════════════════════════════════
-  // 基础对话接口
-  // ══════════════════════════════════════════════════════
-
-  /**
-   * 简单对话（无记忆）
-   * POST /ai/chat
-   */
-  @Post('chat')
-  async chat(@Body() dto: ChatDto, @Req() req: { user: JwtPayloadType }) {
-    const role = getRoleTypeByRoleId(req.user.roleId);
-    const kbContext = await this.retrieveKnowledgeBase(
-      dto.message,
-      req.user.id,
-      req.user.roleId,
-    );
-    const reply = await this.langChainService.chat(
-      dto.message,
-      role,
-      kbContext,
-    );
-    return resFormatMethod(0, 'success', reply);
-  }
-
-  /**
-   * 流式对话（无记忆）
-   * SSE /ai/streaming-chat
-   */
-  @Sse('streaming-chat')
-  streamingChat(
-    @Query('message') message: string,
-    @Req() req: { user: JwtPayloadType },
-  ): Observable<MessageEvent> {
-    const role = getRoleTypeByRoleId(req.user.roleId);
-    return new Observable((subscriber) => {
-      void (async () => {
-        try {
-          const kbContext = await this.retrieveKnowledgeBase(
-            message,
-            req.user.id,
-            req.user.roleId,
-          );
-          for await (const chunk of this.langChainService.streamChat(
-            message,
-            role,
-            [],
-            kbContext,
-          )) {
-            subscriber.next({
-              data: JSON.stringify(chunk),
-            } as MessageEvent);
-          }
-          subscriber.complete();
-        } catch (e) {
-          subscriber.error(e);
-        }
-      })();
-    });
-  }
-
-  // ══════════════════════════════════════════════════════
-  // AI 记忆对话接口（Redis + MySQL 持久化）
+  // 智能对话核心接口（基于 Agent，Redis + MySQL 持久化）
   // ══════════════════════════════════════════════════════
 
   /**
@@ -189,62 +129,21 @@ export class LangChainController {
   }
 
   /**
-   * 带持久化记忆的聊天（核心接口）
-   * POST /ai/session/:sessionId/chat
-   *
-   * 流程：
-   * 1. 从 Redis 读取历史 → 拼 LLM → 生成回答
-   * 2. Human + AI 消息追加到 Redis（TTL 续期）
-   * 3. 异步同步到 MySQL
-   */
-  @Post('session/:sessionId/chat')
-  async chatWithPersistentMemory(
-    @Param('sessionId') sessionId: string,
-    @Body() dto: ChatDto,
-    @Req() req: { user: JwtPayloadType },
-  ) {
-    const role = getRoleTypeByRoleId(req.user.roleId);
-
-    // ① 从 Redis/MySQL 获取历史消息
-    const history = await this.chatService.getMessages(sessionId);
-
-    // ② 检索商户知识库上下文
-    const kbContext = await this.retrieveKnowledgeBase(
-      dto.message,
-      req.user.id,
-      req.user.roleId,
-    );
-
-    // ③ 拼消息列表 → LLM 生成回答
-    const reply = await this.langChainService.chatWithHistory(
-      dto.message,
-      role,
-      history,
-      kbContext,
-    );
-
-    // ④ Human + AI 消息追加到 Redis
-    await this.chatService.appendMessage(sessionId, 'human', dto.message);
-    await this.chatService.appendMessage(sessionId, 'ai', reply as string);
-
-    // ⑤ 异步同步到 MySQL（不阻塞响应）
-    this.chatService.syncToMySQL(sessionId).catch((err) => {
-      this.chatService['logger'].error(`异步同步失败:`, err);
-    });
-
-    return resFormatMethod(0, 'success', reply);
-  }
-
-  /**
-   * 带持久化记忆的流式聊天（核心接口）
+   * 智能对话核心接口（带持久化记忆，流式输出）
    * SSE /ai/session/:sessionId/streaming-chat
    *
-   * 流程与 chatWithPersistentMemory 一致，但响应是流式
-   * SSE 无法设置 Authorization header，token 通过 query 传入，AuthGuard 内部兼容
+   * 流程：
+   * 1. 从 Redis/MySQL 获取历史消息
+   * 2. 构建 Agent 上下文（含 merchantId）
+   * 3. Agent 自主决策（是否调用知识库等工具）→ 流式生成回答
+   * 4. Human + AI 消息追加到 Redis（TTL 续期）
+   * 5. 异步同步到 MySQL
+   *
+   * SSE 无法设置 Authorization header，token 通过 query 传入，AuthGuard 内部兼容。
    */
   @Public()
   @Sse('session/:sessionId/streaming-chat')
-  streamingChatWithPersistentMemory(
+  streamingChat(
     @Param('sessionId') sessionId: string,
     @Query('message') message: string,
     @Req() req: { user: JwtPayloadType },
@@ -252,30 +151,23 @@ export class LangChainController {
     return new Observable((subscriber) => {
       void (async () => {
         try {
-          const role = getRoleTypeByRoleId(req.user.roleId);
-
           // ① 从 Redis/MySQL 获取历史消息
           const history = await this.chatService.getMessages(sessionId);
 
-          // ② 检索商户知识库上下文
-          const kbContext = await this.retrieveKnowledgeBase(
-            message,
-            req.user.id,
-            req.user.roleId,
-          );
+          // ② 构建 Agent 上下文
+          const context = await this.buildAgentContext(req, sessionId);
 
           // ③ 记录用户消息到 Redis
           await this.chatService.appendMessage(sessionId, 'human', message);
 
-          // ④ 流式调用 LLM
+          // ④ 流式 Agent 运行
           let fullContent = '';
           let fullReasoning = '';
 
-          for await (const chunk of this.langChainService.streamChat(
+          for await (const chunk of this.agentsService.runAgentStream(
             message,
-            role,
+            context,
             history,
-            kbContext,
           )) {
             fullContent += chunk.content;
             fullReasoning += chunk.reasoning || '';
