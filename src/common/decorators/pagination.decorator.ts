@@ -16,7 +16,7 @@ export const PaginateOptions = createParamDecorator(
     data: { defaultLimit?: number; maxLimit?: number } = {},
     ctx: ExecutionContext,
   ): PaginationOptionsType => {
-    const defaultLimit = data.defaultLimit || 10;
+    const defaultLimit = data.defaultLimit || 5;
     const maxLimit = data.maxLimit || 50;
     const request = ctx.switchToHttp().getRequest<Request>();
     const {

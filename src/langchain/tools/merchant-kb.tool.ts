@@ -1,17 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { tool } from '@langchain/core/tools';
+import { tool, DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { LangChainService } from '../langchain.service';
 import { MerchantRagService } from '../rag/merchant-rag/merchant-rag.service';
 import { buildExpandQueryPrompt } from '../prompts/chat.prompt';
 import { SEARCH_MERCHANT_KB_DESC } from '../prompts/agent.des';
 import { RAG_MESSAGES, INVALID_RAG_MARKERS } from '../prompts/agent.prompt';
+import { AgentRuntimeContext } from '../../types/agent.type';
 
 /**
  * 商户知识库检索 Tool
  *
  * 职责：封装 RAG 检索的全部业务逻辑（查询改写、多轮检索、结果验证与合并）。
- * Agent 层只负责调用 create(merchantId) 获取 Tool 实例，不感知内部实现。
+ * Agent 层只负责调用 create(context) 获取 Tool 实例，不感知内部实现。
  */
 @Injectable()
 export class MerchantKbTool {
@@ -24,11 +25,12 @@ export class MerchantKbTool {
 
   /**
    * 创建 searchMerchantKnowledgeBase Tool 实例
-   * @param merchantId 商户 ID，未关联商户时工具会直接返回提示
+   * @param context Agent 运行时上下文，未关联商户时工具会直接返回提示
    */
-  create = (merchantId?: string) => {
+  create(context: AgentRuntimeContext): DynamicStructuredTool {
+    const { merchantId } = context;
     return tool(
-      async ({ query }) => {
+      async ({ query }: { query: string }) => {
         if (!merchantId) {
           return RAG_MESSAGES.noMerchant;
         }
@@ -78,7 +80,7 @@ export class MerchantKbTool {
         }),
       },
     );
-  };
+  }
 
   /** 查询改写：调用 LLM 自动生成同义查询，提升召回率 */
   private expandQuery = async (query: string): Promise<string[]> => {

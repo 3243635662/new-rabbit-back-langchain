@@ -1,13 +1,6 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { BaseMessage } from '@langchain/core/messages';
-import type { RoleType } from './prompts/chat.prompt';
-import {
-  ecomAssistantPrompt,
-  ROLE_CONFIG,
-  formatKnowledgeBase,
-} from './prompts/chat.prompt';
 
 @Injectable()
 export class LangChainService {
@@ -28,88 +21,4 @@ export class LangChainService {
   }
 
   getModel = () => this.model;
-
-  // 模板构建消息列表
-  // 有历史时不再注入 greeting，避免每轮重复插入"假"AI消息干扰上下文
-  private buildMessages = async (
-    prompt: string,
-    role: RoleType = 'merchant',
-    history: BaseMessage[] = [],
-    knowledgeBase = '',
-  ): Promise<BaseMessage[]> => {
-    const config = ROLE_CONFIG[role];
-    const hasHistory = history && history.length > 0;
-    const kbText = formatKnowledgeBase(knowledgeBase);
-    const messages = await ecomAssistantPrompt.formatMessages({
-      role: config.role,
-      duty: config.duty,
-      rules: config.rules,
-      greeting: hasHistory ? '' : config.greeting,
-      history,
-      question: prompt,
-      knowledgeBase: kbText,
-    });
-    return messages;
-  };
-
-  // 简单的对话方法（无记忆）
-  chat = async (prompt: string, role?: RoleType, knowledgeBase?: string) => {
-    const messages: BaseMessage[] = await this.buildMessages(
-      prompt,
-      role,
-      [],
-      knowledgeBase,
-    );
-    const response = await this.model.invoke(messages);
-    return response.content;
-  };
-
-  // 带历史对话的聊天 - AI 能记住之前的上下文
-  // 外部传入历史（来自 Redis/MySQL 持久化层）
-  chatWithHistory = async (
-    prompt: string,
-    role?: RoleType,
-    externalHistory?: BaseMessage[],
-    knowledgeBase?: string,
-  ) => {
-    const history = externalHistory || [];
-    const messages: BaseMessage[] = await this.buildMessages(
-      prompt,
-      role,
-      history,
-      knowledgeBase,
-    );
-    const response = await this.model.invoke(messages);
-    return response.content;
-  };
-
-  // 流式对话方法 - 返回 async generator
-  // 外部传入历史（来自 Redis/MySQL 持久化层）
-  streamChat = async function* (
-    this: LangChainService,
-    prompt: string,
-    role?: RoleType,
-    externalHistory?: BaseMessage[],
-    knowledgeBase?: string,
-  ) {
-    const history = externalHistory || [];
-    const messages: BaseMessage[] = await this.buildMessages(
-      prompt,
-      role,
-      history,
-      knowledgeBase,
-    );
-    const stream = await this.model.stream(messages);
-
-    for await (const chunk of stream) {
-      const content = chunk.content as string;
-      const reasoning = chunk.additional_kwargs?.reasoning_content as
-        | string
-        | undefined;
-
-      if (content || reasoning) {
-        yield { content: content || '', reasoning: reasoning || '' };
-      }
-    }
-  };
 }

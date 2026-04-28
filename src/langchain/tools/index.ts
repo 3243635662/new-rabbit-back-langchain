@@ -1,2 +1,10 @@
 export { MerchantKbTool } from './merchant-kb.tool';
+export { ProductListTool } from './product-list.tool';
+export { OrderListTool } from './order-list.tool';
+export { InventoryListTool } from './inventory-list.tool';
+export { InventoryLogsTool } from './inventory-logs.tool';
+export { InventoryStockChangeTool } from './inventory-stock-change.tool';
+export { UserInfoTool } from './user-info.tool';
+export { ShipOrderTool } from './ship-order.tool';
+export { MerchantCategoriesTool } from './merchant-categories.tool';
 export { ToolModule } from './tool.module';

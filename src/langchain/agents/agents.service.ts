@@ -6,8 +6,17 @@ import {
   SystemMessage,
   AIMessage,
 } from '@langchain/core/messages';
+import { DynamicStructuredTool } from '@langchain/core/tools';
 import { LangChainService } from '../langchain.service';
 import { MerchantKbTool } from '../tools/merchant-kb.tool';
+import { ProductListTool } from '../tools/product-list.tool';
+import { OrderListTool } from '../tools/order-list.tool';
+import { InventoryListTool } from '../tools/inventory-list.tool';
+import { InventoryLogsTool } from '../tools/inventory-logs.tool';
+import { InventoryStockChangeTool } from '../tools/inventory-stock-change.tool';
+import { UserInfoTool } from '../tools/user-info.tool';
+import { ShipOrderTool } from '../tools/ship-order.tool';
+import { MerchantCategoriesTool } from '../tools/merchant-categories.tool';
 import {
   buildAgentSystemPrompt,
   FORCE_FINAL_ANSWER_PROMPT,
@@ -29,6 +38,14 @@ export class AgentsService {
   constructor(
     private readonly langChainService: LangChainService,
     private readonly merchantKbTool: MerchantKbTool,
+    private readonly productListTool: ProductListTool,
+    private readonly orderListTool: OrderListTool,
+    private readonly inventoryListTool: InventoryListTool,
+    private readonly inventoryLogsTool: InventoryLogsTool,
+    private readonly inventoryStockChangeTool: InventoryStockChangeTool,
+    private readonly userInfoTool: UserInfoTool,
+    private readonly shipOrderTool: ShipOrderTool,
+    private readonly merchantCategoriesTool: MerchantCategoriesTool,
   ) {}
 
   /** 规范化模型返回的 content（处理字符串或数组格式） */
@@ -68,8 +85,20 @@ export class AgentsService {
   };
 
   /** 组装当前 Agent 可用的 Tool 列表 */
-  private createTools = (merchantId?: string) => {
-    return [this.merchantKbTool.create(merchantId)];
+  private createTools = (
+    context: AgentRuntimeContext,
+  ): DynamicStructuredTool[] => {
+    return [
+      this.merchantKbTool.create(context),
+      this.productListTool.create(context),
+      this.orderListTool.create(context),
+      this.inventoryListTool.create(context),
+      this.inventoryLogsTool.create(context),
+      this.inventoryStockChangeTool.create(context),
+      this.userInfoTool.create(context),
+      this.shipOrderTool.create(context),
+      this.merchantCategoriesTool.create(context),
+    ];
   };
 
   runAgent = async (
@@ -77,11 +106,11 @@ export class AgentsService {
     context: AgentRuntimeContext,
     history: BaseMessage[] = [],
   ): Promise<AgentRunResult> => {
-    const tools = this.createTools(context.merchantId);
+    const tools = this.createTools(context);
     const toolMap = new Map<
       string,
       { name: string; invoke: (args: unknown) => Promise<unknown> }
-    >(tools.map((item) => [item.name as string, item]));
+    >(tools.map((item) => [item.name, item]));
 
     const model = this.langChainService.getModel();
     const modelWithTools = model.bindTools(tools);
@@ -94,6 +123,7 @@ export class AgentsService {
       new HumanMessage(prompt),
     ];
 
+    // 最大循环次数
     const maxSteps = 3;
 
     for (let i = 0; i < maxSteps; i++) {
@@ -187,11 +217,11 @@ export class AgentsService {
     context: AgentRuntimeContext,
     history: BaseMessage[] = [],
   ): AsyncGenerator<AgentStreamChunk> {
-    const tools = this.createTools(context.merchantId);
+    const tools = this.createTools(context);
     const toolMap = new Map<
       string,
       { name: string; invoke: (args: unknown) => Promise<unknown> }
-    >(tools.map((item) => [item.name as string, item]));
+    >(tools.map((item) => [item.name, item]));
 
     const model = this.langChainService.getModel();
     const modelWithTools = model.bindTools(tools);

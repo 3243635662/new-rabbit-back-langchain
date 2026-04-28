@@ -26,6 +26,9 @@ import { AgentRuntimeContext } from '../types/agent.type';
 
 @Controller('ai')
 export class LangChainController {
+  /** 记录每个 session 当前正在运行的 SSE 流的 AbortController */
+  private readonly activeStreams = new Map<string, AbortController>();
+
   constructor(
     private readonly chatService: ChatService,
     private readonly agentsService: AgentsService,
@@ -155,6 +158,16 @@ export class LangChainController {
     res.setTimeout(0);
     res.setHeader('X-Accel-Buffering', 'no');
 
+    // 为当前 session 创建 AbortController，用于支持停止对话
+    const abortController = new AbortController();
+    this.activeStreams.set(sessionId, abortController);
+
+    // 客户端断开连接时也触发 abort
+    res.on('close', () => {
+      abortController.abort();
+      this.activeStreams.delete(sessionId);
+    });
+
     return new Observable((subscriber) => {
       void (async () => {
         try {
@@ -175,6 +188,11 @@ export class LangChainController {
             context,
             history,
           )) {
+            // 检查是否已被停止
+            if (abortController.signal.aborted) {
+              break;
+            }
+
             fullContent += chunk.content || '';
             if (chunk.type === 'content') {
               fullReasoning += chunk.reasoning || '';
@@ -184,18 +202,27 @@ export class LangChainController {
             } as MessageEvent);
           }
 
-          // ⑤ AI 完整回复追加到 Redis
-          await this.chatService.appendMessage(
-            sessionId,
-            'ai',
-            fullContent,
-            fullReasoning || undefined,
-          );
+          // 如果被中止，发送 stopped 事件
+          if (abortController.signal.aborted) {
+            subscriber.next({
+              data: JSON.stringify({ type: 'stopped', content: fullContent }),
+            } as MessageEvent);
+          }
 
-          // ⑥ 异步同步到 MySQL
-          this.chatService.syncToMySQL(sessionId).catch((err) => {
-            this.chatService['logger'].error(`异步同步失败:`, err);
-          });
+          // ⑤ AI 完整回复追加到 Redis（部分内容也保存）
+          if (fullContent) {
+            await this.chatService.appendMessage(
+              sessionId,
+              'ai',
+              fullContent,
+              fullReasoning || undefined,
+            );
+
+            // ⑥ 异步同步到 MySQL
+            this.chatService.syncToMySQL(sessionId).catch((err) => {
+              this.chatService['logger'].error(`异步同步失败:`, err);
+            });
+          }
 
           subscriber.complete();
         } catch (e) {
@@ -205,9 +232,34 @@ export class LangChainController {
             err.stack,
           );
           subscriber.error(e);
+        } finally {
+          this.activeStreams.delete(sessionId);
         }
       })();
     });
+  }
+
+  /**
+   * 停止当前进行中的对话（中断 SSE 流式输出）
+   * POST /ai/session/:sessionId/stop
+   */
+  @Post('session/:sessionId/stop')
+  async stopStreamingChat(
+    @Param('sessionId') sessionId: string,
+    @Req() req: { user: JwtPayloadType },
+  ) {
+    // 验证 session 属于当前用户
+    const session = await this.chatService.getSession(sessionId);
+    if (!session || session.userId !== req.user.id) {
+      return resFormatMethod(1, '无权操作此会话', null);
+    }
+
+    const controller = this.activeStreams.get(sessionId);
+    if (controller && !controller.signal.aborted) {
+      controller.abort();
+      return resFormatMethod(0, 'success', '对话已停止');
+    }
+    return resFormatMethod(1, '当前没有进行中的对话', null);
   }
 
   /**

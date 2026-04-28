@@ -7,4 +7,4 @@ export const timeFormatMethod = (dateInput?: string | number | Date) => {
   const m = date.getMinutes().toString().padStart(2, '0');
   const s = date.getSeconds().toString().padStart(2, '0');
   return `${Y}-${M}-${D} ${h}:${m}:${s}`;
-};
+};

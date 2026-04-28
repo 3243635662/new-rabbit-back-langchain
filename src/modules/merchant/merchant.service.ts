@@ -40,11 +40,8 @@ export class MerchantService {
     @InjectRepository(GoodsSku)
     private readonly skuRepo: Repository<GoodsSku>,
     @InjectRepository(Spec)
-    private readonly specRepo: Repository<Spec>,
     @InjectRepository(SpecValue)
-    private readonly specValueRepo: Repository<SpecValue>,
     @InjectRepository(GoodsInfo)
-    private readonly goodsInfoRepo: Repository<GoodsInfo>,
     @InjectRepository(Brands)
     private readonly brandsRepo: Repository<Brands>,
     @InjectRepository(OrderItem)
@@ -53,24 +50,35 @@ export class MerchantService {
   ) {}
 
   //* 获取商家的商品列表 (SKU级细分)
+  //* @param merchantId 直接传入商家ID，避免重复查询（用于Agent Tool场景）
 
-  async getGoodsList(payload: JwtPayloadType, options: PaginationOptionsType) {
-    const { id: userId } = payload;
+  async getGoodsList(
+    payload: JwtPayloadType,
+    options: PaginationOptionsType,
+    merchantId?: string,
+  ) {
+    // 如果直接传入了 merchantId，就直接用；否则从 payload 中解析
+    let finalMerchantId: string | number | undefined = merchantId;
+    if (!finalMerchantId) {
+      const { id: userId } = payload;
 
-    // 1. 获取当前用户对应的商家ID
-    const merchant = await this.merchantRepo.findOne({
-      where: { userId: userId.toString() },
-      select: ['id'],
-    });
+      //  获取当前用户对应的商家ID
+      const merchant = await this.merchantRepo.findOne({
+        where: { userId: userId.toString() },
+        select: ['id'],
+      });
 
-    if (!merchant) {
-      return {
-        list: [],
-        total: 0,
-        page: options.page || 1,
-        limit: options.limit || 10,
-        totalPage: 0,
-      };
+      if (!merchant) {
+        return {
+          list: [],
+          total: 0,
+          page: options.page || 1,
+          limit: options.limit || 10,
+          totalPage: 0,
+        };
+      }
+
+      finalMerchantId = merchant.id;
     }
 
     // 构建查询构建器 (基于 SKU)
@@ -80,7 +88,7 @@ export class MerchantService {
       .leftJoinAndSelect('goods.category', 'category')
       .leftJoinAndSelect('goods.brandRelation', 'brandRelation')
       .leftJoinAndSelect('sku.inventory', 'inventory')
-      .where('goods.merchantId = :merchantId', { merchantId: merchant.id });
+      .where('goods.merchantId = :merchantId', { merchantId: finalMerchantId });
 
     // 关键词过滤 (商品名称 或 SKU规格内容)
     if (options.keyword) {
@@ -628,6 +636,7 @@ export class MerchantService {
       limit: paginationData.meta.itemsPerPage,
     };
   }
+
   // *获取商家的订单列表（以 OrderItem 为主维度）
   async getMerchantOrders(
     payload: JwtPayloadType,

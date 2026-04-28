@@ -41,4 +41,8 @@ export type AgentStreamChunk =
       type: 'content';
       content: string;
       reasoning?: string;
+    }
+  | {
+      type: 'stopped';
+      content: string;
     };
