@@ -6,20 +6,14 @@ import {
   SystemMessage,
   AIMessage,
 } from '@langchain/core/messages';
-import { tool } from '@langchain/core/tools';
-import { z } from 'zod';
 import { LangChainService } from '../langchain.service';
-import { MerchantRagService } from '../rag/merchant-rag/merchant-rag.service';
-import { buildExpandQueryPrompt } from '../prompts/chat.prompt';
-import { SEARCH_MERCHANT_KB_DESC } from '../prompts/agent.des';
+import { MerchantKbTool } from '../tools/merchant-kb.tool';
 import {
   buildAgentSystemPrompt,
   FORCE_FINAL_ANSWER_PROMPT,
   STREAM_STATUS,
   STREAM_TOOL,
   TOOL_ERROR,
-  RAG_MESSAGES,
-  INVALID_RAG_MARKERS,
 } from '../prompts/agent.prompt';
 import {
   AgentRunResult,
@@ -34,7 +28,7 @@ export class AgentsService {
 
   constructor(
     private readonly langChainService: LangChainService,
-    private readonly merchantRagService: MerchantRagService,
+    private readonly merchantKbTool: MerchantKbTool,
   ) {}
 
   /** 规范化模型返回的 content（处理字符串或数组格式） */
@@ -64,125 +58,18 @@ export class AgentsService {
       : JSON.stringify(content);
   };
 
-  /** 判断 RAG 检索结果是否有效 */
-  private isValidRagContext = (context?: string): boolean => {
-    if (!context || !context.trim()) return false;
-    return !INVALID_RAG_MARKERS.some((marker) => context.includes(marker));
-  };
-
-  /** 合并多个检索结果并去重 */
-  private mergeContexts = (contexts: string[]): string => {
-    const lines = contexts
-      .join('\n')
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean);
-
-    return [...new Set(lines)].join('\n');
-  };
-
   /** 压缩工具结果，避免撑爆上下文窗口 */
   private compressToolResult = (text: string, maxLength = 6000): string => {
     if (text.length <= maxLength) return text;
-    return text.slice(0, maxLength) + RAG_MESSAGES.truncated;
-  };
-
-  /** 查询改写：调用 LLM 自动生成同义查询，提升召回率 */
-  private expandQuery = async (query: string): Promise<string[]> => {
-    const model = this.langChainService.getModel();
-    const prompt = buildExpandQueryPrompt(query);
-
-    try {
-      const response = await model.invoke(prompt);
-      let text = this.normalizeModelContent(response.content).trim();
-
-      // 清理 thinking 标签（enable_thinking 模型会输出 <think>...</think>）
-      text = text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
-
-      // 尝试从响应中提取 JSON 数组
-      const match = text.match(/\[[\s\S]*\]/);
-      if (match) {
-        const expanded = JSON.parse(match[0]) as string[];
-        const unique = [
-          query,
-          ...expanded.filter(
-            (q) => q !== query && typeof q === 'string' && q.trim().length > 0,
-          ),
-        ];
-        const result = [...new Set(unique.map((q) => q.trim()))].slice(0, 6);
-        this.logger.log(
-          `[expandQuery] 原查询: "${query}" → 扩展: ${JSON.stringify(result)}`,
-        );
-        return result;
-      }
-
-      this.logger.warn(
-        `[expandQuery] 未匹配到 JSON 数组，原始响应: ${text.slice(0, 200)}`,
-      );
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      this.logger.warn(
-        `[expandQuery] LLM 改写失败: ${errorMessage}，降级为原查询: ${query}`,
-      );
-    }
-
-    return [query];
-  };
-
-  private createTools = (merchantId?: string) => {
-    const searchMerchantKnowledgeBase = tool(
-      async ({ query }) => {
-        if (!merchantId) {
-          return RAG_MESSAGES.noMerchant;
-        }
-
-        // 阶段一：直接检索原始查询，命中则直接返回
-        const { context: directContext, trace: directTrace } =
-          await this.merchantRagService.retrieveContextWithTrace(
-            query,
-            merchantId,
-            5,
-          );
-        this.logger.log(
-          `[Agent-RAG-Trace] direct query=${query}, trace=${JSON.stringify(directTrace)}`,
-        );
-
-        if (this.isValidRagContext(directContext)) {
-          return this.compressToolResult(directContext);
-        }
-
-        // 阶段二：原始查询未命中，调用 LLM 扩展同义查询后并行检索
-        const expandedQueries = await this.expandQuery(query);
-        const results = await Promise.all(
-          expandedQueries.map((q) =>
-            this.merchantRagService
-              .retrieveContextWithTrace(q, merchantId, 3)
-              .then(({ context, trace }) => {
-                this.logger.log(
-                  `[Agent-RAG-Trace] expanded query=${q}, trace=${JSON.stringify(trace)}`,
-                );
-                return this.isValidRagContext(context) ? context : '';
-              }),
-          ),
-        );
-
-        const validContexts = results.filter((ctx) => ctx.trim().length > 0);
-        if (validContexts.length === 0) {
-          return RAG_MESSAGES.noResults;
-        }
-
-        return this.compressToolResult(this.mergeContexts(validContexts));
-      },
-      {
-        name: 'searchMerchantKnowledgeBase',
-        description: SEARCH_MERCHANT_KB_DESC,
-        schema: z.object({
-          query: z.string().describe('需要在商家知识库中检索的问题或关键词'),
-        }),
-      },
+    return (
+      text.slice(0, maxLength) +
+      '\n\n[工具结果过长，已截断。请基于以上资料回答，不要编造未提供的信息。]'
     );
+  };
 
-    return [searchMerchantKnowledgeBase];
+  /** 组装当前 Agent 可用的 Tool 列表 */
+  private createTools = (merchantId?: string) => {
+    return [this.merchantKbTool.create(merchantId)];
   };
 
   runAgent = async (

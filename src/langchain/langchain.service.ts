@@ -27,7 +27,6 @@ export class LangChainService {
     });
   }
 
-  // 暴露模型实例
   getModel = () => this.model;
 
   // 模板构建消息列表
