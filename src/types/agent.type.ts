@@ -18,3 +18,27 @@ export interface AgentToolTrace {
   success: boolean;
   errorMessage?: string;
 }
+
+/** 流式输出消息类型 */
+export type AgentStreamChunk =
+  | {
+      type: 'status';
+      content: string;
+    }
+  | {
+      type: 'tool_start';
+      toolName: string;
+      args: unknown;
+      content: string;
+    }
+  | {
+      type: 'tool_end';
+      toolName: string;
+      resultPreview: string;
+      content: string;
+    }
+  | {
+      type: 'content';
+      content: string;
+      reasoning?: string;
+    };

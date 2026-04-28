@@ -7,8 +7,10 @@ import {
   Post,
   Query,
   Req,
+  Res,
   Sse,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ChatService } from './chat.service';
@@ -147,7 +149,12 @@ export class LangChainController {
     @Param('sessionId') sessionId: string,
     @Query('message') message: string,
     @Req() req: { user: JwtPayloadType },
+    @Res({ passthrough: true }) res: Response,
   ): Observable<MessageEvent> {
+    // 禁用 SSE 超时，避免长推理被断开
+    res.setTimeout(0);
+    res.setHeader('X-Accel-Buffering', 'no');
+
     return new Observable((subscriber) => {
       void (async () => {
         try {
@@ -163,14 +170,15 @@ export class LangChainController {
           // ④ 流式 Agent 运行
           let fullContent = '';
           let fullReasoning = '';
-
           for await (const chunk of this.agentsService.runAgentStream(
             message,
             context,
             history,
           )) {
-            fullContent += chunk.content;
-            fullReasoning += chunk.reasoning || '';
+            fullContent += chunk.content || '';
+            if (chunk.type === 'content') {
+              fullReasoning += chunk.reasoning || '';
+            }
             subscriber.next({
               data: JSON.stringify(chunk),
             } as MessageEvent);
@@ -191,6 +199,11 @@ export class LangChainController {
 
           subscriber.complete();
         } catch (e) {
+          const err = e instanceof Error ? e : new Error(String(e));
+          this.chatService['logger'].error(
+            `[SSE] session=${sessionId} error=${err.message}`,
+            err.stack,
+          );
           subscriber.error(e);
         }
       })();

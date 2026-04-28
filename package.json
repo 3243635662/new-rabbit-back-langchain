@@ -55,7 +55,8 @@
     "rxjs": "^7.8.1",
     "typeorm": "^0.3.28",
     "uapi-sdk-typescript": "^0.1.11",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
