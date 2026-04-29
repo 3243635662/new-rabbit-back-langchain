@@ -46,7 +46,8 @@ export class AgentsService {
     private readonly userInfoTool: UserInfoTool,
     private readonly shipOrderTool: ShipOrderTool,
     private readonly merchantCategoriesTool: MerchantCategoriesTool,
-  ) {}
+    // eslint-disable-next-line prettier/prettier
+  ) { }
 
   /** 规范化模型返回的 content（处理字符串或数组格式） */
   private normalizeModelContent = (content: unknown): string => {
@@ -101,116 +102,6 @@ export class AgentsService {
     ];
   };
 
-  runAgent = async (
-    prompt: string,
-    context: AgentRuntimeContext,
-    history: BaseMessage[] = [],
-  ): Promise<AgentRunResult> => {
-    const tools = this.createTools(context);
-    const toolMap = new Map<
-      string,
-      { name: string; invoke: (args: unknown) => Promise<unknown> }
-    >(tools.map((item) => [item.name, item]));
-
-    const model = this.langChainService.getModel();
-    const modelWithTools = model.bindTools(tools);
-
-    const toolTraces: AgentToolTrace[] = [];
-
-    const messages: BaseMessage[] = [
-      new SystemMessage(buildAgentSystemPrompt()),
-      ...history,
-      new HumanMessage(prompt),
-    ];
-
-    // 最大循环次数
-    const maxSteps = 3;
-
-    for (let i = 0; i < maxSteps; i++) {
-      const response = await modelWithTools.invoke(messages);
-      messages.push(response);
-
-      const toolCalls = response.tool_calls || [];
-
-      if (toolCalls.length === 0) {
-        return {
-          content: this.normalizeModelContent(response.content),
-          toolTraces,
-        };
-      }
-
-      for (const toolCall of toolCalls) {
-        const toolCallId = toolCall.id;
-
-        if (!toolCallId) {
-          this.logger.warn(
-            `[Agent] ${TOOL_ERROR.missingId}: ${JSON.stringify(toolCall)}`,
-          );
-          continue;
-        }
-
-        const targetTool = toolMap.get(toolCall.name);
-        let toolResult: string;
-
-        if (!targetTool) {
-          toolResult = TOOL_ERROR.notFound(toolCall.name);
-          toolTraces.push({
-            toolName: toolCall.name,
-            args: toolCall.args,
-            resultPreview: toolResult,
-            success: false,
-            errorMessage: '工具不存在或无权限',
-          });
-        } else {
-          try {
-            const rawResult = await targetTool.invoke(toolCall.args);
-            toolResult =
-              typeof rawResult === 'string'
-                ? rawResult
-                : JSON.stringify(rawResult);
-            toolResult = this.compressToolResult(toolResult);
-
-            toolTraces.push({
-              toolName: toolCall.name,
-              args: toolCall.args,
-              resultPreview: toolResult.slice(0, 500),
-              success: true,
-            });
-          } catch (err) {
-            const errorMessage =
-              err instanceof Error ? err.message : String(err);
-            toolResult = TOOL_ERROR.executionFailed(errorMessage);
-            toolTraces.push({
-              toolName: toolCall.name,
-              args: toolCall.args,
-              resultPreview: errorMessage,
-              success: false,
-              errorMessage,
-            });
-          }
-        }
-
-        messages.push(
-          new ToolMessage({
-            content: toolResult,
-            tool_call_id: toolCallId,
-          }),
-        );
-      }
-    }
-
-    // 达到最大循环次数，强制用不带 tools 的模型生成最终回答
-    const finalResponse = await model.invoke([
-      ...messages,
-      new HumanMessage(FORCE_FINAL_ANSWER_PROMPT),
-    ]);
-
-    return {
-      content: this.normalizeModelContent(finalResponse.content),
-      toolTraces,
-    };
-  };
-
   /** 流式 Agent：支持多轮工具调用，思考过程与回答均流式输出 */
   async *runAgentStream(
     prompt: string,
@@ -218,6 +109,7 @@ export class AgentsService {
     history: BaseMessage[] = [],
   ): AsyncGenerator<AgentStreamChunk> {
     const tools = this.createTools(context);
+
     const toolMap = new Map<
       string,
       { name: string; invoke: (args: unknown) => Promise<unknown> }
@@ -368,4 +260,114 @@ export class AgentsService {
       }
     }
   }
+
+  runAgent = async (
+    prompt: string,
+    context: AgentRuntimeContext,
+    history: BaseMessage[] = [],
+  ): Promise<AgentRunResult> => {
+    const tools = this.createTools(context);
+    const toolMap = new Map<
+      string,
+      { name: string; invoke: (args: unknown) => Promise<unknown> }
+    >(tools.map((item) => [item.name, item]));
+
+    const model = this.langChainService.getModel();
+    const modelWithTools = model.bindTools(tools);
+
+    const toolTraces: AgentToolTrace[] = [];
+
+    const messages: BaseMessage[] = [
+      new SystemMessage(buildAgentSystemPrompt()),
+      ...history,
+      new HumanMessage(prompt),
+    ];
+
+    // 最大循环次数
+    const maxSteps = 3;
+
+    for (let i = 0; i < maxSteps; i++) {
+      const response = await modelWithTools.invoke(messages);
+      messages.push(response);
+
+      const toolCalls = response.tool_calls || [];
+
+      if (toolCalls.length === 0) {
+        return {
+          content: this.normalizeModelContent(response.content),
+          toolTraces,
+        };
+      }
+
+      for (const toolCall of toolCalls) {
+        const toolCallId = toolCall.id;
+
+        if (!toolCallId) {
+          this.logger.warn(
+            `[Agent] ${TOOL_ERROR.missingId}: ${JSON.stringify(toolCall)}`,
+          );
+          continue;
+        }
+
+        const targetTool = toolMap.get(toolCall.name);
+        let toolResult: string;
+
+        if (!targetTool) {
+          toolResult = TOOL_ERROR.notFound(toolCall.name);
+          toolTraces.push({
+            toolName: toolCall.name,
+            args: toolCall.args,
+            resultPreview: toolResult,
+            success: false,
+            errorMessage: '工具不存在或无权限',
+          });
+        } else {
+          try {
+            const rawResult = await targetTool.invoke(toolCall.args);
+            toolResult =
+              typeof rawResult === 'string'
+                ? rawResult
+                : JSON.stringify(rawResult);
+            toolResult = this.compressToolResult(toolResult);
+
+            toolTraces.push({
+              toolName: toolCall.name,
+              args: toolCall.args,
+              resultPreview: toolResult.slice(0, 500),
+              success: true,
+            });
+          } catch (err) {
+            const errorMessage =
+              err instanceof Error ? err.message : String(err);
+            toolResult = TOOL_ERROR.executionFailed(errorMessage);
+            toolTraces.push({
+              toolName: toolCall.name,
+              args: toolCall.args,
+              resultPreview: errorMessage,
+              success: false,
+              errorMessage,
+            });
+          }
+        }
+
+        messages.push(
+          new ToolMessage({
+            content: toolResult,
+            tool_call_id: toolCallId,
+          }),
+        );
+      }
+    }
+
+    // 达到最大循环次数，强制用不带 tools 的模型生成最终回答
+    const finalResponse = await model.invoke([
+      ...messages,
+      new HumanMessage(FORCE_FINAL_ANSWER_PROMPT),
+    ]);
+
+    return {
+      content: this.normalizeModelContent(finalResponse.content),
+      toolTraces,
+    };
+  };
 }
