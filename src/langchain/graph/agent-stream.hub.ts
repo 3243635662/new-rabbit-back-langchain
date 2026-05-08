@@ -4,7 +4,13 @@ import { AIMessageChunk } from '@langchain/core/messages';
 interface StreamChunk {
   content: string;
   reasoning: string;
-  toolCallChunks: { id?: string; name?: string; args?: string }[];
+  toolCallChunks: {
+    index?: number;
+    id?: string;
+    name?: string;
+    args?: string;
+  }[];
+  status?: string;
 }
 
 interface StreamChannel {
@@ -43,6 +49,16 @@ export class AgentStreamHub {
     } else {
       channel.queue.push(chunk);
     }
+  };
+
+  /** 向指定 session 推送状态消息 */
+  emitStatus = (sessionId: string, status: string): void => {
+    this.emit(sessionId, {
+      content: '',
+      reasoning: '',
+      toolCallChunks: [],
+      status,
+    });
   };
 
   /** 结束指定 session 的流 */
@@ -86,13 +102,33 @@ export class AgentStreamHub {
 
   /** 将 AIMessageChunk 转换为 hub chunk */
   static fromMessageChunk = (chunk: AIMessageChunk): StreamChunk => {
-    const content = typeof chunk.content === 'string' ? chunk.content : '';
+    let content = '';
+    if (typeof chunk.content === 'string') {
+      content = chunk.content;
+    } else if (Array.isArray(chunk.content)) {
+      content = chunk.content
+        .map((item: unknown) => {
+          if (typeof item === 'string') return item;
+          if (item && typeof item === 'object' && 'text' in item) {
+            return String((item as Record<string, unknown>).text);
+          }
+          return '';
+        })
+        .filter(Boolean)
+        .join('\n');
+    }
+
     const reasoning =
       (chunk.additional_kwargs?.reasoning_content as string) || '';
     const toolCallChunks =
       (
         chunk as AIMessageChunk & {
-          tool_call_chunks?: { id?: string; name?: string; args?: string }[];
+          tool_call_chunks?: {
+            index?: number;
+            id?: string;
+            name?: string;
+            args?: string;
+          }[];
         }
       ).tool_call_chunks || [];
     return { content, reasoning, toolCallChunks };

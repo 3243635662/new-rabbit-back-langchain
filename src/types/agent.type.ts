@@ -28,12 +28,14 @@ export type AgentStreamChunk =
   | {
       type: 'tool_start';
       toolName: string;
+      toolCallId: string;
       args: unknown;
       content: string;
     }
   | {
       type: 'tool_end';
       toolName: string;
+      toolCallId: string;
       resultPreview: string;
       content: string;
     }

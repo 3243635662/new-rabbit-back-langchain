@@ -25,6 +25,10 @@ export const AgentState = Annotation.Root({
     reducer: (curr, update) => [...curr, ...update],
     default: () => [],
   }),
+  step: Annotation<number>({
+    reducer: (_curr, update) => update,
+    default: () => 0,
+  }),
 });
 
 export type AgentStateType = typeof AgentState.State;

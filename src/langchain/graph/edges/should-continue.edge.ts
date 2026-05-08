@@ -22,12 +22,9 @@ export const createShouldContinue = (maxSteps = 3) => {
         }
       ).tool_calls || [];
 
-    // 简单步数控制：通过消息中 HumanMessage 数量估算步数
-    const stepCount = state.messages.filter(
-      (m) => m._getType() === 'human',
-    ).length;
+    const step = state.step || 0;
 
-    if (toolCalls.length > 0 && stepCount <= maxSteps) {
+    if (toolCalls.length > 0 && step < maxSteps) {
       return 'tools';
     }
 

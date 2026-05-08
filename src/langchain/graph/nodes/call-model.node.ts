@@ -1,5 +1,9 @@
 import { Logger } from '@nestjs/common';
-import { AIMessage, AIMessageChunk } from '@langchain/core/messages';
+import {
+  AIMessage,
+  AIMessageChunk,
+  collapseToolCallChunks,
+} from '@langchain/core/messages';
 import type { RunnableConfig } from '@langchain/core/runnables';
 import { LangChainService } from '../../langchain.service';
 import type { AgentStateType } from '../agent-state.annotation';
@@ -46,20 +50,45 @@ export const createCallModelNode = (
         throw new Error('模型流式输出为空');
       }
 
-      const toolCalls =
+      // AIMessageChunk.concat() 已经通过 collapseToolCallChunks 聚合了 tool_call_chunks
+      // 优先信任 fullChunk.tool_calls，如果为空则回退到 tool_call_chunks
+      const rawToolCalls =
         (
           fullChunk as AIMessageChunk & {
             tool_calls?: { id: string; name: string; args: unknown }[];
           }
         ).tool_calls || [];
 
+      const toolCalls =
+        rawToolCalls.length > 0
+          ? rawToolCalls
+          : fullChunk.tool_call_chunks?.length
+            ? (collapseToolCallChunks(fullChunk.tool_call_chunks)
+                .tool_calls as {
+                id: string;
+                name: string;
+                args: unknown;
+              }[])
+            : [];
+
+      const contentStr =
+        typeof fullChunk.content === 'string'
+          ? fullChunk.content
+          : JSON.stringify(fullChunk.content);
       logger.log(
-        `[callModelNode] 模型返回, content 长度: ${String(fullChunk.content).length}, tool_calls 数量: ${toolCalls.length}`,
+        `[callModelNode] 模型返回, content 长度: ${contentStr.length}, tool_calls 数量: ${toolCalls.length}`,
       );
 
       const aiMessage = new AIMessage({
         content: fullChunk.content,
-        tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
+        tool_calls:
+          toolCalls.length > 0
+            ? (toolCalls as unknown as {
+                id: string;
+                name: string;
+                args: Record<string, unknown>;
+              }[])
+            : undefined,
         additional_kwargs: fullChunk.additional_kwargs,
       });
 

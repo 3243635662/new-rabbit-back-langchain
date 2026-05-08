@@ -175,6 +175,9 @@ export class AgentsService {
           yield { type: 'content', content: '', reasoning: char };
         }
       }
+      if (chunk.status) {
+        yield { type: 'status', content: chunk.status };
+      }
     }
 
     // 等待 invoke 完成并获取最终状态
@@ -210,16 +213,20 @@ export class AgentsService {
           yield {
             type: 'tool_start',
             toolName: tc.name,
+            toolCallId: tc.id,
             args: tc.args,
             content: STREAM_TOOL.start(tc.name),
           };
         }
       } else if (msg instanceof ToolMessage) {
         const trace = toolTraces[traceIndex++];
+        const toolCallId = (msg as ToolMessage & { tool_call_id: string })
+          .tool_call_id;
         if (trace) {
           yield {
             type: 'tool_end',
             toolName: trace.toolName,
+            toolCallId: toolCallId || 'unknown',
             resultPreview: trace.resultPreview,
             content: STREAM_TOOL.end(trace.toolName),
           };
@@ -228,6 +235,7 @@ export class AgentsService {
           yield {
             type: 'tool_end',
             toolName,
+            toolCallId: toolCallId || 'unknown',
             resultPreview: this.normalizeModelContent(msg.content).slice(
               0,
               500,
@@ -389,6 +397,7 @@ export class AgentsService {
         yield {
           type: 'tool_start',
           toolName,
+          toolCallId: toolCallId || 'unknown',
           args: toolArgs,
           content: STREAM_TOOL.start(toolName),
         };
@@ -415,6 +424,7 @@ export class AgentsService {
         yield {
           type: 'tool_end',
           toolName,
+          toolCallId: toolCallId || 'unknown',
           resultPreview: toolResult.slice(0, 500),
           content: STREAM_TOOL.end(toolName),
         };

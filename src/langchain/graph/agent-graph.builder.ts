@@ -3,10 +3,10 @@ import { StateGraph } from '@langchain/langgraph';
 import { PostgresCheckpointerProvider } from '../persistence/postgres-checkpointer.provider';
 import { LangGraphConfigService } from '../persistence/langgraph-config.service';
 import { LangChainService } from '../langchain.service';
-import { AgentState } from './agent-state.annotation';
+import { AgentState, AgentStateType } from './agent-state.annotation';
 import { dynamicPromptNode } from './nodes/dynamic-prompt.node';
 import { createCallModelNode } from './nodes/call-model.node';
-import { executeToolsNode } from './nodes/execute-tools.node';
+import { createExecuteToolsNode } from './nodes/execute-tools.node';
 import { createShouldContinue } from './edges/should-continue.edge';
 import { CompiledAgentGraph } from './compiled-agent-graph.interface';
 import { AgentStreamHub } from './agent-stream.hub';
@@ -46,6 +46,11 @@ export class AgentGraphBuilder {
       this.langChainService,
       this.streamHub,
     );
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+    const executeToolsNode = createExecuteToolsNode(this.streamHub) as (
+      state: AgentStateType,
+      config?: unknown,
+    ) => Promise<Partial<AgentStateType>>;
     const shouldContinue = createShouldContinue(this.configService.maxSteps);
 
     const workflow = new StateGraph(AgentState.spec)
