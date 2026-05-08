@@ -33,6 +33,7 @@ import {
 import { AgentGraphBuilder } from '../graph/agent-graph.builder';
 import { CompiledAgentGraph } from '../graph/compiled-agent-graph.interface';
 import { LangGraphConfigService } from '../persistence/langgraph-config.service';
+import { AgentStreamHub } from '../graph/agent-stream.hub';
 
 @Injectable()
 export class AgentsService {
@@ -51,6 +52,7 @@ export class AgentsService {
     private readonly merchantCategoriesTool: MerchantCategoriesTool,
     private readonly agentGraphBuilder: AgentGraphBuilder,
     private readonly langGraphConfig: LangGraphConfigService,
+    private readonly streamHub: AgentStreamHub,
   ) {}
 
   /** 规范化模型返回的 content（处理字符串或数组格式） */
@@ -111,10 +113,10 @@ export class AgentsService {
   // ══════════════════════════════════════════════════════
 
   /**
-   * LangGraph 流式 Agent
+   * LangGraph 流式 Agent（真正 token 级同步流式）
    *
-   * 使用 StateGraph 接管状态流转与持久化，
-   * 将 graph.stream() 输出转换为现有 AgentStreamChunk 格式，保持 SSE 协议兼容。
+   * 通过 AgentStreamHub 实时获取 callModelNode 中的模型流式 token，
+   * 在 graph.invoke() 运行期间即可逐字符推送，避免长推理导致 SSE 超时断开。
    */
   async *runAgentStreamWithLangGraph(
     prompt: string,
@@ -123,6 +125,7 @@ export class AgentsService {
   ): AsyncGenerator<AgentStreamChunk> {
     const graph: CompiledAgentGraph = this.agentGraphBuilder.getGraph();
     const tools = this.createTools(context);
+    const sessionId = context.sessionId;
 
     const input = {
       messages: [
@@ -137,7 +140,7 @@ export class AgentsService {
 
     const config = {
       configurable: {
-        thread_id: context.sessionId,
+        thread_id: sessionId,
         user_id: context.id,
         merchantId: context.merchantId,
       },
@@ -145,18 +148,43 @@ export class AgentsService {
     };
 
     this.logger.log(
-      `[LangGraph] invoke 开始, messages: ${input.messages.length}`,
+      `[LangGraph] stream 开始, messages: ${input.messages.length}`,
     );
 
-    // 使用 invoke 获取完整结果（stream() 在图结束后有 stream 不关闭的 bug）
-    const finalState = await graph.invoke(input, config);
+    const listener = this.streamHub.listen(sessionId);
 
-    this.logger.log(`[LangGraph] invoke 完成, 开始流式输出`);
+    const invokePromise = graph
+      .invoke(input, config)
+      .catch((err) => {
+        this.streamHub.end(sessionId);
+        throw err;
+      })
+      .finally(() => {
+        this.streamHub.end(sessionId);
+      });
+
+    // 实时消费 hub 中的 token（callModelNode 内部 model.stream 推送）
+    for await (const chunk of listener) {
+      if (chunk.content) {
+        for (const char of chunk.content) {
+          yield { type: 'content', content: char, reasoning: '' };
+        }
+      }
+      if (chunk.reasoning) {
+        for (const char of chunk.reasoning) {
+          yield { type: 'content', content: '', reasoning: char };
+        }
+      }
+    }
+
+    // 等待 invoke 完成并获取最终状态
+    const finalState = await invokePromise;
+
+    this.logger.log(`[LangGraph] invoke 完成, 处理后续状态`);
 
     const messages = (finalState.messages || []) as BaseMessage[];
     const toolTraces = (finalState.toolTraces || []) as AgentToolTrace[];
 
-    // 找到 input 中最后一条 HumanMessage 的位置，其后的消息就是本次新增
     const lastHumanIndex = messages.findLastIndex(
       (m) => m instanceof HumanMessage && m.content === prompt,
     );
@@ -171,24 +199,7 @@ export class AgentsService {
 
     for (const msg of newMessages) {
       if (msg instanceof AIMessage) {
-        // yield reasoning
-        const reasoning =
-          (msg.additional_kwargs?.reasoning_content as string) || '';
-        if (reasoning) {
-          for (const char of reasoning) {
-            yield { type: 'content', content: '', reasoning: char };
-          }
-        }
-
-        // yield content（打字机效果）
-        const content = this.normalizeModelContent(msg.content);
-        if (content) {
-          for (const char of content) {
-            yield { type: 'content', content: char, reasoning: '' };
-          }
-        }
-
-        // yield tool_start
+        // content / reasoning 已在 hub 中实时推送，这里只补发 tool_start
         const toolCalls =
           (
             msg as AIMessage & {
@@ -204,7 +215,6 @@ export class AgentsService {
           };
         }
       } else if (msg instanceof ToolMessage) {
-        // yield tool_end：按顺序匹配 toolTraces
         const trace = toolTraces[traceIndex++];
         if (trace) {
           yield {
@@ -214,7 +224,6 @@ export class AgentsService {
             content: STREAM_TOOL.end(trace.toolName),
           };
         } else {
-          // 无 trace，用 ToolMessage 反推
           const toolName = 'unknown';
           yield {
             type: 'tool_end',

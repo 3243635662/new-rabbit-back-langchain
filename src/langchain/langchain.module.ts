@@ -16,6 +16,7 @@ import {
   LangGraphConfigService,
 } from './persistence';
 import { AgentGraphBuilder } from './graph/agent-graph.builder';
+import { AgentStreamHub } from './graph/agent-stream.hub';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { AgentGraphBuilder } from './graph/agent-graph.builder';
     PostgresStoreProvider,
     LangGraphConfigService,
     AgentGraphBuilder,
+    AgentStreamHub,
   ],
   exports: [
     LangChainService,
@@ -41,6 +43,7 @@ import { AgentGraphBuilder } from './graph/agent-graph.builder';
     PostgresStoreProvider,
     LangGraphConfigService,
     AgentGraphBuilder,
+    AgentStreamHub,
   ],
 })
 export class LangChainModule {}

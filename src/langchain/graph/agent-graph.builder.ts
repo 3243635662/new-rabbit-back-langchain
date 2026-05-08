@@ -9,6 +9,7 @@ import { createCallModelNode } from './nodes/call-model.node';
 import { executeToolsNode } from './nodes/execute-tools.node';
 import { createShouldContinue } from './edges/should-continue.edge';
 import { CompiledAgentGraph } from './compiled-agent-graph.interface';
+import { AgentStreamHub } from './agent-stream.hub';
 
 /**
  * Agent Graph Builder
@@ -27,6 +28,7 @@ export class AgentGraphBuilder {
     private readonly langChainService: LangChainService,
     private readonly checkpointerProvider: PostgresCheckpointerProvider,
     private readonly configService: LangGraphConfigService,
+    private readonly streamHub: AgentStreamHub,
   ) {}
 
   /**
@@ -40,7 +42,10 @@ export class AgentGraphBuilder {
   }
 
   private buildGraph = (): CompiledAgentGraph => {
-    const callModelNode = createCallModelNode(this.langChainService);
+    const callModelNode = createCallModelNode(
+      this.langChainService,
+      this.streamHub,
+    );
     const shouldContinue = createShouldContinue(this.configService.maxSteps);
 
     const workflow = new StateGraph(AgentState.spec)
