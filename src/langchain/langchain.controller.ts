@@ -23,6 +23,7 @@ import { JwtPayloadType } from '../types/auth.type';
 import { Merchant } from '../modules/merchant/entities/merchant.entity';
 import { Public } from '../common/decorators/public.decorator';
 import { AgentRuntimeContext } from '../types/agent.type';
+import { LangGraphConfigService } from './persistence/langgraph-config.service';
 
 @Controller('ai')
 export class LangChainController {
@@ -32,6 +33,7 @@ export class LangChainController {
   constructor(
     private readonly chatService: ChatService,
     private readonly agentsService: AgentsService,
+    private readonly langGraphConfig: LangGraphConfigService,
     @InjectRepository(Merchant)
     private readonly merchantRepo: Repository<Merchant>,
   ) {}
@@ -180,14 +182,18 @@ export class LangChainController {
           // ③ 记录用户消息到 Redis
           await this.chatService.appendMessage(sessionId, 'human', message);
 
-          // ④ 流式 Agent 运行
+          // ④ 流式 Agent 运行（双轨：根据 USE_LANGGRAPH 切换）
+          const agentStream = this.langGraphConfig.useLangGraph
+            ? this.agentsService.runAgentStreamWithLangGraph(
+                message,
+                context,
+                history,
+              )
+            : this.agentsService.runAgentStream(message, context, history);
+
           let fullContent = '';
           let fullReasoning = '';
-          for await (const chunk of this.agentsService.runAgentStream(
-            message,
-            context,
-            history,
-          )) {
+          for await (const chunk of agentStream) {
             // 检查是否已被停止
             if (abortController.signal.aborted) {
               break;

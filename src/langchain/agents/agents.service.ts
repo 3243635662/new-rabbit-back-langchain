@@ -30,6 +30,9 @@ import {
   AgentToolTrace,
   AgentStreamChunk,
 } from '../../types/agent.type';
+import { AgentGraphBuilder } from '../graph/agent-graph.builder';
+import { CompiledAgentGraph } from '../graph/compiled-agent-graph.interface';
+import { LangGraphConfigService } from '../persistence/langgraph-config.service';
 
 @Injectable()
 export class AgentsService {
@@ -46,8 +49,9 @@ export class AgentsService {
     private readonly userInfoTool: UserInfoTool,
     private readonly shipOrderTool: ShipOrderTool,
     private readonly merchantCategoriesTool: MerchantCategoriesTool,
-    // eslint-disable-next-line prettier/prettier
-  ) { }
+    private readonly agentGraphBuilder: AgentGraphBuilder,
+    private readonly langGraphConfig: LangGraphConfigService,
+  ) {}
 
   /** 规范化模型返回的 content（处理字符串或数组格式） */
   private normalizeModelContent = (content: unknown): string => {
@@ -101,6 +105,183 @@ export class AgentsService {
       this.merchantCategoriesTool.create(context),
     ];
   };
+
+  // ══════════════════════════════════════════════════════
+  // LangGraph 版本（新增）
+  // ══════════════════════════════════════════════════════
+
+  /**
+   * LangGraph 流式 Agent
+   *
+   * 使用 StateGraph 接管状态流转与持久化，
+   * 将 graph.stream() 输出转换为现有 AgentStreamChunk 格式，保持 SSE 协议兼容。
+   */
+  async *runAgentStreamWithLangGraph(
+    prompt: string,
+    context: AgentRuntimeContext,
+    history: BaseMessage[] = [],
+  ): AsyncGenerator<AgentStreamChunk> {
+    const graph: CompiledAgentGraph = this.agentGraphBuilder.getGraph();
+    const tools = this.createTools(context);
+
+    const input = {
+      messages: [
+        new SystemMessage(buildAgentSystemPrompt()),
+        ...history,
+        new HumanMessage(prompt),
+      ],
+      availableTools: tools,
+      toolTraces: [],
+      streamChunks: [],
+    };
+
+    const config = {
+      configurable: {
+        thread_id: context.sessionId,
+        user_id: context.id,
+        merchantId: context.merchantId,
+      },
+      recursionLimit: this.langGraphConfig.recursionLimit,
+    };
+
+    this.logger.log(
+      `[LangGraph] invoke 开始, messages: ${input.messages.length}`,
+    );
+
+    // 使用 invoke 获取完整结果（stream() 在图结束后有 stream 不关闭的 bug）
+    const finalState = await graph.invoke(input, config);
+
+    this.logger.log(`[LangGraph] invoke 完成, 开始流式输出`);
+
+    const messages = (finalState.messages || []) as BaseMessage[];
+    const toolTraces = (finalState.toolTraces || []) as AgentToolTrace[];
+
+    // 找到 input 中最后一条 HumanMessage 的位置，其后的消息就是本次新增
+    const lastHumanIndex = messages.findLastIndex(
+      (m) => m instanceof HumanMessage && m.content === prompt,
+    );
+    const newMessages =
+      lastHumanIndex >= 0 ? messages.slice(lastHumanIndex + 1) : [];
+
+    this.logger.log(
+      `[LangGraph] 新增消息数: ${newMessages.length}, toolTraces: ${toolTraces.length}`,
+    );
+
+    let traceIndex = 0;
+
+    for (const msg of newMessages) {
+      if (msg instanceof AIMessage) {
+        // yield reasoning
+        const reasoning =
+          (msg.additional_kwargs?.reasoning_content as string) || '';
+        if (reasoning) {
+          for (const char of reasoning) {
+            yield { type: 'content', content: '', reasoning: char };
+          }
+        }
+
+        // yield content（打字机效果）
+        const content = this.normalizeModelContent(msg.content);
+        if (content) {
+          for (const char of content) {
+            yield { type: 'content', content: char, reasoning: '' };
+          }
+        }
+
+        // yield tool_start
+        const toolCalls =
+          (
+            msg as AIMessage & {
+              tool_calls?: { id: string; name: string; args: unknown }[];
+            }
+          ).tool_calls || [];
+        for (const tc of toolCalls) {
+          yield {
+            type: 'tool_start',
+            toolName: tc.name,
+            args: tc.args,
+            content: STREAM_TOOL.start(tc.name),
+          };
+        }
+      } else if (msg instanceof ToolMessage) {
+        // yield tool_end：按顺序匹配 toolTraces
+        const trace = toolTraces[traceIndex++];
+        if (trace) {
+          yield {
+            type: 'tool_end',
+            toolName: trace.toolName,
+            resultPreview: trace.resultPreview,
+            content: STREAM_TOOL.end(trace.toolName),
+          };
+        } else {
+          // 无 trace，用 ToolMessage 反推
+          const toolName = 'unknown';
+          yield {
+            type: 'tool_end',
+            toolName,
+            resultPreview: this.normalizeModelContent(msg.content).slice(
+              0,
+              500,
+            ),
+            content: STREAM_TOOL.end(toolName),
+          };
+        }
+      }
+    }
+  }
+
+  /**
+   * LangGraph 非流式 Agent
+   *
+   * 使用 graph.invoke() 获取最终状态，提取回答内容和工具痕迹。
+   */
+  runAgentWithLangGraph = async (
+    prompt: string,
+    context: AgentRuntimeContext,
+    history: BaseMessage[] = [],
+  ): Promise<AgentRunResult> => {
+    const graph: CompiledAgentGraph = this.agentGraphBuilder.getGraph();
+    const tools = this.createTools(context);
+
+    const input = {
+      messages: [
+        new SystemMessage(buildAgentSystemPrompt()),
+        ...history,
+        new HumanMessage(prompt),
+      ],
+      availableTools: tools,
+      toolTraces: [],
+      streamChunks: [],
+    };
+
+    const config = {
+      configurable: {
+        thread_id: context.sessionId,
+        user_id: context.id,
+        merchantId: context.merchantId,
+      },
+      recursionLimit: this.langGraphConfig.recursionLimit,
+    };
+
+    const finalState = await graph.invoke(input, config);
+
+    const messages = (finalState.messages || []) as BaseMessage[];
+    const lastMessage = messages[messages.length - 1];
+
+    const content =
+      lastMessage instanceof AIMessage
+        ? this.normalizeModelContent(lastMessage.content)
+        : '';
+
+    return {
+      content,
+      toolTraces: (finalState.toolTraces || []) as AgentToolTrace[],
+    };
+  };
+
+  // ══════════════════════════════════════════════════════
+  // 原有版本（保留，双轨运行）
+  // ══════════════════════════════════════════════════════
 
   /** 流式 Agent：支持多轮工具调用，思考过程与回答均流式输出 */
   async *runAgentStream(

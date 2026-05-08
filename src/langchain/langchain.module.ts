@@ -10,6 +10,12 @@ import { ChatMessage } from './entities/chat-message.entity';
 import { RagModule } from './rag/rag.module';
 import { Merchant } from '../modules/merchant/entities/merchant.entity';
 import { AgentsModule } from './agents/agents.module';
+import {
+  PostgresCheckpointerProvider,
+  PostgresStoreProvider,
+  LangGraphConfigService,
+} from './persistence';
+import { AgentGraphBuilder } from './graph/agent-graph.builder';
 
 @Module({
   imports: [
@@ -20,7 +26,21 @@ import { AgentsModule } from './agents/agents.module';
     forwardRef(() => AgentsModule),
   ],
   controllers: [LangChainController],
-  providers: [LangChainService, ChatService],
-  exports: [LangChainService, ChatService],
+  providers: [
+    LangChainService,
+    ChatService,
+    PostgresCheckpointerProvider,
+    PostgresStoreProvider,
+    LangGraphConfigService,
+    AgentGraphBuilder,
+  ],
+  exports: [
+    LangChainService,
+    ChatService,
+    PostgresCheckpointerProvider,
+    PostgresStoreProvider,
+    LangGraphConfigService,
+    AgentGraphBuilder,
+  ],
 })
 export class LangChainModule {}
