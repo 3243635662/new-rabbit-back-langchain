@@ -1,3 +1,15 @@
+/**
+ * @file postgres-checkpointer.provider.ts
+ * @description LangGraph PostgreSQL Checkpointer 提供者
+ * @作用 封装 PostgresSaver，实现 LangGraph 执行状态的持久化
+ * @职责
+ *   1. 从环境变量读取 LANGGRAPH_POSTGRES_URL
+ *   2. 在模块初始化时（onModuleInit）创建 PostgresSaver 并 setup()
+ *   3. 提供 getCheckpointer() 方法供 AgentGraphBuilder 获取实例
+ * @持久化内容 对话历史、状态快照、step 计数等（通过 checkpoint 机制）
+ * @注意 如果未配置 LANGGRAPH_POSTGRES_URL，Checkpointer 将不可用（降级为内存模式）
+ */
+
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PostgresSaver } from '@langchain/langgraph-checkpoint-postgres';

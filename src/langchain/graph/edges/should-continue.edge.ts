@@ -1,3 +1,13 @@
+/**
+ * @file should-continue.edge.ts
+ * @description LangGraph 条件边（Conditional Edge）定义
+ * @作用 作为 StateGraph 的条件路由函数，决定 Agent 执行完模型节点后的下一步走向
+ * @返回 'tools' | '__end__'
+ *   - 返回 'tools'：模型发起了工具调用，需要路由到 tools 节点执行工具
+ *   - 返回 '__end__'：模型已给出最终回答，结束图执行
+ * @注意 通过 maxSteps 参数防止无限循环，超过最大步数后强制结束
+ */
+
 import { AIMessage } from '@langchain/core/messages';
 import type { AgentStateType } from '../agent-state.annotation';
 

@@ -1,3 +1,16 @@
+/**
+ * @file postgres-store.provider.ts
+ * @description LangGraph Store 提供者（长期记忆）
+ * @作用 封装 Store，实现跨会话的长期记忆存储（如用户画像、偏好等）
+ * @当前实现 使用 InMemoryStore（内存模式）
+ * @未来计划 当 @langchain/langgraph-checkpoint-postgres 支持 PostgresStore 时迁移
+ * @职责
+ *   1. 从环境变量读取 LANGGRAPH_POSTGRES_URL
+ *   2. 在模块初始化时创建 Store 实例
+ *   3. 提供 getStore() 方法供需要长期记忆的模块使用
+ * @注意 当前为内存模式，重启服务后记忆会丢失；生产环境建议迁移到持久化 Store
+ */
+
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InMemoryStore } from '@langchain/langgraph';

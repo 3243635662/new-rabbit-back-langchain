@@ -1,3 +1,16 @@
+/**
+ * @file chat.prompt.ts
+ * @description 电商助手 Chat Prompt 模板与角色配置
+ * @作用 定义电商助手的提示模板，支持多角色（商家、用户、管理员）动态切换
+ * @核心功能
+ *   - ecomAssistantPrompt：ChatPromptTemplate 实例，通过变量控制角色和业务规则
+ *   - ROLE_CONFIG：预设角色配置（merchant/user/admin），包含职责、规则、开场白
+ *   - ROLE_ID_MAP：roleId 到 RoleType 的映射（1:Admin 2:MerchantAdmin 3:User）
+ *   - buildExpandQueryPrompt()：查询改写 Prompt，用于提升向量检索召回率
+ *   - formatKnowledgeBase()：格式化知识库文本，注入到 System Prompt
+ * @使用场景 在调用模型前，根据用户的 roleId 选择合适的角色配置，注入到提示模板中
+ */
+
 import {
   ChatPromptTemplate,
   SystemMessagePromptTemplate,

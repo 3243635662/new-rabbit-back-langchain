@@ -1,11 +1,26 @@
+/**
+ * @file call-model.node.ts
+ * @description LangGraph 图节点 - 模型调用节点（agent 节点）
+ * @作用 作为 StateGraph 的核心节点，负责调用 LLM 并处理返回结果
+ * @职责
+ *   1. 从 LangChainService 获取模型实例
+ *   2. 将当前可用工具绑定到模型（bindTools）
+ *   3. 以流式方式调用模型，实时推送 token 到 AgentStreamHub
+ *   4. 处理模型返回的 tool_calls，构造标准的 AIMessage 返回
+ * @流式输出 通过 AgentStreamHub.emit() 实时推送 content、reasoning、toolCallChunks
+ * @tool_calls 处理 优先使用 fullChunk.tool_calls，回退到 collapseToolCallChunks 聚合
+ */
+
 import { Logger } from '@nestjs/common';
 import {
   AIMessage,
   AIMessageChunk,
+  SystemMessage,
   collapseToolCallChunks,
 } from '@langchain/core/messages';
 import type { RunnableConfig } from '@langchain/core/runnables';
 import { LangChainService } from '../../langchain.service';
+import { buildAgentSystemPrompt } from '../../prompts/agent.prompt';
 import type { AgentStateType } from '../agent-state.annotation';
 import { AgentStreamHub } from '../agent-stream.hub';
 
@@ -34,7 +49,14 @@ export const createCallModelNode = (
     );
 
     try {
-      const stream = await modelWithTools.stream(state.messages);
+      // 临时拼接 SystemMessage，不污染 state.messages
+      const systemPrompt = buildAgentSystemPrompt();
+      const messagesWithSystem = [
+        new SystemMessage(systemPrompt),
+        ...state.messages,
+      ];
+
+      const stream = await modelWithTools.stream(messagesWithSystem);
       let fullChunk: AIMessageChunk | undefined;
 
       for await (const chunk of stream) {

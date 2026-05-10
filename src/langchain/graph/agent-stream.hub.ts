@@ -1,3 +1,24 @@
+/**
+ * @file agent-stream.hub.ts
+ * @description Agent 流式事件中心（发布订阅模式）
+ * @作用 在 callModelNode（模型流式输出）和 AgentsService（SSE 推送）之间传递流式 token
+ * @核心设计
+ *   - 每个 session 独立一条流通道（Channel），避免并发会话互相干扰
+ *   - 使用 AsyncGenerator（listen）实现流式消费，避免轮询
+ *   - 支持缓冲：如果还没有消费者监听，事件会暂存在 queue 中
+ * @方法说明
+ *   - emit(sessionId, chunk)：向指定 session 推送流式 chunk
+ *   - emitStatus(sessionId, status)：向指定 session 推送状态消息
+ *   - end(sessionId)：结束指定 session 的流，清理资源
+ *   - listen(sessionId)：监听指定 session 的流，返回 AsyncGenerator
+ *   - fromMessageChunk(chunk)：静态方法，将 AIMessageChunk 转换为 StreamChunk
+ * @StreamChunk 结构
+ *   - content：模型输出的文本内容
+ *   - reasoning：模型的推理过程（如 DeepSeek-R1 的 thinking_content）
+ *   - toolCallChunks：工具调用片段（用于流式构建 tool_calls）
+ *   - status：状态消息（如"思考中..."）
+ */
+
 import { Injectable } from '@nestjs/common';
 import { AIMessageChunk } from '@langchain/core/messages';
 

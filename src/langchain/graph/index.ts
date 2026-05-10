@@ -1,3 +1,18 @@
+/**
+ * @file graph/index.ts
+ * @description LangGraph 图模块的统一导出入口
+ * @导出内容
+ *   - AgentGraphBuilder：图构建器（核心编排类）
+ *   - AgentState：Agent 状态定义（Annotation.Root）
+ *   - AgentStateType：Agent 状态类型（TypeScript 类型）
+ *   - dynamicPromptNode：动态 Prompt 节点
+ *   - createCallModelNode：创建模型调用节点（工厂函数）
+ *   - createExecuteToolsNode：创建工具执行节点（工厂函数）
+ *   - streamEmitNode：流式事件收集节点（占位）
+ *   - createShouldContinue：创建条件边函数（工厂函数）
+ * @作用 集中导出图相关的所有模块，方便其他模块引入
+ */
+
 export { AgentGraphBuilder } from './agent-graph.builder';
 export { AgentState } from './agent-state.annotation';
 export type { AgentStateType } from './agent-state.annotation';

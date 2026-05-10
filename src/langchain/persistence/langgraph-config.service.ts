@@ -1,3 +1,15 @@
+/**
+ * @file langgraph-config.service.ts
+ * @description LangGraph 全局配置服务
+ * @作用 统一管理 LangGraph 相关的环境变量与运行参数
+ * @配置项
+ *   - USE_LANGGRAPH：是否启用 LangGraph（双轨运行开关）
+ *   - LANGGRAPH_RECURSION_LIMIT：最大递归步数（防止无限循环）
+ *   - AGENT_MAX_STEPS：模型最大工具调用轮次
+ *   - LANGGRAPH_POSTGRES_URL：PostgreSQL 连接字符串（用于持久化）
+ * @使用场景 供 AgentGraphBuilder 和 AgentsService 消费，集中管理配置
+ */
+
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 

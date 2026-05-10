@@ -1,4 +1,19 @@
 /**
+ * @file agent.prompt.ts
+ * @description Agent 系统提示词与状态消息模板集中管理
+ * @作用 统一管理 Agent 的 System Prompt、流式状态消息、工具错误提示等
+ * @内容分类
+ *   - buildAgentSystemPrompt()：构建系统提示词，约束模型行为
+ *   - FORCE_FINAL_ANSWER_PROMPT：强制生成最终回答的提示词
+ *   - STREAM_STATUS：流式输出状态消息（如"思考中..."）
+ *   - STREAM_TOOL：工具执行状态消息模板
+ *   - TOOL_ERROR：工具调用异常提示
+ *   - RAG_MESSAGES：RAG 检索相关提示消息
+ *   - INVALID_RAG_MARKERS：无效 RAG 结果的判断标记词
+ * @好处 集中管理便于统一修改、多语言适配、A/B 测试不同提示词策略
+ */
+
+/**
  * Agent 系统提示词与状态消息模板
  * 集中管理所有硬编码的 prompt 文本，便于统一维护和多语言适配。
  */

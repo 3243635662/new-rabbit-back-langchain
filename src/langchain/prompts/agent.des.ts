@@ -1,4 +1,15 @@
 /**
+ * @file agent.des.ts
+ * @description Agent 工具描述词（Tool Descriptions）集中管理
+ * @作用 为 LangChain 工具提供标准化、可维护的 description
+ * @好处
+ *   - 集中管理：所有工具描述在一个文件中，便于统一修改
+ *   - 多语言适配：未来可轻松扩展为多语言版本
+ *   - 描述优化：可以针对不同场景调整工具描述，提升模型调用准确率
+ * @使用场景 在定义 DynamicStructuredTool 时，从本文件引入对应的描述词
+ */
+
+/**
  * Agent 工具描述词（Tool Descriptions）
  * 集中管理各工具的 description，便于统一维护和多语言适配。
  */

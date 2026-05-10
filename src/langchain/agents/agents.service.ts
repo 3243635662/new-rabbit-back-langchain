@@ -119,9 +119,9 @@ export class AgentsService {
    * 在 graph.invoke() 运行期间即可逐字符推送，避免长推理导致 SSE 超时断开。
    */
   async *runAgentStreamWithLangGraph(
-    prompt: string,
-    context: AgentRuntimeContext,
-    history: BaseMessage[] = [],
+    prompt: string, // 原始问题
+    context: AgentRuntimeContext, // 用户运行时上下文
+    history: BaseMessage[] = [], //历史记录
   ): AsyncGenerator<AgentStreamChunk> {
     const graph: CompiledAgentGraph = this.agentGraphBuilder.getGraph();
     const tools = this.createTools(context);
@@ -151,6 +151,7 @@ export class AgentsService {
       `[LangGraph] stream 开始, messages: ${input.messages.length}`,
     );
 
+    // 监听 streamHub 中的 token
     const listener = this.streamHub.listen(sessionId);
 
     const invokePromise = graph

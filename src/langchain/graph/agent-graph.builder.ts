@@ -1,10 +1,30 @@
+/**
+ * @file agent-graph.builder.ts
+ * @description LangGraph StateGraph 构建器（核心编排文件）
+ * @作用 定义 Agent 的工作流图结构，并编译为可执行的 CompiledAgentGraph
+ * @图结构
+ *   __start__
+ *      ↓
+ *   dynamicPrompt（注入系统提示词）
+ *      ↓
+ *   agent（调用模型）
+ *      ↓
+ *   [shouldContinue 条件判断]
+ *      ├→ tools（执行工具）→ agent（循环）
+ *      └→ __end__（结束）
+ * @职责
+ *   1. 定义图的节点（Node）和边（Edge）
+ *   2. 接入 PostgresSaver 实现执行状态持久化
+ *   3. 使用懒加载 + 单例模式，避免重复编译图
+ * @使用 通过 getGraph() 获取编译后的图实例，供 AgentsService 调用
+ */
+
 import { Injectable, Logger } from '@nestjs/common';
 import { StateGraph } from '@langchain/langgraph';
 import { PostgresCheckpointerProvider } from '../persistence/postgres-checkpointer.provider';
 import { LangGraphConfigService } from '../persistence/langgraph-config.service';
 import { LangChainService } from '../langchain.service';
 import { AgentState, AgentStateType } from './agent-state.annotation';
-import { dynamicPromptNode } from './nodes/dynamic-prompt.node';
 import { createCallModelNode } from './nodes/call-model.node';
 import { createExecuteToolsNode } from './nodes/execute-tools.node';
 import { createShouldContinue } from './edges/should-continue.edge';
@@ -46,19 +66,17 @@ export class AgentGraphBuilder {
       this.langChainService,
       this.streamHub,
     );
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
     const executeToolsNode = createExecuteToolsNode(this.streamHub) as (
       state: AgentStateType,
       config?: unknown,
     ) => Promise<Partial<AgentStateType>>;
     const shouldContinue = createShouldContinue(this.configService.maxSteps);
 
+    // 工作流
     const workflow = new StateGraph(AgentState.spec)
-      .addNode('dynamicPrompt', dynamicPromptNode)
       .addNode('agent', callModelNode)
       .addNode('tools', executeToolsNode)
-      .addEdge('__start__', 'dynamicPrompt')
-      .addEdge('dynamicPrompt', 'agent')
+      .addEdge('__start__', 'agent')
       .addConditionalEdges('agent', shouldContinue, {
         tools: 'tools',
         __end__: '__end__',
