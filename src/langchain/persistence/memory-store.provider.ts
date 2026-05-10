@@ -1,9 +1,9 @@
 /**
- * @file postgres-store.provider.ts
+ * @file memory-store.provider.ts
  * @description LangGraph Store 提供者（长期记忆）
  * @作用 封装 Store，实现跨会话的长期记忆存储（如用户画像、偏好等）
  * @当前实现 使用 InMemoryStore（内存模式）
- * @未来计划 当 @langchain/langgraph-checkpoint-postgres 支持 PostgresStore 时迁移
+ * @未来计划 当 @langchain/langgraph-checkpoint-postgres 支持 PostgresStore 时迁移到 PostgresStore
  * @职责
  *   1. 从环境变量读取 LANGGRAPH_POSTGRES_URL
  *   2. 在模块初始化时创建 Store 实例
@@ -23,8 +23,8 @@ import type { BaseStore } from '@langchain/langgraph';
  * 当前使用 InMemoryStore 作为实现，后续可迁移到 PostgresStore（当上游包支持时）。
  */
 @Injectable()
-export class PostgresStoreProvider implements OnModuleInit {
-  private readonly logger = new Logger(PostgresStoreProvider.name);
+export class MemoryStoreProvider implements OnModuleInit {
+  private readonly logger = new Logger(MemoryStoreProvider.name);
   private store?: BaseStore;
 
   constructor(private readonly configService: ConfigService) {}
@@ -39,7 +39,6 @@ export class PostgresStoreProvider implements OnModuleInit {
     }
 
     try {
-      // TODO: 当 @langchain/langgraph-checkpoint-postgres 支持 PostgresStore 时迁移
       this.store = new InMemoryStore();
       this.logger.log('InMemoryStore 初始化成功（长期记忆 - 内存模式）');
     } catch (err) {

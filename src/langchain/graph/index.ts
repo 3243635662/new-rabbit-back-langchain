@@ -5,7 +5,6 @@
  *   - AgentGraphBuilder：图构建器（核心编排类）
  *   - AgentState：Agent 状态定义（Annotation.Root）
  *   - AgentStateType：Agent 状态类型（TypeScript 类型）
- *   - dynamicPromptNode：动态 Prompt 节点
  *   - createCallModelNode：创建模型调用节点（工厂函数）
  *   - createExecuteToolsNode：创建工具执行节点（工厂函数）
  *   - streamEmitNode：流式事件收集节点（占位）
@@ -16,7 +15,6 @@
 export { AgentGraphBuilder } from './agent-graph.builder';
 export { AgentState } from './agent-state.annotation';
 export type { AgentStateType } from './agent-state.annotation';
-export { dynamicPromptNode } from './nodes/dynamic-prompt.node';
 export { createCallModelNode } from './nodes/call-model.node';
 export { createExecuteToolsNode } from './nodes/execute-tools.node';
 export { streamEmitNode } from './nodes/stream-emit.node';

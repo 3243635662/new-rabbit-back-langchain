@@ -140,7 +140,7 @@ export const createExecuteToolsNode = (streamHub: AgentStreamHub) => {
 
     return {
       messages: toolMessages,
-      toolTraces: [...(state.toolTraces || []), ...toolTraces],
+      toolTraces, // 只返回增量，reducer 负责 [...curr, ...update]
       step: (state.step || 0) + 1,
     };
   };

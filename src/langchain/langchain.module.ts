@@ -12,7 +12,7 @@ import { Merchant } from '../modules/merchant/entities/merchant.entity';
 import { AgentsModule } from './agents/agents.module';
 import {
   PostgresCheckpointerProvider,
-  PostgresStoreProvider,
+  MemoryStoreProvider,
   LangGraphConfigService,
 } from './persistence';
 import { AgentGraphBuilder } from './graph/agent-graph.builder';
@@ -31,7 +31,7 @@ import { AgentStreamHub } from './graph/agent-stream.hub';
     LangChainService,
     ChatService,
     PostgresCheckpointerProvider,
-    PostgresStoreProvider,
+    MemoryStoreProvider,
     LangGraphConfigService,
     AgentGraphBuilder,
     AgentStreamHub,
@@ -40,7 +40,7 @@ import { AgentStreamHub } from './graph/agent-stream.hub';
     LangChainService,
     ChatService,
     PostgresCheckpointerProvider,
-    PostgresStoreProvider,
+    MemoryStoreProvider,
     LangGraphConfigService,
     AgentGraphBuilder,
     AgentStreamHub,

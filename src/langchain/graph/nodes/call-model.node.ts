@@ -118,7 +118,16 @@ export const createCallModelNode = (
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.error(`[callModelNode] 模型调用失败: ${msg}`);
-      throw err;
+
+      // 优雅降级：返回错误信息作为 AIMessage，避免整个图崩溃
+      const errorMessage = `模型调用失败: ${msg}`;
+      return {
+        messages: [
+          new AIMessage({
+            content: errorMessage,
+          }),
+        ],
+      };
     }
   };
 };
