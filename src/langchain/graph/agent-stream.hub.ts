@@ -62,8 +62,8 @@ export class AgentStreamHub {
 
   /** 向指定 session 推送流式 chunk */
   emit = (sessionId: string, chunk: StreamChunk): void => {
-    const channel = this.channels.get(sessionId);
-    if (!channel) return;
+    // 使用 getOrCreateChannel，避免竞态条件下首包丢失
+    const channel = this.getOrCreateChannel(sessionId);
     if (channel.resolveNext) {
       channel.resolveNext({ value: chunk, done: false });
       channel.resolveNext = null;
@@ -84,8 +84,8 @@ export class AgentStreamHub {
 
   /** 结束指定 session 的流 */
   end = (sessionId: string): void => {
-    const channel = this.channels.get(sessionId);
-    if (!channel) return;
+    // 使用 getOrCreateChannel，确保即使没有 listener 也能正确结束
+    const channel = this.getOrCreateChannel(sessionId);
     if (channel.resolveNext) {
       channel.resolveNext({
         value: undefined as unknown as StreamChunk,

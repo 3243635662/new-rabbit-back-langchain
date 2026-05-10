@@ -56,7 +56,12 @@ export const createCallModelNode = (
         ...state.messages,
       ];
 
-      const stream = await modelWithTools.stream(messagesWithSystem);
+      // 从 config 提取 signal，传递给 model.stream() 以支持中断
+      const signal = config?.signal;
+
+      const stream = await modelWithTools.stream(messagesWithSystem, {
+        ...(signal && { signal }),
+      });
       let fullChunk: AIMessageChunk | undefined;
 
       for await (const chunk of stream) {

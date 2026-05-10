@@ -5,9 +5,7 @@
  * @图结构
  *   __start__
  *      ↓
- *   dynamicPrompt（注入系统提示词）
- *      ↓
- *   agent（调用模型）
+ *   agent（调用模型，内部注入系统提示词）
  *      ↓
  *   [shouldContinue 条件判断]
  *      ├→ tools（执行工具）→ agent（循环）
@@ -36,8 +34,8 @@ import { AgentStreamHub } from './agent-stream.hub';
  *
  * 职责：定义并编译 StateGraph，接入 PostgresSaver 实现持久化。
  * 图结构：
- *   __start__ → dynamicPrompt → agent → [conditional] → tools → agent
- *                                      └→ __end__
+ *   __start__ → agent → [conditional] → tools → agent
+ *                              └→ __end__
  */
 @Injectable()
 export class AgentGraphBuilder {
@@ -72,7 +70,7 @@ export class AgentGraphBuilder {
     ) => Promise<Partial<AgentStateType>>;
     const shouldContinue = createShouldContinue(this.configService.maxSteps);
 
-    // 工作流
+    // 工作流：__start__ → agent → [conditional] → tools → agent
     const workflow = new StateGraph(AgentState.spec)
       .addNode('agent', callModelNode)
       .addNode('tools', executeToolsNode)

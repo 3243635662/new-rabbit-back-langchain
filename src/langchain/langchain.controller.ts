@@ -171,20 +171,20 @@ export class LangChainController {
     return new Observable((subscriber) => {
       void (async () => {
         try {
-          // ① 从 Redis/MySQL 获取历史消息
-          const history = await this.chatService.getMessages(sessionId);
-
-          // ② 构建 Agent 上下文
+          // ① 构建 Agent 上下文
           const context = await this.buildAgentContext(req, sessionId);
 
           // ③ 记录用户消息到 Redis
           await this.chatService.appendMessage(sessionId, 'human', message);
 
           // ④ 流式 Agent 运行（内部根据 USE_LANGGRAPH 自动路由）
+          // 不传 history：LangGraph 路径由 Checkpointer 从 PG 自动恢复状态
+          // 旧版路径在 facade 内部自行获取 history
+          // 传递 abortSignal 到执行链，真正中断 LLM / tool 执行
           const agentStream = this.agentsService.runAgentStream(
             message,
             context,
-            history,
+            abortController.signal,
           );
 
           let fullContent = '';

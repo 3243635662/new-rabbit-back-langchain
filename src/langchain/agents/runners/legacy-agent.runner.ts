@@ -47,6 +47,7 @@ export class LegacyAgentRunner {
     prompt: string,
     context: AgentRuntimeContext,
     history: BaseMessage[] = [],
+    abortSignal?: AbortSignal,
   ): AsyncGenerator<AgentStreamChunk> {
     const tools = this.toolsFactory.createTools(context);
 
@@ -67,7 +68,15 @@ export class LegacyAgentRunner {
     const maxSteps = 3;
 
     for (let i = 0; i < maxSteps; i++) {
-      const stream = await modelWithTools.stream(messages);
+      // 检查 abortSignal，如果已中断则停止
+      if (abortSignal?.aborted) {
+        this.logger.warn('[LegacyAgent] 检测到 abortSignal，停止执行');
+        return;
+      }
+
+      const stream = await modelWithTools.stream(messages, {
+        ...(abortSignal && { signal: abortSignal }),
+      });
 
       let fullContent = '';
       const toolCallMap = new Map<
@@ -174,10 +183,16 @@ export class LegacyAgentRunner {
 
     yield { type: 'status', content: STREAM_STATUS.generating };
 
-    const finalStream = await model.stream([
-      ...messages,
-      new HumanMessage(FORCE_FINAL_ANSWER_PROMPT),
-    ]);
+    // 检查 abortSignal，如果已中断则停止
+    if (abortSignal?.aborted) {
+      this.logger.warn('[LegacyAgent] 检测到 abortSignal，停止最终生成');
+      return;
+    }
+
+    const finalStream = await model.stream(
+      [...messages, new HumanMessage(FORCE_FINAL_ANSWER_PROMPT)],
+      { ...(abortSignal && { signal: abortSignal }) },
+    );
 
     for await (const chunk of finalStream) {
       const content = normalizeModelContent(chunk.content);

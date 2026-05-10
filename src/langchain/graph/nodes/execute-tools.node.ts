@@ -60,6 +60,20 @@ export const createExecuteToolsNode = (streamHub: AgentStreamHub) => {
       `[executeToolsNode] 执行 ${toolCalls.length} 个工具调用: ${toolCalls.map((t) => t.name).join(', ')}`,
     );
 
+    // 检查 abortSignal，如果已中断则停止工具执行
+    const signal = config?.signal;
+    if (signal?.aborted) {
+      logger.warn('[executeToolsNode] 检测到 abortSignal，停止工具执行');
+      return {
+        messages: [
+          new ToolMessage({
+            content: '操作已被用户中断',
+            tool_call_id: toolCalls[0]?.id || 'unknown',
+          }),
+        ],
+      };
+    }
+
     // 推送工具执行开始状态
     streamHub.emitStatus(
       sessionId,

@@ -40,14 +40,15 @@ export class LangGraphAgentRunner {
   async *runStream(
     prompt: string,
     context: AgentRuntimeContext,
-    history: BaseMessage[] = [],
+    abortSignal?: AbortSignal,
   ): AsyncGenerator<AgentStreamChunk> {
     const graph: CompiledAgentGraph = this.agentGraphBuilder.getGraph();
     const tools = this.toolsFactory.createTools(context);
     const sessionId = context.sessionId;
 
+    // 只传新消息，Checkpointer 自动从 PG 恢复历史状态
     const input = {
-      messages: [...history, new HumanMessage(prompt)],
+      messages: [new HumanMessage(prompt)],
       availableTools: tools,
       toolTraces: [],
     };
@@ -59,6 +60,8 @@ export class LangGraphAgentRunner {
         merchantId: context.merchantId,
       },
       recursionLimit: this.langGraphConfig.recursionLimit,
+      // 传递 abortSignal 到执行链，中断 LLM / tool 执行
+      ...(abortSignal && { signal: abortSignal }),
     };
 
     this.logger.log(
@@ -159,13 +162,13 @@ export class LangGraphAgentRunner {
   async run(
     prompt: string,
     context: AgentRuntimeContext,
-    history: BaseMessage[] = [],
   ): Promise<AgentRunResult> {
     const graph: CompiledAgentGraph = this.agentGraphBuilder.getGraph();
     const tools = this.toolsFactory.createTools(context);
 
+    // 只传新消息，Checkpointer 自动从 PG 恢复历史状态
     const input = {
-      messages: [...history, new HumanMessage(prompt)],
+      messages: [new HumanMessage(prompt)],
       availableTools: tools,
       toolTraces: [],
     };
