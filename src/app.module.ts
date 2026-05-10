@@ -28,6 +28,7 @@ import { LangChainModule } from './langchain/langchain.module';
 import { QiniuModule } from './modules/qiniu/qiniu.module';
 import { KnowledgeBaseModule } from './modules/knowledge-base/knowledge-base.module';
 import { BullModule } from '@nestjs/bullmq';
+import { FinanceModule } from './modules/finance/finance.module';
 import Redis from 'ioredis';
 @Module({
   imports: [
@@ -81,6 +82,7 @@ import Redis from 'ioredis';
     LangChainModule,
     QiniuModule,
     KnowledgeBaseModule,
+    FinanceModule,
   ],
   controllers: [AppController],
   providers: [
