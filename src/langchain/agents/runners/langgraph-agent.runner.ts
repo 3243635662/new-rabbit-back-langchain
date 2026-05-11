@@ -17,10 +17,10 @@ import {
   AgentToolTrace,
   AgentStreamChunk,
 } from '../../../types/agent.type';
-import { AgentGraphBuilder } from '../../graph/agent-graph.builder';
-import { CompiledAgentGraph } from '../../graph/compiled-agent-graph.interface';
+import { AgentGraphBuilder } from '../../graph/agent/agent-graph.builder';
+import { CompiledAgentGraph } from '../../graph/agent/compiled-agent-graph.interface';
 import { LangGraphConfigService } from '../../persistence/langgraph-config.service';
-import { AgentStreamHub } from '../../graph/agent-stream.hub';
+import { AgentStreamHub } from '../../graph/agent/agent-stream.hub';
 import { AgentToolsFactory } from '../factories/agent-tools.factory';
 import { normalizeModelContent } from '../utils/agent-message.util';
 import { STREAM_TOOL } from '../../prompts/agent.prompt';

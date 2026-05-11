@@ -19,10 +19,10 @@
 import { Logger } from '@nestjs/common';
 import { ToolMessage, AIMessage } from '@langchain/core/messages';
 import type { RunnableConfig } from '@langchain/core/runnables';
-import type { AgentStateType } from '../agent-state.annotation';
+import type { AgentStateType } from '../agent/agent-state.annotation';
 import { AgentToolTrace } from '../../../types/agent.type';
 import { TOOL_ERROR } from '../../prompts/agent.prompt';
-import { AgentStreamHub } from '../agent-stream.hub';
+import { AgentStreamHub } from '../agent/agent-stream.hub';
 
 /**
  * 工具执行节点

@@ -19,13 +19,13 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { StateGraph } from '@langchain/langgraph';
-import { PostgresCheckpointerProvider } from '../persistence/postgres-checkpointer.provider';
-import { LangGraphConfigService } from '../persistence/langgraph-config.service';
-import { LangChainService } from '../langchain.service';
+import { PostgresCheckpointerProvider } from '../../persistence/postgres-checkpointer.provider';
+import { LangGraphConfigService } from '../../persistence/langgraph-config.service';
+import { LangChainService } from '../../langchain.service';
 import { AgentState, AgentStateType } from './agent-state.annotation';
-import { createCallModelNode } from './nodes/call-model.node';
-import { createExecuteToolsNode } from './nodes/execute-tools.node';
-import { createShouldContinue } from './edges/should-continue.edge';
+import { createCallModelNode } from '../nodes/call-model.node';
+import { createExecuteToolsNode } from '../nodes/execute-tools.node';
+import { createShouldContinue } from '../edges/should-continue.edge';
 import { CompiledAgentGraph } from './compiled-agent-graph.interface';
 import { AgentStreamHub } from './agent-stream.hub';
 

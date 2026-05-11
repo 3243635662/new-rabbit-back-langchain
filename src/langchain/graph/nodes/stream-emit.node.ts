@@ -7,7 +7,7 @@
  * @注意 此节点不是图结构中的必需节点，当前仅作为扩展点保留
  */
 
-import type { AgentStateType } from '../agent-state.annotation';
+import type { AgentStateType } from '../agent/agent-state.annotation';
 
 /**
  * 流式事件收集节点（占位）

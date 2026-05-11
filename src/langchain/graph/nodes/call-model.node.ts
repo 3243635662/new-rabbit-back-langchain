@@ -21,8 +21,8 @@ import {
 import type { RunnableConfig } from '@langchain/core/runnables';
 import { LangChainService } from '../../langchain.service';
 import { buildAgentSystemPrompt } from '../../prompts/agent.prompt';
-import type { AgentStateType } from '../agent-state.annotation';
-import { AgentStreamHub } from '../agent-stream.hub';
+import type { AgentStateType } from '../agent/agent-state.annotation';
+import { AgentStreamHub } from '../agent/agent-stream.hub';
 
 /**
  * 调用模型节点

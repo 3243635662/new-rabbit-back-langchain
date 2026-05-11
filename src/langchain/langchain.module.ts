@@ -15,8 +15,8 @@ import {
   MemoryStoreProvider,
   LangGraphConfigService,
 } from './persistence';
-import { AgentGraphBuilder } from './graph/agent-graph.builder';
-import { AgentStreamHub } from './graph/agent-stream.hub';
+import { AgentGraphBuilder } from './graph/agent/agent-graph.builder';
+import { AgentStreamHub } from './graph/agent/agent-stream.hub';
 
 @Module({
   imports: [

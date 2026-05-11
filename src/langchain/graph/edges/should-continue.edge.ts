@@ -9,7 +9,7 @@
  */
 
 import { AIMessage } from '@langchain/core/messages';
-import type { AgentStateType } from '../agent-state.annotation';
+import type { AgentStateType } from '../agent/agent-state.annotation';
 
 /**
  * 条件边：判断是否继续调用工具
