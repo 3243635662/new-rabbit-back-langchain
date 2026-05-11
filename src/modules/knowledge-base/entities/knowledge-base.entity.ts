@@ -7,22 +7,8 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { Merchant } from '../../merchant/entities/merchant.entity';
-
-export enum DocType {
-  JSON = 'json',
-  CSV = 'csv',
-  PDF = 'pdf',
-  DOCX = 'docx',
-  TXT = 'txt',
-}
-
-export enum IngestStatus {
-  PENDING = 'pending',
-  PROCESSING = 'processing',
-  COMPLETED = 'completed',
-  FAILED = 'failed',
-}
-
+import { IngestStatus } from '../../../types/rag.type';
+import { DocType } from '../../../types/file.type';
 @Entity('knowledge_base')
 export class KnowledgeBase {
   @PrimaryGeneratedColumn()
@@ -73,3 +59,4 @@ export class KnowledgeBase {
   @CreateDateColumn({ comment: '上传时间' })
   createdAt: Date;
 }
+export { DocType, IngestStatus };

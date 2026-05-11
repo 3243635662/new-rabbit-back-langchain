@@ -8,38 +8,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import {
-  KnowledgeBase,
-  DocType,
-  IngestStatus,
-} from './entities/knowledge-base.entity';
+import { KnowledgeBase, IngestStatus } from './entities/knowledge-base.entity';
 import { Merchant } from '../merchant/entities/merchant.entity';
 import { QiniuService } from '../qiniu/qiniu.service';
 import { MerchantRagService } from '../../langchain/rag/merchant-rag/merchant-rag.service';
 import { RAGJobData } from '../../types/rag.type';
-
-const ALLOWED_MIME_MAP: Record<string, DocType> = {
-  'application/json': DocType.JSON,
-  'text/csv': DocType.CSV,
-  'application/pdf': DocType.PDF,
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
-    DocType.DOCX,
-  'text/plain': DocType.TXT,
-};
-
-export interface PresignResult {
-  uploadToken: string;
-  key: string;
-  domain: string;
-}
-
-export interface ConfirmBody {
-  qiniuKey: string;
-  fileName: string;
-  mimeType: string;
-  fileSize: number;
-}
-
+import type { PresignResult, ConfirmBody } from '../../types/file.type';
+import { ALLOWED_MIME_MAP } from '../../types/file.type';
 @Injectable()
 export class KnowledgeBaseService {
   private readonly logger = new Logger(KnowledgeBaseService.name);
@@ -113,7 +88,7 @@ export class KnowledgeBaseService {
         `商户 ${merchantId} 文件类型不支持: 实际=${actualMime}，已删除文件`,
       );
       throw new BadRequestException(
-        `不支持的文件类型: ${actualMime}，仅支持 json/csv/pdf/docx/txt，文件已删除`,
+        `不支持的文件类型: ${actualMime}，仅支持 json/csv/pdf/docx/txt/xlsx/xls，文件已删除`,
       );
     }
 

@@ -3,7 +3,6 @@ import { Job } from 'bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import * as os from 'os';
 import * as fsp from 'fs/promises';
 import * as path from 'path';
 import {
@@ -15,6 +14,9 @@ import { QiniuService } from '../../modules/qiniu/qiniu.service';
 import { RedisService } from '../../modules/db/redis/redis.service';
 import { RAGJobData } from '../../types/rag.type';
 
+/** 项目根目录下的 RAG 临时目录 */
+const RAG_TMP_DIR = path.resolve(process.cwd(), '.rag-tmp');
+
 /** key → MIME 映射（从 qiniuKey 的扩展名推断） */
 const EXT_MIME_MAP: Record<string, string> = {
   '.json': 'application/json',
@@ -23,6 +25,8 @@ const EXT_MIME_MAP: Record<string, string> = {
   '.docx':
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   '.txt': 'text/plain',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.xls': 'application/vnd.ms-excel',
 };
 
 @Injectable()
@@ -74,15 +78,11 @@ export class RagProcessor extends WorkerHost {
         });
       }
 
-      // ─── 2. 从七牛下载到 os.tmpdir()（LangChain Loader 需要本地文件路径） ───
+      // ─── 2. 从七牛下载到项目 .rag-tmp/（LangChain Loader 需要本地文件路径） ───
       await this.pushProgress(job, 20, 'downloading', '正在从七牛下载文件...');
       const ext = path.extname(qiniuKey) || '.txt';
       const mimeType = EXT_MIME_MAP[ext] || 'text/plain';
-      const tmpDir = path.join(
-        os.tmpdir(),
-        'rag-worker',
-        `${job.id || Date.now()}`,
-      );
+      const tmpDir = path.join(RAG_TMP_DIR, `${job.id || Date.now()}`);
       await fsp.mkdir(tmpDir, { recursive: true });
       localFilePath = path.join(
         tmpDir,
@@ -132,7 +132,7 @@ export class RagProcessor extends WorkerHost {
 
       throw error; // BullMQ 捕获后自动重试
     } finally {
-      // 清理 os.tmpdir() 临时文件
+      // 清理 .rag-tmp/ 临时文件
       if (localFilePath) {
         const tmpDir = path.dirname(localFilePath);
         try {

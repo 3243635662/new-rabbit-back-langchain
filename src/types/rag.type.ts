@@ -44,3 +44,11 @@ export type SupportedDocumentType =
   | 'excel'
   | 'txt'
   | 'json';
+
+/** 向量化状态枚举 */
+export enum IngestStatus {
+  PENDING = 'pending',
+  PROCESSING = 'processing',
+  COMPLETED = 'completed',
+  FAILED = 'failed',
+}

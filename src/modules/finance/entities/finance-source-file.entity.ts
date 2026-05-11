@@ -1,5 +1,5 @@
 /**
- *@description 用于记录商家上传的原始文件。
+ * @description 用于记录商家上传的原始文件。
  */
 
 import {
@@ -7,33 +7,62 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
+  ManyToOne,
+  OneToMany,
+  JoinColumn,
 } from 'typeorm';
+import { Merchant } from '../../merchant/entities/merchant.entity';
+import { FinanceExtractedRecord } from './finance-extracted-record.entity';
 
 @Entity('finance_source_file')
 export class FinanceSourceFile {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedColumn({
+    comment: '主键',
+  })
   id: number;
 
-  @Column()
+  @Column({
+    comment: '商户 ID，用于权限隔离',
+  })
   merchantId: number;
 
-  @Column()
+  @ManyToOne(() => Merchant, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'merchantId' })
+  merchant: Merchant;
+
+  @OneToMany(() => FinanceExtractedRecord, (record) => record.sourceFile)
+  extractedRecords: FinanceExtractedRecord[];
+
+  @Column({
+    comment: '文件名称，示例：2026年5月发票.pdf',
+  })
   fileName: string;
 
-  @Column()
+  @Column({
+    comment: '文件 MIME 类型，示例：application/pdf',
+  })
   mimeType: string;
 
-  @Column()
+  @Column({
+    comment: '文件大小（字节），示例：204800',
+  })
   fileSize: number;
 
-  @Column()
+  @Column({
+    comment: '七牛云文件 key，示例：finance/source/12/1715400000000-file.pdf',
+  })
   qiniuKey: string;
 
-  @Column()
+  @Column({
+    comment: '文件访问地址，示例：https://cdn.xxx.com/.../file.pdf',
+  })
   qiniuUrl: string;
-  // 业务文件类型，不等同于 MIME
-  @Column()
-  fileType: string; // invoice_image, invoice_pdf, csv, excel, word, pdf_report
+
+  @Column({
+    comment:
+      '业务文件类型：invoice_image / invoice_pdf / csv / excel / word / pdf_report',
+  })
+  fileType: string;
 
   @CreateDateColumn()
   createdAt: Date;

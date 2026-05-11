@@ -14,7 +14,7 @@ import { Categories } from '../../goods/entities/categories.entity';
 
 @Entity('merchant')
 export class Merchant {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedColumn({ comment: '商户主键' })
   id: number;
 
   @Column({ length: 50, nullable: false, comment: '商户名称' })
@@ -29,7 +29,7 @@ export class Merchant {
   @Column({
     length: 255,
     default:
-      'https://img2.baidu.com/it/u=2189235222,3353969295&fm=253&fmt=auto&app=138&f=JPEG?w=500&h=500',
+      'http://img2.baidu.com/it/u=2189235222,3353969295&fm=253&fmt=auto&app=138&f=JPEG?w=500&h=500',
     comment: '商户头像',
   })
   avatar: string;
@@ -44,12 +44,12 @@ export class Merchant {
   @Column({ nullable: true, comment: '地区编码' })
   areaId: number;
 
-  @Column()
+  @Column({ comment: '备注' })
   remark: string;
 
   @Column({ nullable: true, comment: '用户ID' })
   userId: string;
-  // 与用户表的一对一关联
+
   @OneToOne(() => User, (user) => user.merchant)
   @JoinColumn({ name: 'userId' })
   user: User;

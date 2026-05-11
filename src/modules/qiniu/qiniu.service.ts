@@ -31,7 +31,7 @@ export class QiniuService {
       scope: `${this.bucket}:${key}`,
       expires,
       mimeLimit:
-        'application/json;text/csv;application/pdf;application/vnd.openxmlformats-officedocument.wordprocessingml.document;text/plain',
+        'application/json;text/csv;application/pdf;application/vnd.openxmlformats-officedocument.wordprocessingml.document;text/plain;application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;application/vnd.ms-excel',
       fsizeLimit: 1024 * 1024 * 50,
     });
     const token: string = putPolicy.uploadToken(this.mac);
@@ -46,7 +46,7 @@ export class QiniuService {
   };
 
   /**
-   * 查询七牛文件元信息（mimeType、fsize 等）
+   * @description 查询七牛文件元信息（mimeType、fsize 等）
    * 用于 confirm 时校验客户端上报的 mimeType 是否与实际一致
    */
   statFile = (
