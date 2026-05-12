@@ -7,10 +7,11 @@ import { EmbeddingService } from '../embedding.service';
 import { MerchantRagService } from './merchant-rag/merchant-rag.service';
 import { KnowledgeBase } from '../../modules/knowledge-base/entities/knowledge-base.entity';
 import { QiniuModule } from '../../modules/qiniu/qiniu.module';
+import { RedisKeys } from '../../common/constants/redis-key.constant';
 
 @Module({
   imports: [
-    BullModule.registerQueue({ name: 'rag-queue' }),
+    BullModule.registerQueue({ name: RedisKeys.RAG.QUEUE_NAME }),
     TypeOrmModule.forFeature([KnowledgeBase]),
     forwardRef(() => QiniuModule),
   ],

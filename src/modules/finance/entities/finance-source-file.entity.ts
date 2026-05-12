@@ -26,6 +26,12 @@ export class FinanceSourceFile {
   })
   merchantId: number;
 
+  @Column({
+    nullable: true,
+    comment: 'BullMQ 任务 ID',
+  })
+  taskId: string;
+
   @ManyToOne(() => Merchant, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'merchantId' })
   merchant: Merchant;
@@ -63,6 +69,12 @@ export class FinanceSourceFile {
       '业务文件类型：invoice_image / invoice_pdf / csv / excel / word / pdf_report',
   })
   fileType: string;
+
+  @Column({
+    comment: '是否已解析成功',
+    default: false,
+  })
+  isParsed: boolean;
 
   @CreateDateColumn()
   createdAt: Date;

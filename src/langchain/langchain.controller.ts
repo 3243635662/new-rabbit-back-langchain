@@ -189,6 +189,9 @@ export class LangChainController {
 
           let fullContent = '';
           let fullReasoning = '';
+          // 收集工具调用事件，用于历史消息接口重放工具调用样式
+          const toolEvents: Array<Record<string, unknown>> = [];
+
           for await (const chunk of agentStream) {
             // 检查是否已被停止
             if (abortController.signal.aborted) {
@@ -198,6 +201,10 @@ export class LangChainController {
             fullContent += chunk.content || '';
             if (chunk.type === 'content') {
               fullReasoning += chunk.reasoning || '';
+            }
+            // 收集结构化工具调用事件
+            if (chunk.type === 'tool_start' || chunk.type === 'tool_end') {
+              toolEvents.push(chunk as unknown as Record<string, unknown>);
             }
             subscriber.next({
               data: JSON.stringify(chunk),
@@ -211,13 +218,14 @@ export class LangChainController {
             } as MessageEvent);
           }
 
-          // ⑤ AI 完整回复追加到 Redis（部分内容也保存）
+          // ⑤ AI 完整回复追加到 Redis（部分内容也保存，toolEvents 同步存储）
           if (fullContent) {
             await this.chatService.appendMessage(
               sessionId,
               'ai',
               fullContent,
               fullReasoning || undefined,
+              toolEvents.length > 0 ? toolEvents : undefined,
             );
 
             // ⑥ 异步同步到 MySQL

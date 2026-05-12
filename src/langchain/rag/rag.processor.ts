@@ -13,24 +13,13 @@ import { MerchantRagService } from './merchant-rag/merchant-rag.service';
 import { QiniuService } from '../../modules/qiniu/qiniu.service';
 import { RedisService } from '../../modules/db/redis/redis.service';
 import { RAGJobData } from '../../types/rag.type';
+import { RedisKeys } from '../../common/constants/redis-key.constant';
+import { EXT_MIME_MAP } from '../../types/rag.type';
 
-/** 项目根目录下的 RAG 临时目录 */
 const RAG_TMP_DIR = path.resolve(process.cwd(), '.rag-tmp');
 
-/** key → MIME 映射（从 qiniuKey 的扩展名推断） */
-const EXT_MIME_MAP: Record<string, string> = {
-  '.json': 'application/json',
-  '.csv': 'text/csv',
-  '.pdf': 'application/pdf',
-  '.docx':
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  '.txt': 'text/plain',
-  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  '.xls': 'application/vnd.ms-excel',
-};
-
 @Injectable()
-@Processor('rag-queue')
+@Processor(RedisKeys.RAG.QUEUE_NAME)
 export class RagProcessor extends WorkerHost {
   private readonly logger = new Logger(RagProcessor.name);
 

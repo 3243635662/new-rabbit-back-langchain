@@ -52,3 +52,14 @@ export enum IngestStatus {
   COMPLETED = 'completed',
   FAILED = 'failed',
 }
+/** key → MIME 映射（从 qiniuKey 的扩展名推断） */
+export const EXT_MIME_MAP: Record<string, string> = {
+  '.json': 'application/json',
+  '.csv': 'text/csv',
+  '.pdf': 'application/pdf',
+  '.docx':
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.txt': 'text/plain',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.xls': 'application/vnd.ms-excel',
+};

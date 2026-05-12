@@ -1,14 +1,30 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { Observable } from 'rxjs';
+import Redis from 'ioredis';
 import { KnowledgeBase, IngestStatus } from './entities/knowledge-base.entity';
 import { Merchant } from '../merchant/entities/merchant.entity';
 import { QiniuService } from '../qiniu/qiniu.service';
 import { MerchantRagService } from '../../langchain/rag/merchant-rag/merchant-rag.service';
+import { RedisService } from '../../modules/db/redis/redis.service';
 import { RAGJobData } from '../../types/rag.type';
+import { RedisKeys } from '../../common/constants/redis-key.constant';
 import type { PresignResult, ConfirmBody } from '../../types/file.type';
+
+interface ProgressPayload {
+  status: string;
+  progress?: number;
+  message?: string;
+  failReason?: string;
+  [key: string]: unknown;
+}
+
+interface SseEvent {
+  data: unknown;
+}
 @Injectable()
 export class KnowledgeBaseService {
   private readonly logger = new Logger(KnowledgeBaseService.name);
@@ -18,9 +34,12 @@ export class KnowledgeBaseService {
     private readonly kbRepo: Repository<KnowledgeBase>,
     @InjectRepository(Merchant)
     private readonly merchantRepo: Repository<Merchant>,
-    @InjectQueue('rag-queue') private readonly ragQueue: Queue<RAGJobData>,
+    @InjectQueue(RedisKeys.RAG.QUEUE_NAME)
+    private readonly ragQueue: Queue<RAGJobData>,
     private readonly qiniuService: QiniuService,
     private readonly merchantRagService: MerchantRagService,
+    @Inject(RedisService)
+    private readonly redisService: RedisService,
   ) {}
 
   /**
@@ -89,7 +108,7 @@ export class KnowledgeBaseService {
 
     // 推入 BullMQ 队列（传 qiniuKey + fileName，fileName 用于去重判断）
     const job = await this.ragQueue.add(
-      'process-document',
+      RedisKeys.RAG.JOB_NAMES.PROCESS_DOCUMENT,
       { qiniuKey, merchantId, fileName },
       {
         attempts: 3,
@@ -203,5 +222,68 @@ export class KnowledgeBaseService {
     // 3. 删除数据库记录
     await this.kbRepo.remove(record);
     return { id };
+  };
+
+  /**
+   * SSE 实时推送 RAG 解析进度（EventSource）
+   * 返回 Observable，由 Controller 的 @Sse() 装饰器自动转换为 SSE 流
+   */
+  progressSse = (taskId: string): Observable<SseEvent> => {
+    return new Observable((observer) => {
+      const channel = RedisKeys.RAG.getProgressChannel(taskId);
+      let subClient: Redis | null = null;
+
+      const init = async () => {
+        try {
+          // 先推缓存的最新状态
+          const cached = (await this.redisService.getProgressCache(
+            taskId,
+          )) as ProgressPayload | null;
+          if (cached) {
+            observer.next({ data: cached });
+            if (cached.status === 'completed' || cached.status === 'failed') {
+              observer.complete();
+              return;
+            }
+          }
+
+          // Redis 订阅
+          subClient = this.redisService.createSubscriber();
+          void subClient.subscribe(channel, (err: Error | null) => {
+            if (err) {
+              this.logger.error(`SSE 订阅失败 [${taskId}]: ${err.message}`);
+              observer.error(err);
+            }
+          });
+
+          subClient.on('message', (_: string, message: string) => {
+            try {
+              const data = JSON.parse(message) as ProgressPayload;
+              observer.next({ data });
+              if (data.status === 'completed' || data.status === 'failed') {
+                observer.complete();
+                if (subClient) {
+                  subClient.unsubscribe(channel).catch(() => {});
+                }
+              }
+            } catch {
+              observer.next({ data: message });
+            }
+          });
+        } catch (err) {
+          observer.error(err);
+        }
+      };
+      // 不等待它执行完，让 Observable 立即返回
+      void init();
+
+      // 清理防内存泄露
+      return () => {
+        if (subClient) {
+          subClient.unsubscribe(channel).catch(() => {});
+          subClient.quit().catch(() => {});
+        }
+      };
+    });
   };
 }

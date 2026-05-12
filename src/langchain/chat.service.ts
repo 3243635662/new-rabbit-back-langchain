@@ -16,6 +16,8 @@ export interface RedisChatMessage {
   role: 'human' | 'ai' | 'system';
   content: string;
   reasoning?: string;
+  /** 工具调用事件列表（仅 AI 消息有），格式同 SSE chunk 中的 tool_start/tool_end */
+  toolEvents?: Array<Record<string, unknown>>;
 }
 
 @Injectable()
@@ -122,12 +124,14 @@ export class ChatService {
     role: 'human' | 'ai' | 'system',
     content: string,
     reasoning?: string,
+    toolEvents?: Array<Record<string, unknown>>,
   ): Promise<void> => {
     const historyKey = RedisKeys.CHAT.getHistoryKey(sessionId);
     const redis = this.redisService.clientInstance;
 
     const msg: RedisChatMessage = { role, content };
     if (reasoning) msg.reasoning = reasoning;
+    if (toolEvents && toolEvents.length > 0) msg.toolEvents = toolEvents;
 
     await redis.rpush(historyKey, JSON.stringify(msg));
     // 续期 TTL
@@ -191,6 +195,15 @@ export class ChatService {
         content: msg.content,
       };
       if (msg.reasoning) redisMsg.reasoning = msg.reasoning;
+      if (msg.toolEvents) {
+        try {
+          redisMsg.toolEvents = JSON.parse(msg.toolEvents) as Array<
+            Record<string, unknown>
+          >;
+        } catch {
+          // 解析失败忽略
+        }
+      }
       pipeline.rpush(historyKeyForPipe, JSON.stringify(redisMsg));
     }
     pipeline.expire(historyKeyForPipe, RedisTTL.CACHE.CHAT_HISTORY);
@@ -200,6 +213,17 @@ export class ChatService {
       role: msg.role as 'human' | 'ai' | 'system',
       content: msg.content,
       reasoning: msg.reasoning || undefined,
+      toolEvents: msg.toolEvents
+        ? (() => {
+            try {
+              return JSON.parse(msg.toolEvents) as Array<
+                Record<string, unknown>
+              >;
+            } catch {
+              return undefined;
+            }
+          })()
+        : undefined,
     }));
   };
 
@@ -249,6 +273,10 @@ export class ChatService {
           msg.role = parsed.role as MessageRole;
           msg.content = parsed.content;
           msg.reasoning = parsed.reasoning || null;
+          msg.toolEvents =
+            parsed.toolEvents && parsed.toolEvents.length > 0
+              ? JSON.stringify(parsed.toolEvents)
+              : null;
           return msg;
         });
 

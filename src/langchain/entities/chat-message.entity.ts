@@ -65,6 +65,13 @@ export class ChatMessage {
   })
   reasoning: string | null;
 
+  @Column({
+    type: 'text',
+    nullable: true,
+    comment: '工具调用事件列表（JSON序列化，用于历史消息重放工具调用样式）',
+  })
+  toolEvents: string | null;
+
   @CreateDateColumn({ name: 'created_at', comment: '创建时间' })
   createdAt: Date;
 }

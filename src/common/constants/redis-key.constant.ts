@@ -328,6 +328,13 @@ export const RedisKeys = {
     QUEUE_NAME: 'rag-queue',
 
     /**
+     * RAG 任务类型名称
+     */
+    JOB_NAMES: {
+      PROCESS_DOCUMENT: 'process-rag-document',
+    },
+
+    /**
      * 任务进度缓存
      * 格式：rag:progress:{taskId}
      * @param taskId BullMQ 任务 ID
@@ -341,6 +348,26 @@ export const RedisKeys = {
      * @param taskId BullMQ 任务 ID
      */
     getProgressDataKey: (taskId: string) => `rag:progress:data:${taskId}`,
+  },
+
+  // *══════════════════════════════════════════════════════
+  // *财务报表队列 (BullMQ)
+  // *══════════════════════════════════════════════════════
+  FINANCE: {
+    /**
+     * 财务报表任务队列名称
+     */
+    QUEUE_NAME: 'finance-queue',
+
+    /**
+     * 财务报表任务类型名称
+     */
+    JOB_NAMES: {
+      // 财务生成
+      PROCESS_FINANCE_DOCUMENT: 'process-finance-document',
+      // 资源解析
+      PROCESS_FINANCE_SOURCE_PARSING: 'process-finance-source-parsing',
+    },
   },
 
   CHAT: {
