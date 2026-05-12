@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -14,7 +9,6 @@ import { QiniuService } from '../qiniu/qiniu.service';
 import { MerchantRagService } from '../../langchain/rag/merchant-rag/merchant-rag.service';
 import { RAGJobData } from '../../types/rag.type';
 import type { PresignResult, ConfirmBody } from '../../types/file.type';
-import { ALLOWED_MIME_MAP } from '../../types/file.type';
 @Injectable()
 export class KnowledgeBaseService {
   private readonly logger = new Logger(KnowledgeBaseService.name);
@@ -46,10 +40,8 @@ export class KnowledgeBaseService {
     }
 
     const merchantId = merchant.id.toString();
-    const key = `rag/raw/${merchantId}/${Date.now()}-${fileName}`;
-    const { token, domain } = this.qiniuService.generateUploadToken(key);
-
-    return { uploadToken: token, key, domain: domain || '' };
+    const keyPrefix = `rag/raw/${merchantId}`;
+    return this.qiniuService.generatePresign(keyPrefix, fileName);
   };
 
   /**
@@ -59,7 +51,7 @@ export class KnowledgeBaseService {
   confirmUpload = async (body: ConfirmBody, userId: string) => {
     const { qiniuKey, fileName, mimeType, fileSize } = body;
 
-    //  校验商户 + key 前缀安全（防止客户端传别人的 key）
+    //  校验商户
     const merchant = await this.merchantRepo.findOne({
       where: { userId },
       select: ['id'],
@@ -69,46 +61,24 @@ export class KnowledgeBaseService {
     }
 
     const merchantId = merchant.id.toString();
-    if (!qiniuKey.startsWith(`rag/raw/${merchantId}/`)) {
-      throw new BadRequestException('qiniuKey 与当前商户不匹配');
-    }
+    const expectedPrefix = `rag/raw/${merchantId}/`;
 
-    //  查询文件实际元信息，校验文件存在性
-    const fileStat = await this.qiniuService.statFile(qiniuKey);
-    if (!fileStat) {
-      throw new BadRequestException('文件不存在于七牛云，请确认上传是否成功');
-    }
-
-    //  以七牛实际 mimeType 为准校验，客户端上报不一致则删文件
-    const actualMime = fileStat.mimeType || mimeType;
-    const docType = ALLOWED_MIME_MAP[actualMime];
-    if (!docType) {
-      await this.qiniuService.deleteFile(qiniuKey);
-      this.logger.warn(
-        `商户 ${merchantId} 文件类型不支持: 实际=${actualMime}，已删除文件`,
-      );
-      throw new BadRequestException(
-        `不支持的文件类型: ${actualMime}，仅支持 json/csv/pdf/docx/txt/xlsx/xls，文件已删除`,
-      );
-    }
-
-    if (fileStat.mimeType && fileStat.mimeType !== mimeType) {
-      await this.qiniuService.deleteFile(qiniuKey);
-      this.logger.warn(
-        `商户 ${merchantId} 上报 mimeType=${mimeType}，实际=${fileStat.mimeType}，已删除文件`,
-      );
-      throw new BadRequestException(
-        `文件类型不一致：上报 ${mimeType}，实际 ${fileStat.mimeType}，文件已删除`,
-      );
-    }
-
-    //  写入数据库（状态 pending），mimeType/fileSize 以七牛实际值为准
-    const qiniuUrl = this.qiniuService.buildUrl(qiniuKey);
+    const {
+      qiniuUrl,
+      actualMime,
+      docType,
+      fileSize: validatedFileSize,
+    } = await this.qiniuService.validateFile(
+      qiniuKey,
+      expectedPrefix,
+      mimeType,
+      fileSize,
+    );
     const record = this.kbRepo.create({
       fileName,
       docType,
       mimeType: actualMime,
-      fileSize: fileStat.fsize || fileSize,
+      fileSize: validatedFileSize,
       qiniuKey,
       qiniuUrl,
       chunkCount: 0,

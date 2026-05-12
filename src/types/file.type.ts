@@ -6,6 +6,7 @@ export enum DocType {
   DOCX = 'docx',
   TXT = 'txt',
   EXCEL = 'excel',
+  IMAGE = 'image',
 }
 
 /** 七牛云上传预签名结果 */
@@ -32,4 +33,7 @@ export const ALLOWED_MIME_MAP: Record<string, DocType> = {
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
     DocType.EXCEL,
   'application/vnd.ms-excel': DocType.EXCEL,
+  'image/jpeg': DocType.IMAGE,
+  'image/png': DocType.IMAGE,
+  'image/webp': DocType.IMAGE,
 };

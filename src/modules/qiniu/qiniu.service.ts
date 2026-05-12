@@ -1,11 +1,20 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as qiniu from 'qiniu';
+import * as fs from 'fs';
 import * as fsp from 'fs/promises';
 import * as nodePath from 'path';
-
+import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
+import {
+  ALLOWED_MIME_MAP,
+  DocType,
+  PresignResult,
+} from '../../types/file.type';
+import { ReadableStream } from 'stream/web';
 @Injectable()
 export class QiniuService {
+  private readonly logger = new Logger(QiniuService.name);
   private mac: qiniu.auth.digest.Mac;
   private bucket: string;
   private domain: string;
@@ -21,21 +30,99 @@ export class QiniuService {
 
   /**
    * 生成客户端直传七牛的 uploadToken
+   * @param keyPrefix 七牛云 key 前缀
+   * @param fileName
+   * @param expires
+   * @returns { uploadToken, key, domain }
+   */
+  generatePresign = (
+    keyPrefix: string,
+    fileName: string,
+    mimeLimit?: string,
+    expires: number = 3600,
+  ): PresignResult => {
+    const key = `${keyPrefix}/${Date.now()}-${fileName}`;
+    const { token, domain } = this.generateUploadToken(key, expires, mimeLimit);
+    return { uploadToken: token, key, domain: domain || '' };
+  };
+
+  /**
+   * 生成客户端直传七牛的 uploadToken
    * 限定 key（覆盖上传）、文件类型、文件大小
    */
   generateUploadToken = (
     key: string,
     expires: number = 3600,
+    mimeLimit?: string,
   ): { token: string; domain: string } => {
+    const defaultMimeLimit =
+      'application/json;text/csv;application/pdf;application/vnd.openxmlformats-officedocument.wordprocessingml.document;text/plain;application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;application/vnd.ms-excel';
+
     const putPolicy = new qiniu.rs.PutPolicy({
       scope: `${this.bucket}:${key}`,
       expires,
-      mimeLimit:
-        'application/json;text/csv;application/pdf;application/vnd.openxmlformats-officedocument.wordprocessingml.document;text/plain;application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;application/vnd.ms-excel',
+      mimeLimit: mimeLimit || defaultMimeLimit,
       fsizeLimit: 1024 * 1024 * 50,
     });
     const token: string = putPolicy.uploadToken(this.mac);
     return { token, domain: this.domain };
+  };
+
+  /**
+   * 验证七牛云文件：校验前缀、查询文件是否存在、校验文件类型
+   * 验证失败时自动删除七牛云上的文件
+   * @returns 验证成功时返回文件信息 { qiniuUrl, actualMime, docType, fileSize }
+   */
+  validateFile = async (
+    qiniuKey: string,
+    expectedPrefix: string,
+    mimeType: string,
+    fileSize: number,
+  ): Promise<{
+    qiniuUrl: string;
+    actualMime: string;
+    docType: DocType;
+    fileSize: number;
+  }> => {
+    // 校验 key 前缀安全（防止客户端传别人的 key）
+    if (!qiniuKey.startsWith(expectedPrefix)) {
+      throw new BadRequestException('qiniuKey 与前缀不匹配');
+    }
+
+    // 查询文件实际元信息，校验文件存在性
+    const fileStat = await this.statFile(qiniuKey);
+    if (!fileStat) {
+      throw new BadRequestException('文件不存在于七牛云，请确认上传是否成功');
+    }
+
+    // 以七牛实际 mimeType 为准校验，客户端上报不一致则删文件
+    const actualMime = fileStat.mimeType || mimeType;
+    const docType = ALLOWED_MIME_MAP[actualMime];
+    if (!docType) {
+      await this.deleteFile(qiniuKey);
+      this.logger.warn(`文件类型不支持: 实际=${actualMime}，已删除文件`);
+      throw new BadRequestException(
+        `不支持的文件类型: ${actualMime}，仅支持 json/csv/pdf/docx/txt/xlsx/xls，文件已删除`,
+      );
+    }
+
+    if (fileStat.mimeType && fileStat.mimeType !== mimeType) {
+      await this.deleteFile(qiniuKey);
+      this.logger.warn(
+        `上报 mimeType=${mimeType}，实际=${fileStat.mimeType}，已删除文件`,
+      );
+      throw new BadRequestException(
+        `文件类型不一致：上报 ${mimeType}，实际 ${fileStat.mimeType}，文件已删除`,
+      );
+    }
+
+    const qiniuUrl = this.buildUrl(qiniuKey);
+    return {
+      qiniuUrl,
+      actualMime,
+      docType,
+      fileSize: fileStat.fsize || fileSize,
+    };
   };
 
   /**
@@ -117,19 +204,25 @@ export class QiniuService {
   };
 
   /**
-   * 从七牛云下载文件到本地临时路径（Worker 解析时使用）
+   * 从七牛云下载文件到流式写入本地临时路径（Worker 解析时使用）
    */
   downloadToLocal = async (key: string, localPath: string): Promise<void> => {
     const url = this.getSignedDownloadUrl(key);
     const response = await fetch(url);
-    if (!response.ok) {
+    if (!response.ok || !response.body) {
       throw new Error(
         `七牛云下载失败: HTTP ${response.status} ${response.statusText}`,
       );
     }
 
-    const buffer = Buffer.from(await response.arrayBuffer());
     await fsp.mkdir(nodePath.dirname(localPath), { recursive: true });
-    await fsp.writeFile(localPath, buffer);
+    // 可写流
+    const fileStream = fs.createWriteStream(localPath);
+
+    // 使用流式下载写入
+    await pipeline(
+      Readable.fromWeb(response.body as unknown as ReadableStream),
+      fileStream,
+    );
   };
 }
