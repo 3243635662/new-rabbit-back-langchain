@@ -1,5 +1,5 @@
 import { ChatOpenAI } from '@langchain/openai';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -7,6 +7,7 @@ import type { Response } from 'express';
 import { Observable } from 'rxjs';
 import { MessageEvent } from '@nestjs/common';
 import { ChatService } from './chat.service';
+import { ModelProviderService } from './model-provider.service';
 import { AgentsService } from './agents/agents.service';
 import { Merchant } from '../modules/merchant/entities/merchant.entity';
 import { JwtPayloadType } from '../types/auth.type';
@@ -15,31 +16,20 @@ import { AgentRuntimeContext } from '../types/agent.type';
 @Injectable()
 export class LangChainService {
   private readonly logger = new Logger(LangChainService.name);
-  private readonly model: ChatOpenAI;
   /** 每个 session 当前 SSE 流对应的 AbortController（供 stop 接口中断） */
   private readonly activeStreams = new Map<string, AbortController>();
 
   constructor(
     private readonly configService: ConfigService,
     private readonly chatService: ChatService,
+    private readonly modelProviderService: ModelProviderService,
+    @Inject(forwardRef(() => AgentsService))
     private readonly agentsService: AgentsService,
     @InjectRepository(Merchant)
     private readonly merchantRepo: Repository<Merchant>,
-  ) {
-    this.model = new ChatOpenAI({
-      apiKey: this.configService.get<string>('GLM_DASHSCOPE_API_KEY'),
-      configuration: {
-        baseURL: this.configService.get<string>('GLM_DASHSCOPE_BASE_URL'),
-      },
-      modelName: this.configService.get<string>('MODEL_NAME') || '',
-      streaming: true,
-      modelKwargs: {
-        enable_thinking: true,
-      },
-    });
-  }
+  ) {}
 
-  getModel = () => this.model;
+  getModel = () => this.modelProviderService.getModel();
 
   /** SSE 长连接：关闭代理缓冲、取消服务端超时 */
   prepareStreamingChatResponse(res: Response): void {

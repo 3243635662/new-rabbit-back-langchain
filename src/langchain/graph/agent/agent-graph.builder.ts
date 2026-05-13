@@ -17,7 +17,7 @@
  * @使用 通过 getGraph() 获取编译后的图实例，供 AgentsService 调用
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { StateGraph } from '@langchain/langgraph';
 import { PostgresCheckpointerProvider } from '../../persistence/postgres-checkpointer.provider';
 import { LangGraphConfigService } from '../../persistence/langgraph-config.service';
@@ -43,6 +43,7 @@ export class AgentGraphBuilder {
   private compiledGraph?: CompiledAgentGraph;
 
   constructor(
+    @Inject(forwardRef(() => LangChainService))
     private readonly langChainService: LangChainService,
     private readonly checkpointerProvider: PostgresCheckpointerProvider,
     private readonly configService: LangGraphConfigService,

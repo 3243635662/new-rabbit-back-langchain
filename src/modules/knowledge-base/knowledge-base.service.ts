@@ -10,7 +10,11 @@ import { Merchant } from '../merchant/entities/merchant.entity';
 import { QiniuService } from '../qiniu/qiniu.service';
 import { MerchantRagService } from '../../langchain/rag/merchant-rag/merchant-rag.service';
 import { RedisService } from '../../modules/db/redis/redis.service';
-import { RAGJobData, RagIngestProgressPhase, RagTaskPollStatus } from '../../types/rag.type';
+import {
+  RAGJobData,
+  RagIngestProgressPhase,
+  RagTaskPollStatus,
+} from '../../types/rag.type';
 import {
   RedisKeys,
   TaskProgressKeys,

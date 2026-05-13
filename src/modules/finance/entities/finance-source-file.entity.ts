@@ -13,6 +13,7 @@ import {
 } from 'typeorm';
 import { Merchant } from '../../merchant/entities/merchant.entity';
 import { FinanceExtractedRecord } from './finance-extracted-record.entity';
+import { FinanceSourceParseStatus } from '../../../types/finance.type';
 
 @Entity('finance_source_file')
 export class FinanceSourceFile {
@@ -71,7 +72,23 @@ export class FinanceSourceFile {
   fileType: string;
 
   @Column({
-    comment: '是否已解析成功',
+    type: 'enum',
+    enum: FinanceSourceParseStatus,
+    default: FinanceSourceParseStatus.PENDING,
+    comment: '解析流水线状态',
+  })
+  parseStatus: FinanceSourceParseStatus;
+
+  @Column({
+    type: 'varchar',
+    length: 2000,
+    nullable: true,
+    comment: '解析失败原因（成功时为 null）',
+  })
+  parseFailReason: string | null;
+
+  @Column({
+    comment: '是否已解析成功（与 parseStatus===completed 同步，便于旧查询）',
     default: false,
   })
   isParsed: boolean;

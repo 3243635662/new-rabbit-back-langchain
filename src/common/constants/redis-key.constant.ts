@@ -356,18 +356,29 @@ export const RedisKeys = {
   // *══════════════════════════════════════════════════════
   FINANCE: {
     /**
-     * 财务报表任务队列名称
+     * 财务原始资源解析队列
      */
-    QUEUE_NAME: 'finance-queue',
+    SOURCE_QUEUE_NAME: 'finance-source-queue',
 
     /**
-     * 财务报表任务类型名称
+     * 财务报表生成队列
+     */
+    REPORT_QUEUE_NAME: 'finance-report-queue',
+
+    /**
+     * 任务类型名称
      */
     JOB_NAMES: {
-      // 财务生成
-      PROCESS_FINANCE_DOCUMENT: 'process-finance-document',
-      // 资源解析
+      // 报表生成
+      PROCESS_FINANCE_REPORT: 'process-finance-report',
+      // 资源解析（基础名称）
       PROCESS_FINANCE_SOURCE_PARSING: 'process-finance-source-parsing',
+      // 资源解析（按类型区分）
+      PROCESS_FINANCE_SOURCE_PDF: 'process-finance-source-parsing:PDF',
+      // 资源解析（按类型区分）
+      PROCESS_FINANCE_SOURCE_IMAGE: 'process-finance-source-parsing:IMAGE',
+      // 资源解析（按类型区分）
+      PROCESS_FINANCE_SOURCE_DOCX: 'process-finance-source-parsing:DOCX',
     },
 
     /**

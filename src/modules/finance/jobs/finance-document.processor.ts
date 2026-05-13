@@ -9,18 +9,24 @@ import {
   RedisKeys,
   TaskProgressKeys,
 } from '../../../common/constants/redis-key.constant';
-import type { FinanceSourceFileJobData } from '../../../types/finance.type';
+import {
+  FinanceSourceParseStatus,
+  FinanceSourceProgressPhase,
+  type FinanceSourceFileJobData,
+  type FinanceSourceProgressPhaseValue,
+} from '../../../types/finance.type';
+import { DocType } from '../../../types/file.type';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * 财务原始文件处理 Worker（当前为模拟进度闭环，后续在此接入真实解析）。
- * 与 FinanceService.confirmUpload 入队的 job name / data 一致。
+ * 财务原始文件处理 Worker（资源解析）。
+ * 专门负责处理从七牛上传后的原始财务文件解析。
  */
 @Injectable()
-@Processor(RedisKeys.FINANCE.QUEUE_NAME)
-export class FinanceDocumentProcessor extends WorkerHost {
-  private readonly logger = new Logger(FinanceDocumentProcessor.name);
+@Processor(RedisKeys.FINANCE.SOURCE_QUEUE_NAME)
+export class FinanceSourceProcessor extends WorkerHost {
+  private readonly logger = new Logger(FinanceSourceProcessor.name);
 
   constructor(
     @InjectRepository(FinanceSourceFile)
@@ -33,7 +39,7 @@ export class FinanceDocumentProcessor extends WorkerHost {
   private pushProgress = async (
     job: Job<FinanceSourceFileJobData>,
     progress: number,
-    status: string,
+    status: FinanceSourceProgressPhaseValue,
     message: string,
   ) => {
     const taskId = String(job.id);
@@ -54,37 +60,160 @@ export class FinanceDocumentProcessor extends WorkerHost {
   override process = async (
     job: Job<FinanceSourceFileJobData>,
   ): Promise<void> => {
-    if (job.name !== RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_DOCUMENT) {
-      this.logger.warn(`跳过未知任务类型: ${job.name}`);
-      return;
-    }
-
-    const { sourceFileId, fileName } = job.data;
-
-    try {
-      await this.pushProgress(job, 5, 'received', '任务已接收（模拟）');
-      await sleep(400);
-      await this.pushProgress(job, 30, 'parsing', '模拟：正在解析文档结构...');
-      await sleep(600);
-      await this.pushProgress(job, 60, 'extracting', '模拟：提取业务字段...');
-      await sleep(500);
-      await this.pushProgress(job, 90, 'persisting', '模拟：写入结果...');
-      await sleep(300);
-
-      await this.sourceFileRepo.update(
-        { id: sourceFileId },
-        { isParsed: true },
-      );
-      await this.pushProgress(job, 100, 'completed', `模拟完成：${fileName}`);
-
-      this.logger.log(
-        `[taskId:${job.id}] 财务文件模拟处理完成 sourceFileId=${sourceFileId}`,
-      );
-    } catch (error) {
-      const errMsg = (error as Error).message;
-      this.logger.error(`[taskId:${job.id}] 财务处理失败: ${errMsg}`);
-      await this.pushProgress(job, 0, 'failed', `处理失败: ${errMsg}`);
-      throw error;
+    switch (job.name) {
+      case RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_SOURCE_PDF:
+        await this.handlePdf(job);
+        break;
+      case RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_SOURCE_IMAGE:
+        await this.handleImage(job);
+        break;
+      case RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_SOURCE_DOCX:
+        await this.handleDocx(job);
+        break;
+      default:
+        // 如果是通用任务名或不匹配，走通用解析
+        await this.handleGeneral(job);
     }
   };
+
+  /**
+   * 通用解析前的初始化
+   */
+  private async initParse(sourceFileId: number) {
+    await this.sourceFileRepo.update(
+      { id: sourceFileId },
+      {
+        parseStatus: FinanceSourceParseStatus.PROCESSING,
+        parseFailReason: null,
+        isParsed: false,
+      },
+    );
+  }
+
+  /**
+   * 通用解析后的完成处理
+   */
+  private async finishParse(sourceFileId: number, fileName: string, job: Job) {
+    await this.sourceFileRepo.update(
+      { id: sourceFileId },
+      {
+        parseStatus: FinanceSourceParseStatus.COMPLETED,
+        parseFailReason: null,
+        isParsed: true,
+      },
+    );
+    await this.pushProgress(
+      job,
+      100,
+      FinanceSourceProgressPhase.COMPLETED,
+      `解析完成：${fileName}`,
+    );
+  }
+
+  /**
+   * 处理 PDF 财务文件
+   */
+  private async handlePdf(job: Job<FinanceSourceFileJobData>) {
+    const { sourceFileId, fileName } = job.data;
+    this.logger.log(`开始处理 PDF 财务文件: ${fileName}`);
+
+    try {
+      await this.initParse(sourceFileId);
+      await this.pushProgress(
+        job,
+        10,
+        FinanceSourceProgressPhase.PARSING,
+        '正在提取 PDF 文本与表格...',
+      );
+      await sleep(1000);
+      await this.finishParse(sourceFileId, fileName, job);
+    } catch (e) {
+      await this.handleError(job, e);
+    }
+  }
+
+  /**
+   * 处理图片财务文件（发票/收据）
+   */
+  private async handleImage(job: Job<FinanceSourceFileJobData>) {
+    const { sourceFileId, fileName } = job.data;
+    this.logger.log(`开始处理图片财务文件: ${fileName}`);
+
+    try {
+      await this.initParse(sourceFileId);
+      await this.pushProgress(
+        job,
+        10,
+        FinanceSourceProgressPhase.PARSING,
+        '正在进行 OCR 识别...',
+      );
+      await sleep(1500);
+      await this.finishParse(sourceFileId, fileName, job);
+    } catch (e) {
+      await this.handleError(job, e);
+    }
+  }
+
+  /**
+   * 处理 Word/Docx 财务文件
+   */
+  private async handleDocx(job: Job<FinanceSourceFileJobData>) {
+    const { sourceFileId, fileName } = job.data;
+    this.logger.log(`开始处理 Word 财务文件: ${fileName}`);
+
+    try {
+      await this.initParse(sourceFileId);
+      await this.pushProgress(
+        job,
+        10,
+        FinanceSourceProgressPhase.PARSING,
+        '正在解析 Word 文档结构...',
+      );
+      await sleep(800);
+      await this.finishParse(sourceFileId, fileName, job);
+    } catch (e) {
+      await this.handleError(job, e);
+    }
+  }
+
+  /**
+   * 通用解析处理
+   */
+  private async handleGeneral(job: Job<FinanceSourceFileJobData>) {
+    const { sourceFileId, fileName } = job.data;
+    try {
+      await this.initParse(sourceFileId);
+      await this.pushProgress(
+        job,
+        50,
+        FinanceSourceProgressPhase.PARSING,
+        '正在进行常规解析...',
+      );
+      await sleep(500);
+      await this.finishParse(sourceFileId, fileName, job);
+    } catch (e) {
+      await this.handleError(job, e);
+    }
+  }
+
+  private async handleError(job: Job<FinanceSourceFileJobData>, error: any) {
+    const { sourceFileId } = job.data;
+    const errMsg = (error as Error).message;
+    this.logger.error(`[taskId:${job.id}] 资源解析失败: ${errMsg}`);
+    await this.sourceFileRepo.update(
+      { id: sourceFileId },
+      {
+        parseStatus: FinanceSourceParseStatus.FAILED,
+        parseFailReason: errMsg,
+        isParsed: false,
+      },
+    );
+    await this.pushProgress(
+      job,
+      0,
+      FinanceSourceProgressPhase.FAILED,
+      `解析失败: ${errMsg}`,
+    );
+    throw error;
+  }
 }

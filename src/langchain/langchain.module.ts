@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { LangChainService } from './langchain.service';
 import { LangChainController } from './langchain.controller';
 import { ChatService } from './chat.service';
+import { ModelProviderService } from './model-provider.service';
 import { AuthModule } from '../modules/auth/auth.module';
 import { CommonModule } from '../common/common.module';
 import { ChatSession } from './entities/chat-session.entity';
@@ -30,6 +31,7 @@ import { AgentStreamHub } from './graph/agent/agent-stream.hub';
   providers: [
     LangChainService,
     ChatService,
+    ModelProviderService,
     PostgresCheckpointerProvider,
     MemoryStoreProvider,
     LangGraphConfigService,
@@ -39,6 +41,7 @@ import { AgentStreamHub } from './graph/agent/agent-stream.hub';
   exports: [
     LangChainService,
     ChatService,
+    ModelProviderService,
     PostgresCheckpointerProvider,
     MemoryStoreProvider,
     LangGraphConfigService,

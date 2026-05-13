@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { tool, DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { LangChainService } from '../langchain.service';
+import { ModelProviderService } from '../model-provider.service';
 import { MerchantRagService } from '../rag/merchant-rag/merchant-rag.service';
 import { buildExpandQueryPrompt } from '../prompts/chat.prompt';
 import { SEARCH_MERCHANT_KB_DESC } from '../prompts/agent.des';
@@ -19,7 +19,7 @@ export class MerchantKbTool {
   private readonly logger = new Logger(MerchantKbTool.name);
 
   constructor(
-    private readonly langChainService: LangChainService,
+    private readonly modelProviderService: ModelProviderService,
     private readonly merchantRagService: MerchantRagService,
   ) {}
 
@@ -84,7 +84,7 @@ export class MerchantKbTool {
 
   /** 查询改写：调用 LLM 自动生成同义查询，提升召回率 */
   private expandQuery = async (query: string): Promise<string[]> => {
-    const model = this.langChainService.getModel();
+    const model = this.modelProviderService.getModel();
     const prompt = buildExpandQueryPrompt(query);
 
     try {

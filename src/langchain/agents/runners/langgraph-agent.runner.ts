@@ -4,7 +4,7 @@
  * @职责 通过 LangGraph StateGraph 编排模型调用和工具执行
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import {
   HumanMessage,
   BaseMessage,
@@ -30,6 +30,7 @@ export class LangGraphAgentRunner {
   private readonly logger = new Logger(LangGraphAgentRunner.name);
 
   constructor(
+    @Inject(forwardRef(() => AgentGraphBuilder))
     private readonly agentGraphBuilder: AgentGraphBuilder,
     private readonly langGraphConfig: LangGraphConfigService,
     private readonly streamHub: AgentStreamHub,

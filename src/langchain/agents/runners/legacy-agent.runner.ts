@@ -5,7 +5,7 @@
  * @注意 保留以兼容旧版逻辑，未来计划下线
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import {
   HumanMessage,
   BaseMessage,
@@ -38,6 +38,7 @@ export class LegacyAgentRunner {
   private readonly logger = new Logger(LegacyAgentRunner.name);
 
   constructor(
+    @Inject(forwardRef(() => LangChainService))
     private readonly langChainService: LangChainService,
     private readonly toolsFactory: AgentToolsFactory,
   ) {}

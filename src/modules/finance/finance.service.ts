@@ -14,12 +14,18 @@ import {
   TaskProgressKeys,
 } from '../../common/constants/redis-key.constant';
 import {
+  DocType,
   FINANCE_ALLOWED_MIME_MAP,
   FINANCE_UPLOAD_MIME_LIMIT,
   type ConfirmBody,
   type PresignResult,
 } from '../../types/file.type';
-import type { FinanceSourceFileJobData } from '../../types/finance.type';
+import {
+  type FinanceSourceFileJobData,
+  FinanceSourceParseStatus,
+  FinanceSourceProgressPhase,
+  FinanceTaskPollStatus,
+} from '../../types/finance.type';
 import type { TaskProgressPayload } from '../../types/task-progress.type';
 
 interface SseEvent {
@@ -35,7 +41,7 @@ export class FinanceService {
     private readonly sourceFileRepo: Repository<FinanceSourceFile>,
     @InjectRepository(Merchant)
     private readonly merchantRepo: Repository<Merchant>,
-    @InjectQueue(RedisKeys.FINANCE.QUEUE_NAME)
+    @InjectQueue(RedisKeys.FINANCE.SOURCE_QUEUE_NAME)
     private readonly financeQueue: Queue<FinanceSourceFileJobData>,
     private readonly qiniuService: QiniuService,
     private readonly redisService: RedisService,
@@ -103,13 +109,25 @@ export class FinanceService {
       qiniuUrl,
       fileType: docType,
       isParsed: false,
+      parseStatus: FinanceSourceParseStatus.PENDING,
+      parseFailReason: null,
       merchantId: merchant.id,
     });
     await this.sourceFileRepo.save(record);
 
+    // 根据文件类型匹配具体的 Job Name
+    const jobNameMap: Record<string, string> = {
+      [DocType.PDF]: RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_SOURCE_PDF,
+      [DocType.IMAGE]: RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_SOURCE_IMAGE,
+      [DocType.DOCX]: RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_SOURCE_DOCX,
+    };
+    const specificJobName =
+      jobNameMap[docType] ||
+      RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_SOURCE_PARSING;
+
     const job = await this.financeQueue.add(
-      RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_DOCUMENT,
-      { qiniuKey, merchantId, fileName, sourceFileId: record.id },
+      specificJobName,
+      { qiniuKey, merchantId, fileName, sourceFileId: record.id, docType },
       {
         attempts: 3,
         backoff: { type: 'exponential', delay: 5000 },
@@ -130,7 +148,9 @@ export class FinanceService {
       id: record.id,
       fileName: record.fileName,
       fileType: record.fileType,
-      status: 'pending',
+      parseStatus: record.parseStatus,
+      /** @deprecated 与 parseStatus 同步，优先读 parseStatus */
+      status: record.parseStatus,
       taskId: job.id || '',
       merchantId: record.merchantId,
       qiniuUrl: record.qiniuUrl,
@@ -148,14 +168,19 @@ export class FinanceService {
       if (record) {
         return {
           taskId,
-          status: record.isParsed ? 'completed' : 'unknown_job',
-          progress: record.isParsed ? 100 : 0,
+          parseStatus: record.parseStatus,
           isParsed: record.isParsed,
           fileName: record.fileName,
-          failReason: null as string | null,
+          failReason: record.parseFailReason,
+          progress:
+            record.parseStatus === FinanceSourceParseStatus.COMPLETED ? 100 : 0,
         };
       }
-      return { taskId, status: 'not_found', progress: 0 };
+      return {
+        taskId,
+        status: FinanceTaskPollStatus.NOT_FOUND,
+        progress: 0,
+      };
     }
 
     const state = await job.getState();
@@ -186,7 +211,10 @@ export class FinanceService {
           )) as TaskProgressPayload | null;
           if (cached) {
             observer.next({ data: cached });
-            if (cached.status === 'completed' || cached.status === 'failed') {
+            if (
+              cached.status === FinanceSourceProgressPhase.COMPLETED ||
+              cached.status === FinanceSourceProgressPhase.FAILED
+            ) {
               observer.complete();
               return;
             }
@@ -206,7 +234,10 @@ export class FinanceService {
             try {
               const data = JSON.parse(message) as TaskProgressPayload;
               observer.next({ data });
-              if (data.status === 'completed' || data.status === 'failed') {
+              if (
+                data.status === FinanceSourceProgressPhase.COMPLETED ||
+                data.status === FinanceSourceProgressPhase.FAILED
+              ) {
                 observer.complete();
                 if (subClient) {
                   subClient.unsubscribe(channel).catch(() => {});

@@ -8,15 +8,18 @@ import { FinanceReport } from './entities/finance-report.entity';
 import { Merchant } from '../merchant/entities/merchant.entity';
 import { QiniuModule } from '../qiniu/qiniu.module';
 import { RedisKeys } from '../../common/constants/redis-key.constant';
-import { FinanceDocumentProcessor } from './jobs/finance-document.processor';
+import { FinanceSourceProcessor } from './jobs/finance-document.processor';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([FinanceSourceFile, FinanceReport, Merchant]),
-    BullModule.registerQueue({ name: RedisKeys.FINANCE.QUEUE_NAME }),
+    BullModule.registerQueue(
+      { name: RedisKeys.FINANCE.SOURCE_QUEUE_NAME },
+      { name: RedisKeys.FINANCE.REPORT_QUEUE_NAME },
+    ),
     QiniuModule,
   ],
-  providers: [FinanceService, FinanceDocumentProcessor],
+  providers: [FinanceService, FinanceSourceProcessor],
   controllers: [FinanceController],
   exports: [FinanceService],
 })

@@ -23,10 +23,10 @@ import { MerchantCategoriesTool } from './merchant-categories.tool';
 @Module({
   imports: [
     RagModule,
+    forwardRef(() => LangChainModule),
     MerchantModule,
     InventoryModule,
     UserModule,
-    forwardRef(() => LangChainModule),
   ],
   providers: [
     MerchantKbTool,
