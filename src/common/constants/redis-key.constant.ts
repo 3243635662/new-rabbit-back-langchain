@@ -3,6 +3,8 @@
  * 应用程序中使用的所有 Redis Key 都应在此处定义，以便于统一管理。
  */
 
+import type { TaskProgressRedisKeySet } from '../../types/task-progress.type';
+
 export const RedisKeys = {
   // *═══════════════════════════════════════════════════════
   // *客户端首页模块 (Client Home)
@@ -335,15 +337,14 @@ export const RedisKeys = {
     },
 
     /**
-     * 任务进度缓存
+     * RAG 解析进度 Pub/Sub 频道
      * 格式：rag:progress:{taskId}
      * @param taskId BullMQ 任务 ID
      */
-    // 任务进度channel
     getProgressChannel: (taskId: string) => `rag:progress:${taskId}`,
 
     /**
-     * 任务进度数据缓存（SSE 兜底）
+     * RAG 解析进度数据缓存（SSE 先读后订，防丢消息）
      * 格式：rag:progress:data:{taskId}
      * @param taskId BullMQ 任务 ID
      */
@@ -368,6 +369,21 @@ export const RedisKeys = {
       // 资源解析
       PROCESS_FINANCE_SOURCE_PARSING: 'process-finance-source-parsing',
     },
+
+    /**
+     * 财务资源解析进度 Pub/Sub 频道
+     * 格式：finance:source:progress:{taskId}
+     * @param taskId BullMQ 任务 ID
+     */
+    getProgressChannel: (taskId: string) => `finance:source:progress:${taskId}`,
+
+    /**
+     * 财务资源解析进度数据缓存（SSE 先读后订）
+     * 格式：finance:source:progress:data:{taskId}
+     * @param taskId BullMQ 任务 ID
+     */
+    getProgressDataKey: (taskId: string) =>
+      `finance:source:progress:data:${taskId}`,
   },
 
   CHAT: {
@@ -375,8 +391,6 @@ export const RedisKeys = {
      * 会话消息历史（Redis List 临时层）
      * 格式：chat:history:{sessionId}
      * @param sessionId 会话ID
-     * @example chat:history:1709875234567890123
-     *
      * *说明：
      * - 存储当前活跃会话的完整消息列表
      * - 每条消息以 JSON 字符串存储
@@ -456,3 +470,18 @@ export const RedisKeys = {
       `inventory:merchant:list:${merchantId}:`,
   },
 } as const;
+
+/**
+ * 异步任务进度 Redis 维度（与 RedisKeys 内 channel / data key 一致），
+ * Worker / SSE 侧按模块选用，避免写死 RAG。
+ */
+export const TaskProgressKeys = {
+  RAG: {
+    getProgressChannel: RedisKeys.RAG.getProgressChannel,
+    getProgressDataKey: RedisKeys.RAG.getProgressDataKey,
+  },
+  FINANCE_SOURCE: {
+    getProgressChannel: RedisKeys.FINANCE.getProgressChannel,
+    getProgressDataKey: RedisKeys.FINANCE.getProgressDataKey,
+  },
+} as const satisfies Record<string, TaskProgressRedisKeySet>;

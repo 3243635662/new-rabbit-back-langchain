@@ -11,54 +11,21 @@ import {
   Sse,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { ChatService } from './chat.service';
-import { AgentsService } from './agents/agents.service';
+import { LangChainService } from './langchain.service';
 import { resFormatMethod } from '../utils/resFormat.util';
 import { Observable } from 'rxjs';
 import { MessageEvent } from '@nestjs/common';
 import { CreateSessionDto, UpdateSessionTitleDto } from './dto/session.dto';
 import { JwtPayloadType } from '../types/auth.type';
-import { Merchant } from '../modules/merchant/entities/merchant.entity';
 import { Public } from '../common/decorators/public.decorator';
-import { AgentRuntimeContext } from '../types/agent.type';
 
 @Controller('ai')
 export class LangChainController {
-  /** 记录每个 session 当前正在运行的 SSE 流的 AbortController */
-  private readonly activeStreams = new Map<string, AbortController>();
-
   constructor(
     private readonly chatService: ChatService,
-    private readonly agentsService: AgentsService,
-    @InjectRepository(Merchant)
-    private readonly merchantRepo: Repository<Merchant>,
+    private readonly langChainService: LangChainService,
   ) {}
-
-  /** 根据用户身份构建 Agent 运行时上下文 */
-  private buildAgentContext = async (
-    req: { user: JwtPayloadType },
-    sessionId?: string,
-  ): Promise<AgentRuntimeContext> => {
-    let merchantId: string | undefined;
-
-    if (req.user.roleId === 2) {
-      const merchant = await this.merchantRepo.findOne({
-        where: { userId: req.user.id },
-        select: ['id'],
-      });
-      if (merchant) {
-        merchantId = merchant.id.toString();
-      }
-    }
-
-    return {
-      ...req.user,
-      sessionId: sessionId || 'default-session',
-      merchantId,
-    };
-  };
 
   // ══════════════════════════════════════════════════════
   // 智能对话核心接口（基于 Agent，Redis + MySQL 持久化）
@@ -137,13 +104,6 @@ export class LangChainController {
    * 智能对话核心接口（带持久化记忆，流式输出）
    * SSE /ai/session/:sessionId/streaming-chat
    *
-   * 流程：
-   * 1. 从 Redis/MySQL 获取历史消息
-   * 2. 构建 Agent 上下文（含 merchantId）
-   * 3. Agent 自主决策（是否调用知识库等工具）→ 流式生成回答
-   * 4. Human + AI 消息追加到 Redis（TTL 续期）
-   * 5. 异步同步到 MySQL
-   *
    * SSE 无法设置 Authorization header，token 通过 query 传入，AuthGuard 内部兼容。
    */
   @Public()
@@ -154,99 +114,13 @@ export class LangChainController {
     @Req() req: { user: JwtPayloadType },
     @Res({ passthrough: true }) res: Response,
   ): Observable<MessageEvent> {
-    // 禁用 SSE 超时，避免长推理被断开
-    res.setTimeout(0);
-    res.setHeader('X-Accel-Buffering', 'no');
-
-    // 为当前 session 创建 AbortController，用于支持停止对话
-    const abortController = new AbortController();
-    this.activeStreams.set(sessionId, abortController);
-
-    // 客户端断开连接时也触发 abort
-    res.on('close', () => {
-      abortController.abort();
-      this.activeStreams.delete(sessionId);
-    });
-
-    return new Observable((subscriber) => {
-      void (async () => {
-        try {
-          // ① 构建 Agent 上下文
-          const context = await this.buildAgentContext(req, sessionId);
-
-          // ③ 记录用户消息到 Redis
-          await this.chatService.appendMessage(sessionId, 'human', message);
-
-          // ④ 流式 Agent 运行（内部根据 USE_LANGGRAPH 自动路由）
-          // 不传 history：LangGraph 路径由 Checkpointer 从 PG 自动恢复状态
-          // 旧版路径在 facade 内部自行获取 history
-          // 传递 abortSignal 到执行链，真正中断 LLM / tool 执行
-          const agentStream = this.agentsService.runAgentStream(
-            message,
-            context,
-            abortController.signal,
-          );
-
-          let fullContent = '';
-          let fullReasoning = '';
-          // 收集工具调用事件，用于历史消息接口重放工具调用样式
-          const toolEvents: Array<Record<string, unknown>> = [];
-
-          for await (const chunk of agentStream) {
-            // 检查是否已被停止
-            if (abortController.signal.aborted) {
-              break;
-            }
-
-            fullContent += chunk.content || '';
-            if (chunk.type === 'content') {
-              fullReasoning += chunk.reasoning || '';
-            }
-            // 收集结构化工具调用事件
-            if (chunk.type === 'tool_start' || chunk.type === 'tool_end') {
-              toolEvents.push(chunk as unknown as Record<string, unknown>);
-            }
-            subscriber.next({
-              data: JSON.stringify(chunk),
-            } as MessageEvent);
-          }
-
-          // 如果被中止，发送 stopped 事件
-          if (abortController.signal.aborted) {
-            subscriber.next({
-              data: JSON.stringify({ type: 'stopped', content: fullContent }),
-            } as MessageEvent);
-          }
-
-          // ⑤ AI 完整回复追加到 Redis（部分内容也保存，toolEvents 同步存储）
-          if (fullContent) {
-            await this.chatService.appendMessage(
-              sessionId,
-              'ai',
-              fullContent,
-              fullReasoning || undefined,
-              toolEvents.length > 0 ? toolEvents : undefined,
-            );
-
-            // ⑥ 异步同步到 MySQL
-            this.chatService.syncToMySQL(sessionId).catch((err) => {
-              this.chatService['logger'].error(`异步同步失败:`, err);
-            });
-          }
-
-          subscriber.complete();
-        } catch (e) {
-          const err = e instanceof Error ? e : new Error(String(e));
-          this.chatService['logger'].error(
-            `[SSE] session=${sessionId} error=${err.message}`,
-            err.stack,
-          );
-          subscriber.error(e);
-        } finally {
-          this.activeStreams.delete(sessionId);
-        }
-      })();
-    });
+    this.langChainService.prepareStreamingChatResponse(res);
+    return this.langChainService.createStreamingChatObservable(
+      sessionId,
+      message,
+      req,
+      res,
+    );
   }
 
   /**
@@ -258,15 +132,12 @@ export class LangChainController {
     @Param('sessionId') sessionId: string,
     @Req() req: { user: JwtPayloadType },
   ) {
-    // 验证 session 属于当前用户
     const session = await this.chatService.getSession(sessionId);
     if (!session || session.userId !== req.user.id) {
       return resFormatMethod(1, '无权操作此会话', null);
     }
 
-    const controller = this.activeStreams.get(sessionId);
-    if (controller && !controller.signal.aborted) {
-      controller.abort();
+    if (this.langChainService.tryAbortStreamingChat(sessionId)) {
       return resFormatMethod(0, 'success', '对话已停止');
     }
     return resFormatMethod(1, '当前没有进行中的对话', null);

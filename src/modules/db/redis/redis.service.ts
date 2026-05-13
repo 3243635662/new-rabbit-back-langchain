@@ -11,6 +11,10 @@ import {
   WhetherRedisLogicExpireDataType,
 } from '../../../types/redis.type';
 import { RedisKeys } from '../../../common/constants/redis-key.constant';
+import type {
+  TaskProgressPayload,
+  TaskProgressRedisKeySet,
+} from '../../../types/task-progress.type';
 import { RedisTTL } from '../../../common/constants/redis-TTL.constant';
 // 定义不同的布隆过滤器键名
 export const BloomFilters = RedisKeys.BLOOM;
@@ -337,35 +341,37 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     await this.client.del(lockKey);
   }
 
-  // ─── RAG 实时进度推送（SSE + Redis Pub/Sub） ───
+  // ─── 异步任务实时进度（Pub/Sub + 字符串缓存，RAG / 财务等模块复用） ───
 
-  // 向指定 taskId 频道发布实时进度
-  async publishProgress(
+  /** 向指定模块的 taskId 频道发布进度 */
+  async publishTaskProgress(
+    keySet: TaskProgressRedisKeySet,
     taskId: string,
-    data: {
-      progress: number;
-      status: string;
-      message?: string;
-      failReason?: string;
-    },
-  ) {
-    const channel = RedisKeys.RAG.getProgressChannel(taskId);
+    data: TaskProgressPayload,
+  ): Promise<void> {
+    const channel = keySet.getProgressChannel(taskId);
     await this.client.publish(channel, JSON.stringify(data));
   }
 
-  /** 缓存最新进度（SSE 连接时先推缓存，防消息丢失） */
-  async setProgressCache(taskId: string, data: object, expireSeconds = 3600) {
-    const key = RedisKeys.RAG.getProgressDataKey(taskId);
+  /** 写入最新进度缓存（SSE 先读后订，防丢消息） */
+  async setTaskProgressCache(
+    keySet: TaskProgressRedisKeySet,
+    taskId: string,
+    data: TaskProgressPayload,
+    expireSeconds = 3600,
+  ): Promise<void> {
+    const key = keySet.getProgressDataKey(taskId);
     await this.client.set(key, JSON.stringify(data), 'EX', expireSeconds);
   }
 
   /** 读取缓存进度 */
-  async getProgressCache(
+  async getTaskProgressCache(
+    keySet: TaskProgressRedisKeySet,
     taskId: string,
   ): Promise<Record<string, unknown> | null> {
-    const key = RedisKeys.RAG.getProgressDataKey(taskId);
-    const data = await this.client.get(key);
-    return data ? (JSON.parse(data) as Record<string, unknown>) : null;
+    const key = keySet.getProgressDataKey(taskId);
+    const raw = await this.client.get(key);
+    return raw ? (JSON.parse(raw) as Record<string, unknown>) : null;
   }
 
   /** 创建独立订阅客户端（SSE 用，必须独立连接） */

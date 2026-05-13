@@ -13,6 +13,7 @@ import {
   RetrievalTrace,
   ProgressCallback,
   SupportedDocumentType,
+  RagIngestProgressPhase,
 } from '../../../types/rag.type';
 
 @Injectable()
@@ -32,17 +33,29 @@ export class MerchantRagService {
 
     const documentType = this.detectDocumentType(fileName, mimeType);
 
-    void onProgress?.(25, 'parsing', '正在解析文档...');
+    void onProgress?.(
+      25,
+      RagIngestProgressPhase.PARSING,
+      '正在解析文档...',
+    );
     const rawDocs = await this.loadDocument(filePath, mimeType, documentType);
 
     if (rawDocs.length === 0) {
       throw new Error('文档为空或格式无效');
     }
 
-    void onProgress?.(35, 'cleaning', '正在清理历史向量...');
+    void onProgress?.(
+      35,
+      RagIngestProgressPhase.CLEANING,
+      '正在清理历史向量...',
+    );
     await this.deleteDocumentsBySourceFile(merchantId, fileName);
 
-    void onProgress?.(45, 'preparing', '正在整理文档内容...');
+    void onProgress?.(
+      45,
+      RagIngestProgressPhase.PREPARING,
+      '正在整理文档内容...',
+    );
     const preparedDocs = this.prepareDocuments(rawDocs, {
       merchantId,
       fileName,
@@ -54,7 +67,11 @@ export class MerchantRagService {
       throw new Error('文档没有可入库的有效文本');
     }
 
-    void onProgress?.(55, 'splitting', '正在切分文本...');
+    void onProgress?.(
+      55,
+      RagIngestProgressPhase.SPLITTING,
+      '正在切分文本...',
+    );
     const chunks = await this.splitDocumentsForRag(preparedDocs, {
       merchantId,
       fileName,
@@ -66,14 +83,22 @@ export class MerchantRagService {
       throw new Error('文档切分后没有有效片段');
     }
 
-    void onProgress?.(70, 'embedding', '正在向量化并入库...');
+    void onProgress?.(
+      70,
+      RagIngestProgressPhase.EMBEDDING,
+      '正在向量化并入库...',
+    );
     const count = await this.ragService.addDocuments(chunks);
 
     this.logger.log(
       `商户 ${merchantId} 文件 ${fileName} 入库成功，共 ${count} 个片段`,
     );
 
-    void onProgress?.(100, 'completed', '知识库入库完成');
+    void onProgress?.(
+      100,
+      RagIngestProgressPhase.COMPLETED,
+      '知识库入库完成',
+    );
 
     return {
       count,

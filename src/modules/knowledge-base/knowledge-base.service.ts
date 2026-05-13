@@ -10,17 +10,13 @@ import { Merchant } from '../merchant/entities/merchant.entity';
 import { QiniuService } from '../qiniu/qiniu.service';
 import { MerchantRagService } from '../../langchain/rag/merchant-rag/merchant-rag.service';
 import { RedisService } from '../../modules/db/redis/redis.service';
-import { RAGJobData } from '../../types/rag.type';
-import { RedisKeys } from '../../common/constants/redis-key.constant';
+import { RAGJobData, RagIngestProgressPhase, RagTaskPollStatus } from '../../types/rag.type';
+import {
+  RedisKeys,
+  TaskProgressKeys,
+} from '../../common/constants/redis-key.constant';
 import type { PresignResult, ConfirmBody } from '../../types/file.type';
-
-interface ProgressPayload {
-  status: string;
-  progress?: number;
-  message?: string;
-  failReason?: string;
-  [key: string]: unknown;
-}
+import type { TaskProgressPayload } from '../../types/task-progress.type';
 
 interface SseEvent {
   data: unknown;
@@ -154,7 +150,7 @@ export class KnowledgeBaseService {
           failReason: record.failReason,
         };
       }
-      return { taskId, status: 'not_found', progress: 0 };
+      return { taskId, status: RagTaskPollStatus.NOT_FOUND, progress: 0 };
     }
 
     const state = await job.getState();
@@ -230,18 +226,23 @@ export class KnowledgeBaseService {
    */
   progressSse = (taskId: string): Observable<SseEvent> => {
     return new Observable((observer) => {
-      const channel = RedisKeys.RAG.getProgressChannel(taskId);
+      const keySet = TaskProgressKeys.RAG;
+      const channel = keySet.getProgressChannel(taskId);
       let subClient: Redis | null = null;
 
       const init = async () => {
         try {
           // 先推缓存的最新状态
-          const cached = (await this.redisService.getProgressCache(
+          const cached = (await this.redisService.getTaskProgressCache(
+            keySet,
             taskId,
-          )) as ProgressPayload | null;
+          )) as TaskProgressPayload | null;
           if (cached) {
             observer.next({ data: cached });
-            if (cached.status === 'completed' || cached.status === 'failed') {
+            if (
+              cached.status === RagIngestProgressPhase.COMPLETED ||
+              cached.status === RagIngestProgressPhase.FAILED
+            ) {
               observer.complete();
               return;
             }
@@ -258,9 +259,12 @@ export class KnowledgeBaseService {
 
           subClient.on('message', (_: string, message: string) => {
             try {
-              const data = JSON.parse(message) as ProgressPayload;
+              const data = JSON.parse(message) as TaskProgressPayload;
               observer.next({ data });
-              if (data.status === 'completed' || data.status === 'failed') {
+              if (
+                data.status === RagIngestProgressPhase.COMPLETED ||
+                data.status === RagIngestProgressPhase.FAILED
+              ) {
                 observer.complete();
                 if (subClient) {
                   subClient.unsubscribe(channel).catch(() => {});

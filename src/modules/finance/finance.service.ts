@@ -3,11 +3,28 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { Observable } from 'rxjs';
+import Redis from 'ioredis';
 import { FinanceSourceFile } from './entities/finance-source-file.entity';
 import { Merchant } from '../merchant/entities/merchant.entity';
 import { QiniuService } from '../qiniu/qiniu.service';
-import { RedisKeys } from '../../common/constants/redis-key.constant';
-import type { PresignResult, ConfirmBody } from '../../types/file.type';
+import { RedisService } from '../db/redis/redis.service';
+import {
+  RedisKeys,
+  TaskProgressKeys,
+} from '../../common/constants/redis-key.constant';
+import {
+  FINANCE_ALLOWED_MIME_MAP,
+  FINANCE_UPLOAD_MIME_LIMIT,
+  type ConfirmBody,
+  type PresignResult,
+} from '../../types/file.type';
+import type { FinanceSourceFileJobData } from '../../types/finance.type';
+import type { TaskProgressPayload } from '../../types/task-progress.type';
+
+interface SseEvent {
+  data: unknown;
+}
 
 @Injectable()
 export class FinanceService {
@@ -19,8 +36,9 @@ export class FinanceService {
     @InjectRepository(Merchant)
     private readonly merchantRepo: Repository<Merchant>,
     @InjectQueue(RedisKeys.FINANCE.QUEUE_NAME)
-    private readonly financeQueue: Queue,
+    private readonly financeQueue: Queue<FinanceSourceFileJobData>,
     private readonly qiniuService: QiniuService,
+    private readonly redisService: RedisService,
   ) {}
 
   /**
@@ -40,7 +58,11 @@ export class FinanceService {
 
     const merchantId = merchant.id.toString();
     const keyPrefix = `finance/raw/${merchantId}`;
-    return this.qiniuService.generatePresign(keyPrefix, fileName);
+    return this.qiniuService.generatePresign(
+      keyPrefix,
+      fileName,
+      FINANCE_UPLOAD_MIME_LIMIT,
+    );
   };
 
   /**
@@ -70,6 +92,7 @@ export class FinanceService {
       expectedPrefix,
       mimeType,
       fileSize,
+      FINANCE_ALLOWED_MIME_MAP,
     );
 
     const record = this.sourceFileRepo.create({
@@ -113,5 +136,99 @@ export class FinanceService {
       qiniuUrl: record.qiniuUrl,
       createdAt: record.createdAt,
     };
+  };
+
+  /**
+   * 查询 BullMQ 任务状态
+   */
+  getTaskStatus = async (taskId: string) => {
+    const job = await this.financeQueue.getJob(taskId);
+    if (!job) {
+      const record = await this.sourceFileRepo.findOne({ where: { taskId } });
+      if (record) {
+        return {
+          taskId,
+          status: record.isParsed ? 'completed' : 'unknown_job',
+          progress: record.isParsed ? 100 : 0,
+          isParsed: record.isParsed,
+          fileName: record.fileName,
+          failReason: null as string | null,
+        };
+      }
+      return { taskId, status: 'not_found', progress: 0 };
+    }
+
+    const state = await job.getState();
+    const progress = (job.progress as number) || 0;
+
+    return {
+      taskId,
+      status: state,
+      progress,
+      failReason: state === 'failed' ? job.failedReason : null,
+    };
+  };
+
+  /**
+   * SSE 实时推送财务文件处理进度（与知识库 progress 同理，使用 TaskProgressKeys.FINANCE_SOURCE）
+   */
+  progressSse = (taskId: string): Observable<SseEvent> => {
+    return new Observable((observer) => {
+      const keySet = TaskProgressKeys.FINANCE_SOURCE;
+      const channel = keySet.getProgressChannel(taskId);
+      let subClient: Redis | null = null;
+
+      const init = async () => {
+        try {
+          const cached = (await this.redisService.getTaskProgressCache(
+            keySet,
+            taskId,
+          )) as TaskProgressPayload | null;
+          if (cached) {
+            observer.next({ data: cached });
+            if (cached.status === 'completed' || cached.status === 'failed') {
+              observer.complete();
+              return;
+            }
+          }
+
+          subClient = this.redisService.createSubscriber();
+          void subClient.subscribe(channel, (err: Error | null) => {
+            if (err) {
+              this.logger.error(
+                `财务 SSE 订阅失败 [${taskId}]: ${err.message}`,
+              );
+              observer.error(err);
+            }
+          });
+
+          subClient.on('message', (_: string, message: string) => {
+            try {
+              const data = JSON.parse(message) as TaskProgressPayload;
+              observer.next({ data });
+              if (data.status === 'completed' || data.status === 'failed') {
+                observer.complete();
+                if (subClient) {
+                  subClient.unsubscribe(channel).catch(() => {});
+                }
+              }
+            } catch {
+              observer.next({ data: message });
+            }
+          });
+        } catch (err) {
+          observer.error(err);
+        }
+      };
+
+      void init();
+
+      return () => {
+        if (subClient) {
+          subClient.unsubscribe(channel).catch(() => {});
+          subClient.quit().catch(() => {});
+        }
+      };
+    });
   };
 }

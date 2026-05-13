@@ -9,6 +9,7 @@ import { pipeline } from 'stream/promises';
 import {
   ALLOWED_MIME_MAP,
   DocType,
+  FINANCE_ALLOWED_MIME_MAP,
   PresignResult,
 } from '../../types/file.type';
 import { ReadableStream } from 'stream/web';
@@ -71,6 +72,7 @@ export class QiniuService {
   /**
    * 验证七牛云文件：校验前缀、查询文件是否存在、校验文件类型
    * 验证失败时自动删除七牛云上的文件
+   * @param allowedMimeMap 不传则使用全局知识库白名单；财务模块传入 FINANCE_ALLOWED_MIME_MAP
    * @returns 验证成功时返回文件信息 { qiniuUrl, actualMime, docType, fileSize }
    */
   validateFile = async (
@@ -78,6 +80,7 @@ export class QiniuService {
     expectedPrefix: string,
     mimeType: string,
     fileSize: number,
+    allowedMimeMap: Record<string, DocType> = ALLOWED_MIME_MAP,
   ): Promise<{
     qiniuUrl: string;
     actualMime: string;
@@ -97,12 +100,16 @@ export class QiniuService {
 
     // 以七牛实际 mimeType 为准校验，客户端上报不一致则删文件
     const actualMime = fileStat.mimeType || mimeType;
-    const docType = ALLOWED_MIME_MAP[actualMime];
+    const docType = allowedMimeMap[actualMime];
     if (!docType) {
       await this.deleteFile(qiniuKey);
       this.logger.warn(`文件类型不支持: 实际=${actualMime}，已删除文件`);
+      const hint =
+        allowedMimeMap === FINANCE_ALLOWED_MIME_MAP
+          ? '财务上传仅支持 png、jpg(jpeg)、pdf、docx'
+          : '仅支持 json/csv/pdf/docx/txt/xlsx/xls';
       throw new BadRequestException(
-        `不支持的文件类型: ${actualMime}，仅支持 json/csv/pdf/docx/txt/xlsx/xls，文件已删除`,
+        `不支持的文件类型: ${actualMime}，${hint}，文件已删除`,
       );
     }
 

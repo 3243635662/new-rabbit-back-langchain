@@ -37,3 +37,17 @@ export const ALLOWED_MIME_MAP: Record<string, DocType> = {
   'image/png': DocType.IMAGE,
   'image/webp': DocType.IMAGE,
 };
+
+/** 财务模块上传：仅 png / jpg(jpeg) / pdf / docx */
+export const FINANCE_ALLOWED_MIME_MAP: Record<string, DocType> = {
+  'image/png': DocType.IMAGE,
+  'image/jpeg': DocType.IMAGE,
+  'application/pdf': DocType.PDF,
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+    DocType.DOCX,
+};
+
+/** 七牛 PutPolicy.mimeLimit（与 FINANCE_ALLOWED_MIME_MAP 一致） */
+export const FINANCE_UPLOAD_MIME_LIMIT = Object.keys(
+  FINANCE_ALLOWED_MIME_MAP,
+).join(';');

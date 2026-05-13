@@ -29,10 +29,34 @@ export interface RAGJobData {
   fileName: string;
 }
 
+/** RAG 入库 SSE / Redis 进度 payload 的 status 阶段（禁止手写魔法字符串） */
+export const RagIngestProgressPhase = {
+  DOWNLOADING: 'downloading',
+  PERSISTING: 'persisting',
+  PARSING: 'parsing',
+  CLEANING: 'cleaning',
+  PREPARING: 'preparing',
+  SPLITTING: 'splitting',
+  EMBEDDING: 'embedding',
+  COMPLETED: 'completed',
+  FAILED: 'failed',
+} as const;
+
+export type RagIngestProgressPhaseValue =
+  (typeof RagIngestProgressPhase)[keyof typeof RagIngestProgressPhase];
+
+/** GET /knowledge-base/task/:id 在 BullMQ 中已无 Job 且库中无记录时的 status */
+export const RagTaskPollStatus = {
+  NOT_FOUND: 'not_found',
+} as const;
+
+export type RagTaskPollStatusValue =
+  (typeof RagTaskPollStatus)[keyof typeof RagTaskPollStatus];
+
 /** 文档入库进度回调 */
 export type ProgressCallback = (
   progress: number,
-  status: string,
+  status: RagIngestProgressPhaseValue,
   message: string,
 ) => void | Promise<void>;
 
