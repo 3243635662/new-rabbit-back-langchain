@@ -66,12 +66,6 @@ export class FinanceSourceFile {
   qiniuUrl: string;
 
   @Column({
-    comment:
-      '业务文件类型：invoice_image / invoice_pdf / csv / excel / word / pdf_report',
-  })
-  fileType: string;
-
-  @Column({
     type: 'varchar',
     length: 50,
     nullable: true,

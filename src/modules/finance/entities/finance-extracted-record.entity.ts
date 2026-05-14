@@ -22,12 +22,14 @@ export class FinanceExtractedRecord {
   id: number;
 
   @Column({
-    comment: '所属报告 ID，示例：1001',
+    nullable: true,
+    comment: '所属报告 ID（如果关联了报告的话），示例：1001',
   })
   reportId: number;
 
   @ManyToOne(() => FinanceReport, (report) => report.extractedRecords, {
-    onDelete: 'CASCADE',
+    onDelete: 'SET NULL',
+    nullable: true,
   })
   @JoinColumn({ name: 'reportId' })
   report: FinanceReport;
@@ -55,13 +57,13 @@ export class FinanceExtractedRecord {
   sourceFile: FinanceSourceFile;
 
   @Column({
-    comment: '记录类型，示例：invoice',
+    comment: '记录类型，示例：invoice / contract / general',
   })
   recordType: string;
 
   @Column({
     nullable: true,
-    comment: '业务发生日期，示例：2026-05-01',
+    comment: '业务发生日期（发票日期/签约日期等），示例：2026-05-01',
   })
   occurredAt: Date;
 
@@ -70,7 +72,7 @@ export class FinanceExtractedRecord {
     precision: 12,
     scale: 2,
     nullable: true,
-    comment: '不含税或主要金额，示例：1000.00',
+    comment: '不含税或主要金额（合同金额等），示例：1000.00',
   })
   amount: string;
 
@@ -100,7 +102,7 @@ export class FinanceExtractedRecord {
 
   @Column({
     nullable: true,
-    comment: '交易对方，示例：某某供应商',
+    comment: '交易对方（供应商/合同对方公司），示例：某某供应商',
   })
   counterparty: string;
 
@@ -112,9 +114,16 @@ export class FinanceExtractedRecord {
 
   @Column({
     nullable: true,
-    comment: '发票号码，示例：12345678',
+    comment: '单据编号（发票号码/合同编号等），示例：12345678',
   })
-  invoiceNo: string;
+  documentNo: string;
+
+  @Column({
+    type: 'text',
+    nullable: true,
+    comment: '文字提取摘要或正文内容（适用于合同、通用图片）',
+  })
+  summary: string;
 
   @Column({
     type: 'decimal',
@@ -128,7 +137,7 @@ export class FinanceExtractedRecord {
   @Column({
     type: 'json',
     nullable: true,
-    comment: '原始提取数据，示例：{...}',
+    comment: '特定类型的专属数据存放地，示例：{...}',
   })
   raw: unknown;
 

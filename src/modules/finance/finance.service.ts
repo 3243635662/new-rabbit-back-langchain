@@ -41,7 +41,7 @@ export class FinanceService {
     @InjectRepository(Merchant)
     private readonly merchantRepo: Repository<Merchant>,
     @InjectQueue(RedisKeys.FINANCE.SOURCE_QUEUE_NAME)
-    private readonly financeQueue: Queue<FinanceSourceFileJobData>,
+    private readonly financeSourceQueue: Queue<FinanceSourceFileJobData>,
     private readonly qiniuService: QiniuService,
     private readonly redisService: RedisService,
   ) {}
@@ -106,7 +106,6 @@ export class FinanceService {
       fileSize: validatedFileSize,
       qiniuKey,
       qiniuUrl,
-      fileType: docType,
       sourceType: body.sourceType,
       isParsed: false,
       parseStatus: FinanceSourceParseStatus.PENDING,
@@ -127,7 +126,7 @@ export class FinanceService {
       throw new Error(`不支持的业务资源类型: ${body.sourceType}`);
     }
 
-    const job = await this.financeQueue.add(
+    const job = await this.financeSourceQueue.add(
       specificJobName,
       {
         qiniuKey,
@@ -156,7 +155,7 @@ export class FinanceService {
     return {
       id: record.id,
       fileName: record.fileName,
-      fileType: record.fileType,
+      sourceType: record.sourceType,
       parseStatus: record.parseStatus,
       /** @deprecated 与 parseStatus 同步，优先读 parseStatus */
       status: record.parseStatus,
@@ -171,7 +170,7 @@ export class FinanceService {
    * 查询 BullMQ 任务状态
    */
   getTaskStatus = async (taskId: string) => {
-    const job = await this.financeQueue.getJob(taskId);
+    const job = await this.financeSourceQueue.getJob(taskId);
     if (!job) {
       const record = await this.sourceFileRepo.findOne({ where: { taskId } });
       if (record) {
