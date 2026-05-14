@@ -371,14 +371,12 @@ export const RedisKeys = {
     JOB_NAMES: {
       // 报表生成
       PROCESS_FINANCE_REPORT: 'process-finance-report',
-      // 资源解析（基础名称）
-      PROCESS_FINANCE_SOURCE_PARSING: 'process-finance-source-parsing',
-      // 资源解析（按类型区分）
-      PROCESS_FINANCE_SOURCE_PDF: 'process-finance-source-parsing:PDF',
-      // 资源解析（按类型区分）
-      PROCESS_FINANCE_SOURCE_IMAGE: 'process-finance-source-parsing:IMAGE',
-      // 资源解析（按类型区分）
-      PROCESS_FINANCE_SOURCE_DOCX: 'process-finance-source-parsing:DOCX',
+      // 资源解析（按业务类型区分）
+      PROCESS_FINANCE_SOURCE_GENERAL_IMG:
+        'process-finance-source-parsing:GENERAL_IMG',
+      PROCESS_FINANCE_SOURCE_INVOICE: 'process-finance-source-parsing:INVOICE',
+      PROCESS_FINANCE_SOURCE_CONTRACT:
+        'process-finance-source-parsing:CONTRACT',
     },
 
     /**

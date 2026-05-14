@@ -9,6 +9,9 @@ import { Merchant } from '../merchant/entities/merchant.entity';
 import { QiniuModule } from '../qiniu/qiniu.module';
 import { RedisKeys } from '../../common/constants/redis-key.constant';
 import { FinanceSourceProcessor } from './jobs/finance-document.processor';
+import { GeneralImgParser } from './jobs/parsers/general-img.parser';
+import { InvoiceOcrParser } from './jobs/parsers/invoice-ocr.parser';
+import { ContractParser } from './jobs/parsers/contract.parser';
 
 @Module({
   imports: [
@@ -19,7 +22,13 @@ import { FinanceSourceProcessor } from './jobs/finance-document.processor';
     ),
     QiniuModule,
   ],
-  providers: [FinanceService, FinanceSourceProcessor],
+  providers: [
+    FinanceService,
+    FinanceSourceProcessor,
+    GeneralImgParser,
+    InvoiceOcrParser,
+    ContractParser,
+  ],
   controllers: [FinanceController],
   exports: [FinanceService],
 })

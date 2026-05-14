@@ -14,7 +14,6 @@ import {
   TaskProgressKeys,
 } from '../../common/constants/redis-key.constant';
 import {
-  DocType,
   FINANCE_ALLOWED_MIME_MAP,
   FINANCE_UPLOAD_MIME_LIMIT,
   type ConfirmBody,
@@ -108,6 +107,7 @@ export class FinanceService {
       qiniuKey,
       qiniuUrl,
       fileType: docType,
+      sourceType: body.sourceType,
       isParsed: false,
       parseStatus: FinanceSourceParseStatus.PENDING,
       parseFailReason: null,
@@ -115,19 +115,28 @@ export class FinanceService {
     });
     await this.sourceFileRepo.save(record);
 
-    // 根据文件类型匹配具体的 Job Name
+    // 根据业务类型匹配具体的 Job Name
     const jobNameMap: Record<string, string> = {
-      [DocType.PDF]: RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_SOURCE_PDF,
-      [DocType.IMAGE]: RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_SOURCE_IMAGE,
-      [DocType.DOCX]: RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_SOURCE_DOCX,
+      img: RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_SOURCE_GENERAL_IMG,
+      invoice: RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_SOURCE_INVOICE,
+      contract: RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_SOURCE_CONTRACT,
     };
-    const specificJobName =
-      jobNameMap[docType] ||
-      RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_SOURCE_PARSING;
+    const specificJobName = jobNameMap[body.sourceType];
+
+    if (!specificJobName) {
+      throw new Error(`不支持的业务资源类型: ${body.sourceType}`);
+    }
 
     const job = await this.financeQueue.add(
       specificJobName,
-      { qiniuKey, merchantId, fileName, sourceFileId: record.id, docType },
+      {
+        qiniuKey,
+        merchantId,
+        fileName,
+        sourceFileId: record.id,
+        docType,
+        sourceType: body.sourceType,
+      },
       {
         attempts: 3,
         backoff: { type: 'exponential', delay: 5000 },

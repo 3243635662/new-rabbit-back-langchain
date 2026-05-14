@@ -6,6 +6,7 @@ export interface FinanceSourceFileJobData {
   fileName: string;
   sourceFileId: number;
   docType: DocType;
+  sourceType: string;
 }
 
 /**

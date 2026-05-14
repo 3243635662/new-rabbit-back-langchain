@@ -72,6 +72,14 @@ export class FinanceSourceFile {
   fileType: string;
 
   @Column({
+    type: 'varchar',
+    length: 50,
+    nullable: true,
+    comment: '业务资源类型：img / invoice / contract',
+  })
+  sourceType: string;
+
+  @Column({
     type: 'enum',
     enum: FinanceSourceParseStatus,
     default: FinanceSourceParseStatus.PENDING,
