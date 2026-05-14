@@ -8,6 +8,7 @@ import { createBullBoard } from '@bull-board/api';
 import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 import { ExpressAdapter } from '@bull-board/express';
 import { Queue } from 'bullmq';
+import { RedisKeys } from './common/constants/redis-key.constant';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -25,7 +26,17 @@ async function bootstrap() {
   createBullBoard({
     queues: [
       new BullMQAdapter(
-        new Queue('rag-queue', {
+        new Queue(RedisKeys.RAG.QUEUE_NAME, {
+          connection: { host: redisHost, port: redisPort },
+        }),
+      ),
+      new BullMQAdapter(
+        new Queue(RedisKeys.FINANCE.SOURCE_QUEUE_NAME, {
+          connection: { host: redisHost, port: redisPort },
+        }),
+      ),
+      new BullMQAdapter(
+        new Queue(RedisKeys.FINANCE.REPORT_QUEUE_NAME, {
           connection: { host: redisHost, port: redisPort },
         }),
       ),

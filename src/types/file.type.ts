@@ -22,7 +22,7 @@ export interface ConfirmBody {
   fileName: string;
   mimeType: string;
   fileSize: number;
-  sourceType: 'img' | 'invoice' | 'contract'; // 业务资源类型
+  sourceType?: 'img' | 'invoice' | 'contract'; // 业务资源类型，Finance专用
 }
 export const ALLOWED_MIME_MAP: Record<string, DocType> = {
   'application/json': DocType.JSON,

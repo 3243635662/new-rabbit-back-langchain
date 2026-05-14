@@ -12,6 +12,7 @@ import { Observable } from 'rxjs';
 import { FinanceService } from './finance.service';
 import { resFormatMethod } from '../../utils/resFormat.util';
 import { JwtPayloadType } from '../../types/auth.type';
+import type { ConfirmBody } from '../../types/file.type';
 
 interface SseEvent {
   data: unknown;
@@ -46,13 +47,7 @@ export class FinanceController {
    */
   @Post('confirm')
   async confirm(
-    @Body()
-    body: {
-      qiniuKey: string;
-      fileName: string;
-      mimeType: string;
-      fileSize: number;
-    },
+    @Body() body: ConfirmBody,
     @Req() req: { user: JwtPayloadType },
   ) {
     const result = await this.financeService.confirmUpload(body, req.user.id);

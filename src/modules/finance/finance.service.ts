@@ -1,6 +1,11 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Not } from 'typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { Observable } from 'rxjs';
@@ -74,7 +79,11 @@ export class FinanceService {
    * 客户端直传七牛成功后，回调确认
    */
   confirmUpload = async (body: ConfirmBody, userId: string) => {
-    const { qiniuKey, fileName, mimeType, fileSize } = body;
+    const { qiniuKey, fileName, mimeType, fileSize, sourceType } = body;
+
+    if (!sourceType) {
+      throw new BadRequestException('财务文件上传必须提供 sourceType');
+    }
 
     const merchant = await this.merchantRepo.findOne({
       where: { userId },
@@ -86,6 +95,33 @@ export class FinanceService {
 
     const merchantId = merchant.id.toString();
     const expectedPrefix = `finance/raw/${merchantId}/`;
+
+    // 幂等性检查：如果已存在相同 qiniuKey 且未失败记录，直接返回已有记录
+    const existingRecord = await this.sourceFileRepo.findOne({
+      where: {
+        qiniuKey,
+        merchantId: merchant.id,
+        parseStatus: Not(FinanceSourceParseStatus.FAILED),
+      },
+      order: { createdAt: 'DESC' },
+    });
+
+    if (existingRecord) {
+      this.logger.warn(
+        `商户 ${merchantId} 重复提交已存在的文件: ${fileName} → 已有 taskId: ${existingRecord.taskId}`,
+      );
+      return {
+        id: existingRecord.id,
+        fileName: existingRecord.fileName,
+        sourceType: existingRecord.sourceType,
+        parseStatus: existingRecord.parseStatus,
+        status: existingRecord.parseStatus,
+        taskId: existingRecord.taskId,
+        merchantId: existingRecord.merchantId,
+        qiniuUrl: existingRecord.qiniuUrl,
+        createdAt: existingRecord.createdAt,
+      };
+    }
 
     const {
       qiniuUrl,
@@ -106,7 +142,7 @@ export class FinanceService {
       fileSize: validatedFileSize,
       qiniuKey,
       qiniuUrl,
-      sourceType: body.sourceType,
+      sourceType,
       isParsed: false,
       parseStatus: FinanceSourceParseStatus.PENDING,
       parseFailReason: null,
@@ -120,10 +156,10 @@ export class FinanceService {
       invoice: RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_SOURCE_INVOICE,
       contract: RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_SOURCE_CONTRACT,
     };
-    const specificJobName = jobNameMap[body.sourceType];
+    const specificJobName = jobNameMap[sourceType];
 
     if (!specificJobName) {
-      throw new Error(`不支持的业务资源类型: ${body.sourceType}`);
+      throw new Error(`不支持的业务资源类型: ${sourceType}`);
     }
 
     const job = await this.financeSourceQueue.add(
@@ -134,7 +170,7 @@ export class FinanceService {
         fileName,
         sourceFileId: record.id,
         docType,
-        sourceType: body.sourceType,
+        sourceType,
       },
       {
         attempts: 3,

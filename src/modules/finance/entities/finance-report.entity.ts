@@ -9,11 +9,9 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
-  OneToMany,
   JoinColumn,
 } from 'typeorm';
 import { Merchant } from '../../merchant/entities/merchant.entity';
-import { FinanceExtractedRecord } from './finance-extracted-record.entity';
 
 @Entity('finance_report')
 export class FinanceReport {
@@ -30,9 +28,6 @@ export class FinanceReport {
   @ManyToOne(() => Merchant, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'merchantId' })
   merchant: Merchant;
-
-  @OneToMany(() => FinanceExtractedRecord, (record) => record.report)
-  extractedRecords: FinanceExtractedRecord[];
 
   @Column({
     comment: '报告标题，示例：2026年5月财务分析报告',

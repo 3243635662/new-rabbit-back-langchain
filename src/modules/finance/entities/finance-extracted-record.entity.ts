@@ -10,8 +10,6 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { Merchant } from '../../merchant/entities/merchant.entity';
-import { FinanceReport } from './finance-report.entity';
 import { FinanceSourceFile } from './finance-source-file.entity';
 
 @Entity('finance_extracted_record')
@@ -20,28 +18,6 @@ export class FinanceExtractedRecord {
     comment: '主键，示例：1',
   })
   id: number;
-
-  @Column({
-    nullable: true,
-    comment: '所属报告 ID（如果关联了报告的话），示例：1001',
-  })
-  reportId: number;
-
-  @ManyToOne(() => FinanceReport, (report) => report.extractedRecords, {
-    onDelete: 'SET NULL',
-    nullable: true,
-  })
-  @JoinColumn({ name: 'reportId' })
-  report: FinanceReport;
-
-  @Column({
-    comment: '商户 ID，用于权限隔离和查询优化，示例：12',
-  })
-  merchantId: number;
-
-  @ManyToOne(() => Merchant, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'merchantId' })
-  merchant: Merchant;
 
   @Column({
     nullable: true,
@@ -55,11 +31,6 @@ export class FinanceExtractedRecord {
   })
   @JoinColumn({ name: 'sourceFileId' })
   sourceFile: FinanceSourceFile;
-
-  @Column({
-    comment: '记录类型，示例：invoice / contract / general',
-  })
-  recordType: string;
 
   @Column({
     nullable: true,

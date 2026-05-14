@@ -12,10 +12,17 @@ import { FinanceSourceProcessor } from './jobs/finance-document.processor';
 import { GeneralImgParser } from './jobs/parsers/general-img.parser';
 import { InvoiceOcrParser } from './jobs/parsers/invoice-ocr.parser';
 import { ContractParser } from './jobs/parsers/contract.parser';
+import { FinanceExtractedRecord } from './entities/finance-extracted-record.entity';
+import { FinanceOcrService } from './services/finance-ocr.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([FinanceSourceFile, FinanceReport, Merchant]),
+    TypeOrmModule.forFeature([
+      FinanceSourceFile,
+      FinanceReport,
+      Merchant,
+      FinanceExtractedRecord,
+    ]),
     BullModule.registerQueue(
       { name: RedisKeys.FINANCE.SOURCE_QUEUE_NAME },
       { name: RedisKeys.FINANCE.REPORT_QUEUE_NAME },
@@ -28,6 +35,7 @@ import { ContractParser } from './jobs/parsers/contract.parser';
     GeneralImgParser,
     InvoiceOcrParser,
     ContractParser,
+    FinanceOcrService,
   ],
   controllers: [FinanceController],
   exports: [FinanceService],
