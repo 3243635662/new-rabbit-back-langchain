@@ -352,7 +352,7 @@ export const RedisKeys = {
   },
 
   // *══════════════════════════════════════════════════════
-  // *财务报表队列 (BullMQ)
+  // *财务报表队列 (BullMQ) & 缓存
   // *══════════════════════════════════════════════════════
   FINANCE: {
     /**
@@ -393,6 +393,43 @@ export const RedisKeys = {
      */
     getProgressDataKey: (taskId: string) =>
       `finance:source:progress:data:${taskId}`,
+
+    /**
+     * 财务资源列表缓存（分页）
+     * 格式：finance:source:list:{merchantId}:{page}:{limit}:{keyword}:{sourceType}:{startTime}:{endTime}
+     * @param merchantId 商户 ID
+     * @param page 页码
+     * @param limit 每页数量
+     * @param keyword 搜索关键词
+     * @param sourceType 资源类型
+     * @param startTime 开始时间
+     * @param endTime 结束时间
+     */
+    getSourceListKey: (
+      merchantId: number,
+      page: number,
+      limit: number,
+      keyword?: string,
+      sourceType?: string,
+      startTime?: string,
+      endTime?: string,
+    ) =>
+      `finance:source:list:${merchantId}:${page}:${limit}:${keyword || '_'}:${sourceType || '_'}:${startTime || '_'}:${endTime || '_'}`,
+
+    /**
+     * 财务资源列表缓存前缀（用于批量清除）
+     * 格式：finance:source:list:{merchantId}:
+     * @param merchantId 商户 ID
+     */
+    getSourceListPrefix: (merchantId: number) =>
+      `finance:source:list:${merchantId}:`,
+
+    /**
+     * 单个财务资源详情缓存
+     * 格式：finance:source:detail:{id}
+     * @param id 资源 ID
+     */
+    getSourceDetailKey: (id: number) => `finance:source:detail:${id}`,
   },
 
   CHAT: {

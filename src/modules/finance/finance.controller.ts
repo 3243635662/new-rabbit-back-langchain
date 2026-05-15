@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Param,
   Query,
   Body,
@@ -13,6 +14,8 @@ import { FinanceService } from './finance.service';
 import { resFormatMethod } from '../../utils/resFormat.util';
 import { JwtPayloadType } from '../../types/auth.type';
 import type { ConfirmBody } from '../../types/file.type';
+import { PaginateOptions } from '../../common/decorators/pagination.decorator';
+import type { PaginationOptionsType } from '../../types/pagination.type';
 
 interface SseEvent {
   data: unknown;
@@ -61,6 +64,52 @@ export class FinanceController {
   @Get('task/:taskId')
   async getTaskStatus(@Param('taskId') taskId: string) {
     const result = await this.financeService.getTaskStatus(taskId);
+    return resFormatMethod(0, 'success', result);
+  }
+
+  /**
+   * GET /finance/sources
+   * 获取财务资源列表（支持分页、搜索）
+   */
+  @Get('sources')
+  async getSourceFiles(
+    @PaginateOptions({ defaultLimit: 10, maxLimit: 50 })
+    options: PaginationOptionsType,
+    @Req() req: { user: JwtPayloadType },
+  ) {
+    const result = await this.financeService.getSourceFiles(
+      req.user.id,
+      options,
+    );
+    return resFormatMethod(0, 'success', result);
+  }
+
+  /**
+   * GET /finance/sources/:id
+   * 获取单个财务资源的详情（包含提取出的结构化记录）
+   */
+  @Get('sources/:id')
+  async getSourceFileDetail(
+    @Param('id') id: number,
+    @Req() req: { user: JwtPayloadType },
+  ) {
+    const result = await this.financeService.getSourceFileDetail(
+      id,
+      req.user.id,
+    );
+    return resFormatMethod(0, 'success', result);
+  }
+
+  /**
+   * DELETE /finance/sources/:id
+   * 删除财务资源
+   */
+  @Delete('sources/:id')
+  async deleteSourceFile(
+    @Param('id') id: number,
+    @Req() req: { user: JwtPayloadType },
+  ) {
+    const result = await this.financeService.deleteSourceFile(id, req.user.id);
     return resFormatMethod(0, 'success', result);
   }
 

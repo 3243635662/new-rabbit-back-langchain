@@ -110,6 +110,11 @@ export interface FinanceVatInvoiceRecord {
    * 简短摘要
    */
   summary: string;
+
+  /**
+   * 税率，例如 0.13
+   */
+  taxRate: number | null;
 }
 
 /**

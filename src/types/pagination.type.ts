@@ -22,6 +22,9 @@ export interface PaginationOptionsType {
   // 订单状态筛选 (逗号分隔，如 "1,2,3")
   status?: string;
 
+  // 资源类型筛选
+  sourceType?: string;
+
   // 时间范围 - 开始时间
   startTime?: string;
 

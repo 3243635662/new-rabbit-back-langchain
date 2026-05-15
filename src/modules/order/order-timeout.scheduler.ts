@@ -78,7 +78,6 @@ export class OrderTimeoutScheduler {
       });
 
       if (timeoutOrders.length === 0) {
-        this.logger.debug('暂无超时订单');
         return;
       }
 

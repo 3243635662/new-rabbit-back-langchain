@@ -66,6 +66,15 @@ export class FinanceExtractedRecord {
   totalAmount: string;
 
   @Column({
+    type: 'decimal',
+    precision: 5,
+    scale: 4,
+    nullable: true,
+    comment: '税率，示例：0.13',
+  })
+  taxRate: string;
+
+  @Column({
     default: 'CNY',
     comment: '币种，示例：CNY',
   })

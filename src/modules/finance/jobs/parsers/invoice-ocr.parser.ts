@@ -36,7 +36,7 @@ export class InvoiceOcrParser {
       message: string,
     ) => Promise<void>,
   ) {
-    const { fileName, qiniuKey, merchantId, sourceFileId, docType } = job.data;
+    const { fileName, qiniuKey, sourceFileId, docType } = job.data;
     this.logger.log(`开始处理发票文件: ${fileName}`);
     let localFilePath = '';
 
@@ -108,11 +108,23 @@ export class InvoiceOcrParser {
         '正在保存结构化发票数据...',
       );
 
+      // 日期格式化助手：处理 "2025年05月20日" 等中文字符串
+      const normalizeDate = (input?: string | null): Date | undefined => {
+        if (!input) return undefined;
+        const m = input.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+        if (m) {
+          const [, y, mo, d] = m;
+          return new Date(
+            `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}T00:00:00`,
+          );
+        }
+        const date = new Date(input);
+        return isNaN(date.getTime()) ? undefined : date;
+      };
+
       const recordEntity = this.extractedRecordRepo.create({
         sourceFileId: sourceFileId,
-        occurredAt: ocrResult.record.date
-          ? new Date(ocrResult.record.date)
-          : undefined,
+        occurredAt: normalizeDate(ocrResult.record.date),
         amount:
           ocrResult.record.amount != null
             ? String(ocrResult.record.amount)
@@ -124,6 +136,10 @@ export class InvoiceOcrParser {
         totalAmount:
           ocrResult.record.totalAmount != null
             ? String(ocrResult.record.totalAmount)
+            : undefined,
+        taxRate:
+          ocrResult.record.taxRate != null
+            ? String(ocrResult.record.taxRate)
             : undefined,
         currency: 'CNY',
         counterparty: ocrResult.record.counterparty || '',

@@ -33,11 +33,7 @@ export class MerchantRagService {
 
     const documentType = this.detectDocumentType(fileName, mimeType);
 
-    void onProgress?.(
-      25,
-      RagIngestProgressPhase.PARSING,
-      '正在解析文档...',
-    );
+    void onProgress?.(25, RagIngestProgressPhase.PARSING, '正在解析文档...');
     const rawDocs = await this.loadDocument(filePath, mimeType, documentType);
 
     if (rawDocs.length === 0) {
@@ -67,11 +63,7 @@ export class MerchantRagService {
       throw new Error('文档没有可入库的有效文本');
     }
 
-    void onProgress?.(
-      55,
-      RagIngestProgressPhase.SPLITTING,
-      '正在切分文本...',
-    );
+    void onProgress?.(55, RagIngestProgressPhase.SPLITTING, '正在切分文本...');
     const chunks = await this.splitDocumentsForRag(preparedDocs, {
       merchantId,
       fileName,
@@ -94,11 +86,7 @@ export class MerchantRagService {
       `商户 ${merchantId} 文件 ${fileName} 入库成功，共 ${count} 个片段`,
     );
 
-    void onProgress?.(
-      100,
-      RagIngestProgressPhase.COMPLETED,
-      '知识库入库完成',
-    );
+    void onProgress?.(100, RagIngestProgressPhase.COMPLETED, '知识库入库完成');
 
     return {
       count,

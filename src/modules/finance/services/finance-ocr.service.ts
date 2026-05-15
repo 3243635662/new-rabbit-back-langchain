@@ -99,23 +99,41 @@ export class FinanceOcrService {
       const buyer = getVal('购买方名称');
 
       // 提取金额并去除可能存在的非数字字符（保留小数点和负号）
-      const parseAmount = (key1: string, key2?: string): number => {
-        const valStr = getVal(key1) || (key2 ? getVal(key2) : null) || '0';
-        const parsed = parseFloat(valStr.replace(/[^\d.-]/g, ''));
-        return isNaN(parsed) ? 0 : parsed;
+      const parseAmount = (...keys: string[]): number => {
+        for (const key of keys) {
+          const valStr = getVal(key);
+          if (valStr) {
+            const parsed = parseFloat(valStr.replace(/[^\d.-]/g, ''));
+            if (!isNaN(parsed)) return parsed;
+          }
+        }
+        return 0;
       };
 
       const amount = parseAmount('合计金额', '金额');
       const taxAmount = parseAmount('合计税额', '税额');
       // 优先使用小写金额（数字格式），价税合计可能是中文大写
-      const totalAmount = parseAmount('小写金额', '价税合计');
+      const totalAmount = parseAmount('价税合计(小写)', '小写金额', '价税合计');
+
+      // 提取税率（从第一条明细项获取）
+      const taxRateRaw = items[0]?.TaxRate || null;
+      const taxRate = taxRateRaw
+        ? parseFloat(String(taxRateRaw).replace(/[^\d.]/g, '')) / 100
+        : null;
 
       // 发票分类推断
       const rawServiceType = getVal('服务类型') || getVal('发票消费类型');
       const itemNames = items.map((it) => it.Name || '').join(',');
 
       let category = '其他费用';
-      if (rawServiceType) {
+
+      // 尝试从明细项名称中的 * 分类 * 提取
+      const firstItemNameRaw = items[0]?.Name || '';
+      const categoryMatch = firstItemNameRaw.match(/\*(.*?)\*/);
+
+      if (categoryMatch && categoryMatch[1]) {
+        category = categoryMatch[1];
+      } else if (rawServiceType) {
         if (
           rawServiceType.includes('运输') ||
           rawServiceType.includes('物流')
@@ -133,8 +151,15 @@ export class FinanceOcrService {
         }
       } else if (itemNames) {
         if (/(笔|纸|本|文具)/.test(itemNames)) category = '办公用品';
-        else if (/(电脑|桌|椅|机)/.test(itemNames)) category = '办公设备';
-        else if (/(快递|运费|物流)/.test(itemNames)) category = '物流费用';
+        else if (
+          /(手机|智能手机|iphone|小米|华为|oppo|vivo)/i.test(itemNames)
+        ) {
+          category = '电子产品';
+        } else if (
+          /(电脑|笔记本|显示器|打印机|复印机|扫描仪|服务器)/.test(itemNames)
+        ) {
+          category = '办公设备';
+        } else if (/(快递|运费|物流)/.test(itemNames)) category = '物流费用';
         else if (/(餐饮|餐费|招待)/.test(itemNames)) category = '餐饮招待';
         else category = '通用采购';
       }
@@ -147,7 +172,8 @@ export class FinanceOcrService {
       const record: FinanceVatInvoiceRecord = {
         recordType: 'invoice',
         date: getVal('开票日期'),
-        amount: amount || totalAmount - taxAmount,
+        amount:
+          amount > 0 ? amount : totalAmount > 0 ? totalAmount - taxAmount : 0,
         taxAmount,
         totalAmount,
         seller,
@@ -157,14 +183,54 @@ export class FinanceOcrService {
         counterparty: seller,
         confidence: 0.95,
         summary,
+        taxRate,
       };
+
+      // 清洗 items：将带千分位的金额字符串转换为标准数字，供大模型更好分析
+      const cleanedItems = items.map((item) => {
+        const parseItemNum = (
+          val: string | number | undefined | null,
+        ): number | string | null => {
+          if (val == null || val === '') return null;
+          const strVal = typeof val === 'number' ? val.toString() : val;
+          const parsed = parseFloat(strVal.replace(/[^\d.-]/g, ''));
+          return isNaN(parsed) ? strVal : parsed;
+        };
+
+        const taxRateRaw = item.TaxRate as string | number | undefined | null;
+        let taxRateParsed: number | null = null;
+        if (typeof taxRateRaw === 'string' || typeof taxRateRaw === 'number') {
+          taxRateParsed =
+            parseFloat(taxRateRaw.toString().replace(/[^\d.]/g, '')) / 100;
+        }
+
+        return {
+          ...item,
+          Quantity: parseItemNum(
+            item.Quantity as string | number | undefined | null,
+          ),
+          UnitPrice: parseItemNum(
+            item.UnitPrice as string | number | undefined | null,
+          ),
+          AmountWithoutTax: parseItemNum(
+            item.AmountWithoutTax as string | number | undefined | null,
+          ),
+          TaxAmount: parseItemNum(
+            item.TaxAmount as string | number | undefined | null,
+          ),
+          TaxRate:
+            taxRateParsed != null && !isNaN(taxRateParsed)
+              ? taxRateParsed
+              : taxRateRaw,
+        };
+      });
 
       return {
         record,
         rawText: '',
         warnings: [],
         fields,
-        items,
+        items: cleanedItems,
         rawResponse: response,
       };
     } catch (error) {

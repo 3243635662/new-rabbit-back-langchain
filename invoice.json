@@ -1,0 +1,435 @@
+{
+  "items": [
+    {
+      "Name": "*电子产品*小米1716GB+1TB智能手机",
+      "Spec": "小米1716GB+1TB黑色",
+      "Unit": "台",
+      "LineNo": "0",
+      "TaxRate": "13%",
+      "Quantity": "1000",
+      "TaxAmount": "779,870.00",
+      "UnitPrice": "5999.00",
+      "VehicleType": "",
+      "ArrivalPlace": "",
+      "VehicleBrand": "",
+      "DeparturePlace": "",
+      "TaxClassifyCode": "",
+      "AmountWithoutTax": "5,999,000.00",
+      "ConstructionName": "",
+      "ConstructionPlace": "",
+      "TransportItemsName": ""
+    }
+  ],
+  "fields": {
+    "备注": "购货单位:深圳市星辰数码科技有限公司订单号:P020250520001合同号:HT20250520001收货地址:广东省深圳市南山区科技园科苑路15号科兴科学园A栋1501备注:小米1716GB+1TB黑色1000台手机IMEI号段:868123070000001-868123070001000",
+    "开票人": "张三",
+    "发票号码": "24362000000123456789",
+    "发票名称": "电子发票(增值税专用发票)",
+    "发票类型": "电子发票(增值税专用发票)",
+    "合计税额": "779,870.00",
+    "合计金额": "5,999,000.00",
+    "开票日期": "2025年05月20日",
+    "购买方名称": "深圳市星辰数码科技有限公司",
+    "销售方名称": "小米通讯技术有限公司",
+    "价税合计(大写)": "陆佰柒拾捌万捌仟捌佰柒拾圆整",
+    "价税合计(小写)": "¥6,778,870.00",
+    "购买方统一社会信用代码/纳税人识别号": "91440300MA5H12345X",
+    "销售方统一社会信用代码/纳税人识别号": "91110108571234567K"
+  },
+  "record": {
+    "date": "2025年05月20日",
+    "buyer": "深圳市星辰数码科技有限公司",
+    "amount": 5999000,
+    "seller": "小米通讯技术有限公司",
+    "summary": "向 小米通讯技术有限公司 采购：*电子产品*小米1716GB+1TB智能手机",
+    "category": "办公设备",
+    "invoiceNo": "24362000000123456789",
+    "taxAmount": 779870,
+    "confidence": 0.95,
+    "recordType": "invoice",
+    "totalAmount": 0,
+    "counterparty": "小米通讯技术有限公司"
+  },
+  "rawText": "",
+  "warnings": [],
+  "rawResponse": {
+    "Angle": 0.09148061,
+    "Items": [
+      {
+        "Name": "*电子产品*小米1716GB+1TB智能手机",
+        "Spec": "小米1716GB+1TB黑色",
+        "Unit": "台",
+        "LineNo": "0",
+        "TaxRate": "13%",
+        "Quantity": "1000",
+        "TaxAmount": "779,870.00",
+        "UnitPrice": "5999.00",
+        "VehicleType": "",
+        "ArrivalPlace": "",
+        "VehicleBrand": "",
+        "DeparturePlace": "",
+        "TaxClassifyCode": "",
+        "AmountWithoutTax": "5,999,000.00",
+        "ConstructionName": "",
+        "ConstructionPlace": "",
+        "TransportItemsName": ""
+      }
+    ],
+    "RequestId": "df1a0bbb-406f-4cb1-bbf6-bb3f70e4b847",
+    "PdfPageSize": 0,
+    "VatInvoiceInfos": [
+      {
+        "Name": "发票名称",
+        "Value": "电子发票(增值税专用发票)",
+        "Polygon": {
+          "LeftTop": {
+            "X": 430,
+            "Y": 46
+          },
+          "RightTop": {
+            "X": 1052,
+            "Y": 46
+          },
+          "LeftBottom": {
+            "X": 430,
+            "Y": 94
+          },
+          "RightBottom": {
+            "X": 1052,
+            "Y": 94
+          }
+        }
+      },
+      {
+        "Name": "发票号码",
+        "Value": "24362000000123456789",
+        "Polygon": {
+          "LeftTop": {
+            "X": 1236,
+            "Y": 42
+          },
+          "RightTop": {
+            "X": 1438,
+            "Y": 42
+          },
+          "LeftBottom": {
+            "X": 1236,
+            "Y": 63
+          },
+          "RightBottom": {
+            "X": 1438,
+            "Y": 63
+          }
+        }
+      },
+      {
+        "Name": "开票日期",
+        "Value": "2025年05月20日",
+        "Polygon": {
+          "LeftTop": {
+            "X": 1236,
+            "Y": 86
+          },
+          "RightTop": {
+            "X": 1373,
+            "Y": 86
+          },
+          "LeftBottom": {
+            "X": 1236,
+            "Y": 108
+          },
+          "RightBottom": {
+            "X": 1373,
+            "Y": 108
+          }
+        }
+      },
+      {
+        "Name": "购买方名称",
+        "Value": "深圳市星辰数码科技有限公司",
+        "Polygon": {
+          "LeftTop": {
+            "X": 199,
+            "Y": 211
+          },
+          "RightTop": {
+            "X": 448,
+            "Y": 211
+          },
+          "LeftBottom": {
+            "X": 199,
+            "Y": 233
+          },
+          "RightBottom": {
+            "X": 448,
+            "Y": 233
+          }
+        }
+      },
+      {
+        "Name": "销售方名称",
+        "Value": "小米通讯技术有限公司",
+        "Polygon": {
+          "LeftTop": {
+            "X": 925,
+            "Y": 209
+          },
+          "RightTop": {
+            "X": 1118,
+            "Y": 209
+          },
+          "LeftBottom": {
+            "X": 925,
+            "Y": 232
+          },
+          "RightBottom": {
+            "X": 1118,
+            "Y": 232
+          }
+        }
+      },
+      {
+        "Name": "购买方统一社会信用代码/纳税人识别号",
+        "Value": "91440300MA5H12345X",
+        "Polygon": {
+          "LeftTop": {
+            "X": 209,
+            "Y": 265
+          },
+          "RightTop": {
+            "X": 484,
+            "Y": 265
+          },
+          "LeftBottom": {
+            "X": 209,
+            "Y": 285
+          },
+          "RightBottom": {
+            "X": 484,
+            "Y": 285
+          }
+        }
+      },
+      {
+        "Name": "销售方统一社会信用代码/纳税人识别号",
+        "Value": "91110108571234567K",
+        "Polygon": {
+          "LeftTop": {
+            "X": 950,
+            "Y": 261
+          },
+          "RightTop": {
+            "X": 1210,
+            "Y": 261
+          },
+          "LeftBottom": {
+            "X": 950,
+            "Y": 283
+          },
+          "RightBottom": {
+            "X": 1210,
+            "Y": 283
+          }
+        }
+      },
+      {
+        "Name": "合计金额",
+        "Value": "5,999,000.00",
+        "Polygon": {
+          "LeftTop": {
+            "X": 988,
+            "Y": 647
+          },
+          "RightTop": {
+            "X": 1110,
+            "Y": 647
+          },
+          "LeftBottom": {
+            "X": 988,
+            "Y": 670
+          },
+          "RightBottom": {
+            "X": 1110,
+            "Y": 670
+          }
+        }
+      },
+      {
+        "Name": "合计税额",
+        "Value": "779,870.00",
+        "Polygon": {
+          "LeftTop": {
+            "X": 1353,
+            "Y": 646
+          },
+          "RightTop": {
+            "X": 1454,
+            "Y": 646
+          },
+          "LeftBottom": {
+            "X": 1353,
+            "Y": 668
+          },
+          "RightBottom": {
+            "X": 1454,
+            "Y": 668
+          }
+        }
+      },
+      {
+        "Name": "价税合计(大写)",
+        "Value": "陆佰柒拾捌万捌仟捌佰柒拾圆整",
+        "Polygon": {
+          "LeftTop": {
+            "X": 392,
+            "Y": 696
+          },
+          "RightTop": {
+            "X": 681,
+            "Y": 696
+          },
+          "LeftBottom": {
+            "X": 392,
+            "Y": 719
+          },
+          "RightBottom": {
+            "X": 681,
+            "Y": 719
+          }
+        }
+      },
+      {
+        "Name": "价税合计(小写)",
+        "Value": "¥6,778,870.00",
+        "Polygon": {
+          "LeftTop": {
+            "X": 1068,
+            "Y": 694
+          },
+          "RightTop": {
+            "X": 1206,
+            "Y": 694
+          },
+          "LeftBottom": {
+            "X": 1068,
+            "Y": 716
+          },
+          "RightBottom": {
+            "X": 1206,
+            "Y": 716
+          }
+        }
+      },
+      {
+        "Name": "开票人",
+        "Value": "张三",
+        "Polygon": {
+          "LeftTop": {
+            "X": 206,
+            "Y": 943
+          },
+          "RightTop": {
+            "X": 248,
+            "Y": 943
+          },
+          "LeftBottom": {
+            "X": 206,
+            "Y": 965
+          },
+          "RightBottom": {
+            "X": 248,
+            "Y": 965
+          }
+        }
+      },
+      {
+        "Name": "发票类型",
+        "Value": "电子发票(增值税专用发票)",
+        "Polygon": {
+          "LeftTop": {
+            "X": 0,
+            "Y": 0
+          },
+          "RightTop": {
+            "X": 0,
+            "Y": 0
+          },
+          "LeftBottom": {
+            "X": 0,
+            "Y": 0
+          },
+          "RightBottom": {
+            "X": 0,
+            "Y": 0
+          }
+        }
+      },
+      {
+        "Name": "小计金额",
+        "Value": "",
+        "Polygon": {
+          "LeftTop": {
+            "X": 0,
+            "Y": 0
+          },
+          "RightTop": {
+            "X": 0,
+            "Y": 0
+          },
+          "LeftBottom": {
+            "X": 0,
+            "Y": 0
+          },
+          "RightBottom": {
+            "X": 0,
+            "Y": 0
+          }
+        }
+      },
+      {
+        "Name": "小计税额",
+        "Value": "",
+        "Polygon": {
+          "LeftTop": {
+            "X": 0,
+            "Y": 0
+          },
+          "RightTop": {
+            "X": 0,
+            "Y": 0
+          },
+          "LeftBottom": {
+            "X": 0,
+            "Y": 0
+          },
+          "RightBottom": {
+            "X": 0,
+            "Y": 0
+          }
+        }
+      },
+      {
+        "Name": "备注",
+        "Value": "购货单位:深圳市星辰数码科技有限公司订单号:P020250520001合同号:HT20250520001收货地址:广东省深圳市南山区科技园科苑路15号科兴科学园A栋1501备注:小米1716GB+1TB黑色1000台手机IMEI号段:868123070000001-868123070001000",
+        "Polygon": {
+          "LeftTop": {
+            "X": 93,
+            "Y": 743
+          },
+          "RightTop": {
+            "X": 459,
+            "Y": 743
+          },
+          "LeftBottom": {
+            "X": 93,
+            "Y": 888
+          },
+          "RightBottom": {
+            "X": 577,
+            "Y": 888
+          }
+        }
+      }
+    ]
+  }
+}
