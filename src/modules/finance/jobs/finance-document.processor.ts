@@ -15,13 +15,16 @@ import {
   type FinanceSourceFileJobData,
   type FinanceSourceProgressPhaseValue,
 } from '../../../types/finance.type';
-import { GeneralImgParser } from './parsers/general-img.parser';
-import { InvoiceOcrParser } from './parsers/invoice-ocr.parser';
+import { VisionImageParser } from './parsers/vision-image.parser';
 import { ContractParser } from './parsers/contract.parser';
 
 /**
  * 财务原始文件处理 Worker（资源解析）。
  * 专门负责处理从七牛上传后的原始财务文件解析。
+ *
+ * 路由策略：
+ *  - GENERAL_IMG / INVOICE → VisionImageParser（统一 LangGraph 视觉抽取流程）
+ *  - CONTRACT              → ContractParser（合同文本解析 + 视觉抽取）
  */
 @Injectable()
 @Processor(RedisKeys.FINANCE.SOURCE_QUEUE_NAME)
@@ -32,8 +35,7 @@ export class FinanceSourceProcessor extends WorkerHost {
     @InjectRepository(FinanceSourceFile)
     private readonly sourceFileRepo: Repository<FinanceSourceFile>,
     private readonly redisService: RedisService,
-    private readonly generalImgParser: GeneralImgParser,
-    private readonly invoiceOcrParser: InvoiceOcrParser,
+    private readonly visionParser: VisionImageParser,
     private readonly contractParser: ContractParser,
   ) {
     super();
@@ -69,21 +71,22 @@ export class FinanceSourceProcessor extends WorkerHost {
       await this.initParse(sourceFileId);
 
       switch (job.name) {
+        // 通用图片 / 发票 → 统一走视觉解析流程
         case RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_SOURCE_GENERAL_IMG:
-          await this.generalImgParser.parse(job, this.pushProgress);
-          break;
         case RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_SOURCE_INVOICE:
-          await this.invoiceOcrParser.parse(job, this.pushProgress);
+          await this.visionParser.parse(job, this.pushProgress);
           break;
+
+        // 合同 → 走合同专属解析流程（同样走 Vision，但 docType 会是 pdf/docx）
         case RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_SOURCE_CONTRACT:
           await this.contractParser.parse(job, this.pushProgress);
           break;
+
         default:
-          this.logger.warn(`未知的任务类型: ${job.name}`);
+          this.logger.warn(`未知的任务类型: ${job.name}，跳过解析`);
+          return; // 未知类型不触发 finishParse
       }
 
-      // 如果有特殊需求，可以判断未知的任务类型时不执行 finishParse
-      // 目前为了保证队列状态流转正常，暂且照旧 finishParse
       await this.finishParse(sourceFileId, fileName, job);
     } catch (e) {
       await this.handleError(job, e);

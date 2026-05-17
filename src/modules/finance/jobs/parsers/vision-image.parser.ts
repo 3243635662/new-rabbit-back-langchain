@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+// src/modules/finance/parsers/vision-image.parser.ts
+import { Injectable } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { FinanceVisionService } from '../../services/finance-vision.service';
 import {
@@ -8,16 +9,8 @@ import {
 } from '../../../../types/finance.type';
 import { DocType } from '../../../../types/file.type';
 
-/**
- * 合同解析器
- * 合同通常为 PDF 或 DOCX，走视觉 + 文本双通道解析。
- * 与 VisionImageParser 共用同一个 VisionService 入口，
- * 仅在进度消息上区分语义，方便后续针对合同的特殊逻辑扩展。
- */
 @Injectable()
-export class ContractParser {
-  private readonly logger = new Logger(ContractParser.name);
-
+export class VisionImageParser {
   constructor(private readonly visionService: FinanceVisionService) {}
 
   async parse(
@@ -29,8 +22,7 @@ export class ContractParser {
       message: string,
     ) => Promise<void>,
   ) {
-    const { sourceFileId, qiniuKey, docType, fileName } = job.data;
-    this.logger.log(`开始处理合同文件: ${fileName}`);
+    const { sourceFileId, qiniuKey, docType } = job.data;
 
     const mapped =
       docType === DocType.PDF
@@ -43,16 +35,14 @@ export class ContractParser {
       job,
       10,
       FinanceSourceProgressPhase.PARSING,
-      '正在解析合同结构...',
+      '准备视觉抽取...',
     );
-
     await this.visionService.run({ sourceFileId, qiniuKey, docType: mapped });
-
     await pushProgress(
       job,
-      90,
-      FinanceSourceProgressPhase.PERSISTING,
-      '合同数据持久化中...',
+      100,
+      FinanceSourceProgressPhase.COMPLETED,
+      '视觉抽取完成',
     );
   }
 }

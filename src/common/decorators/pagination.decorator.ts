@@ -20,26 +20,39 @@ export const PaginateOptions = createParamDecorator(
     const maxLimit = data.maxLimit || 50;
     const request = ctx.switchToHttp().getRequest<Request>();
     const {
-      page,
-      limit = defaultLimit,
       keyword,
       sort,
       order,
       category,
       price,
       status,
+      sourceType,
       startTime,
       endTime,
     } = request.query;
+
+    let parsedPage = Number(request.query.page);
+    if (!request.query.page || isNaN(parsedPage)) {
+      parsedPage = 1;
+    }
+    parsedPage = Math.max(1, parsedPage);
+
+    let parsedLimit = Number(request.query.limit);
+    if (!request.query.limit || isNaN(parsedLimit)) {
+      parsedLimit = defaultLimit;
+    }
+    parsedLimit = Math.max(5, Math.min(parsedLimit, maxLimit));
+
     return {
-      page: Number(page) || 1,
-      limit: Math.min(Number(limit), maxLimit),
+      page: parsedPage,
+      limit: parsedLimit,
       keyword: (keyword as string) || '',
       sort: (sort as string) || 'id',
       order: (order as string)?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC',
       category: (category as string) || '',
       price: Number(price) || 0,
       status: (status as string) || '',
+      sourceType: (sourceType as string) || '',
       startTime: (startTime as string) || '',
       endTime: (endTime as string) || '',
     };

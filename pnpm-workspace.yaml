@@ -1,0 +1,9 @@
+allowBuilds:
+  '@nestjs/core': true
+  bcrypt: true
+  canvas: true
+  msgpackr-extract: true
+  onnxruntime-node: true
+  protobufjs: true
+  sharp: true
+  unrs-resolver: true

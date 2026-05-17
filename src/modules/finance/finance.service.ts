@@ -238,7 +238,20 @@ export class FinanceService {
       throw new NotFoundException('当前用户未关联商户');
     }
 
-    const { page, limit, keyword, sourceType, startTime, endTime } = options;
+    // 设置财务模块业务默认值
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const formatDate = (d: Date) => d.toISOString().split('T')[0];
+
+    const {
+      page,
+      limit,
+      keyword,
+      sourceType = 'invoice',
+      startTime = formatDate(thirtyDaysAgo),
+      endTime = formatDate(now),
+    } = options;
+
     const cacheKey = RedisKeys.FINANCE.getSourceListKey(
       merchant.id,
       page,
@@ -268,10 +281,23 @@ export class FinanceService {
     merchantId: number,
     options: PaginationOptionsType,
   ): Promise<FinanceSourceListResult> {
-    const { page, limit, keyword, sourceType, startTime, endTime } = options;
+    // 设置财务模块业务默认值
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const formatDate = (d: Date) => d.toISOString().split('T')[0];
+
+    const {
+      page,
+      limit,
+      keyword,
+      sourceType = 'invoice',
+      startTime = formatDate(thirtyDaysAgo),
+      endTime = formatDate(now),
+    } = options;
+
     const queryBuilder = this.sourceFileRepo
       .createQueryBuilder('file')
-      .leftJoinAndSelect('file.extractedRecords', 'record')
+      .leftJoin('file.extractedRecords', 'record')
       .where('file.merchantId = :merchantId', { merchantId });
 
     if (sourceType) {

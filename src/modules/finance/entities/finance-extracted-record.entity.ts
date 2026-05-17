@@ -25,6 +25,12 @@ export class FinanceExtractedRecord {
   })
   sourceFileId: number;
 
+  @Column({
+    nullable: true,
+    comment: '记录类型（业务大类），示例：invoice / contract / image_scan',
+  })
+  recordType: string;
+
   @ManyToOne(() => FinanceSourceFile, (file) => file.extractedRecords, {
     onDelete: 'SET NULL',
     nullable: true,

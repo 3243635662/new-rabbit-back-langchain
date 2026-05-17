@@ -5,15 +5,17 @@ import { FinanceService } from './finance.service';
 import { FinanceController } from './finance.controller';
 import { FinanceSourceFile } from './entities/finance-source-file.entity';
 import { FinanceReport } from './entities/finance-report.entity';
+import { FinanceExtractedRecord } from './entities/finance-extracted-record.entity';
 import { Merchant } from '../merchant/entities/merchant.entity';
 import { QiniuModule } from '../qiniu/qiniu.module';
 import { RedisKeys } from '../../common/constants/redis-key.constant';
 import { FinanceSourceProcessor } from './jobs/finance-document.processor';
-import { GeneralImgParser } from './jobs/parsers/general-img.parser';
-import { InvoiceOcrParser } from './jobs/parsers/invoice-ocr.parser';
+import { VisionImageParser } from './jobs/parsers/vision-image.parser';
 import { ContractParser } from './jobs/parsers/contract.parser';
-import { FinanceExtractedRecord } from './entities/finance-extracted-record.entity';
 import { FinanceOcrService } from './services/finance-ocr.service';
+import { FinanceVisionService } from './services/finance-vision.service';
+import { DocumentNormalizerService } from './services/document-normalizer.service';
+import { LangChainModule } from '../../langchain/langchain.module';
 
 @Module({
   imports: [
@@ -28,14 +30,16 @@ import { FinanceOcrService } from './services/finance-ocr.service';
       { name: RedisKeys.FINANCE.REPORT_QUEUE_NAME },
     ),
     QiniuModule,
+    LangChainModule,
   ],
   providers: [
     FinanceService,
-    FinanceSourceProcessor,
-    GeneralImgParser,
-    InvoiceOcrParser,
-    ContractParser,
     FinanceOcrService,
+    FinanceVisionService,
+    DocumentNormalizerService,
+    FinanceSourceProcessor,
+    VisionImageParser,
+    ContractParser,
   ],
   controllers: [FinanceController],
   exports: [FinanceService],
