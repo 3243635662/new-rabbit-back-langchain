@@ -30,7 +30,7 @@ export class CustomizationService implements OnModuleInit {
     let res: UapiGetCityByIpResType;
     try {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-      res = await this.client.network.getNetworkIpinfo(payload);
+      res = await (this.client as any).network.getNetworkIpinfo(payload);
     } catch {
       throw new ServiceUnavailableException('获取数据失败，请稍后重试');
     }
@@ -55,7 +55,7 @@ export class CustomizationService implements OnModuleInit {
     let res: UapiGetWeatherByCityResType;
     try {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-      res = await this.client.misc.getMiscWeather(payload);
+      res = await (this.client as any).misc.getMiscWeather(payload);
     } catch {
       throw new ServiceUnavailableException('获取数据失败，请稍后重试');
     }

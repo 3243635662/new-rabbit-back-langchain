@@ -12,6 +12,7 @@ import { RedisKeys } from '../../common/constants/redis-key.constant';
 import { FinanceSourceProcessor } from './jobs/finance-document.processor';
 import { VisionImageParser } from './jobs/parsers/vision-image.parser';
 import { ContractParser } from './jobs/parsers/contract.parser';
+import { InvoiceOcrParser } from './jobs/parsers/invoice-ocr.parser';
 import { FinanceOcrService } from './services/finance-ocr.service';
 import { FinanceVisionService } from './services/finance-vision.service';
 import { DocumentNormalizerService } from './services/document-normalizer.service';
@@ -40,6 +41,7 @@ import { LangChainModule } from '../../langchain/langchain.module';
     FinanceSourceProcessor,
     VisionImageParser,
     ContractParser,
+    InvoiceOcrParser,
   ],
   controllers: [FinanceController],
   exports: [FinanceService],

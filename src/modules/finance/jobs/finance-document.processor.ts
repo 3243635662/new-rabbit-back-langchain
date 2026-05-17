@@ -17,14 +17,16 @@ import {
 } from '../../../types/finance.type';
 import { VisionImageParser } from './parsers/vision-image.parser';
 import { ContractParser } from './parsers/contract.parser';
+import { InvoiceOcrParser } from './parsers/invoice-ocr.parser';
 
 /**
  * 财务原始文件处理 Worker（资源解析）。
  * 专门负责处理从七牛上传后的原始财务文件解析。
  *
  * 路由策略：
- *  - GENERAL_IMG / INVOICE → VisionImageParser（统一 LangGraph 视觉抽取流程）
- *  - CONTRACT              → ContractParser（合同文本解析 + 视觉抽取）
+ *  - GENERAL_IMG  → VisionImageParser（统一 LangGraph 视觉抽取流程）
+ *  - INVOICE      → InvoiceOcrParser（腾讯云 OCR 发票高精度抽取流程）
+ *  - CONTRACT     → ContractParser（合同文本解析 + 视觉抽取）
  */
 @Injectable()
 @Processor(RedisKeys.FINANCE.SOURCE_QUEUE_NAME)
@@ -37,6 +39,7 @@ export class FinanceSourceProcessor extends WorkerHost {
     private readonly redisService: RedisService,
     private readonly visionParser: VisionImageParser,
     private readonly contractParser: ContractParser,
+    private readonly invoiceOcrParser: InvoiceOcrParser,
   ) {
     super();
   }
@@ -71,10 +74,14 @@ export class FinanceSourceProcessor extends WorkerHost {
       await this.initParse(sourceFileId);
 
       switch (job.name) {
-        // 通用图片 / 发票 → 统一走视觉解析流程
+        // 通用图片 → 统一走视觉解析流程
         case RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_SOURCE_GENERAL_IMG:
-        case RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_SOURCE_INVOICE:
           await this.visionParser.parse(job, this.pushProgress);
+          break;
+
+        // 发票 → 走腾讯云 OCR 发票高精度提取流程
+        case RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_SOURCE_INVOICE:
+          await this.invoiceOcrParser.parse(job, this.pushProgress);
           break;
 
         // 合同 → 走合同专属解析流程（同样走 Vision，但 docType 会是 pdf/docx）
