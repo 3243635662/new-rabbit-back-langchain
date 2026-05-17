@@ -108,46 +108,100 @@ export class InvoiceOcrParser {
         '正在保存结构化发票数据...',
       );
 
-      // 日期格式化助手：处理 "2025年05月20日" 等中文字符串
-      const normalizeDate = (input?: string | null): Date | undefined => {
-        if (!input) return undefined;
-        const m = input.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
-        if (m) {
-          const [, y, mo, d] = m;
-          return new Date(
-            `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}T00:00:00`,
-          );
+      const record = ocrResult.record;
+
+      // 优化：直接从 OCR 结果构建结构化字段，避免二次映射
+      // 将 OCR 服务已提取的字段转换为标准化格式
+      const structuredFields: Array<{
+        name: string;
+        desc: string;
+        value: unknown;
+        confidence: number;
+      }> = [];
+
+      if (record) {
+        // 字段中文描述映射（覆盖腾讯云 OCR 返回的所有字段）
+        const descMap: Record<string, string> = {
+          // 基础信息
+          invoiceCode: '发票代码',
+          invoiceNo: '发票号码',
+          date: '开票日期',
+          invoiceType: '发票类型',
+
+          // 金额相关
+          amount: '金额（不含税）',
+          taxAmount: '税额',
+          totalAmount: '价税合计',
+          taxRate: '税率',
+
+          // 购买方信息
+          buyer: '购方名称',
+          buyerTaxId: '购方纳税人识别号',
+          buyerAddressPhone: '购方地址电话',
+          buyerBankInfo: '购方开户行及账号',
+
+          // 销售方信息
+          seller: '销方名称',
+          sellerTaxId: '销方纳税人识别号',
+          sellerAddressPhone: '销方地址电话',
+          sellerBankInfo: '销方开户行及账号',
+
+          // 其他信息
+          category: '分类',
+          counterparty: '交易对方',
+          summary: '摘要',
+          remark: '备注',
+          payee: '收款人',
+          checker: '复核人',
+          issuer: '开票人',
+          serviceType: '服务类型',
+          recordType: '记录类型',
+        };
+
+        for (const [key, val] of Object.entries(record)) {
+          if (val !== null && val !== undefined && val !== '') {
+            structuredFields.push({
+              name: key,
+              desc: descMap[key] || key,
+              value: val as unknown,
+              confidence: 0.95,
+            });
+          }
         }
-        const date = new Date(input);
-        return isNaN(date.getTime()) ? undefined : date;
+      }
+
+      // 补充：将腾讯云 OCR 原始返回的 VatInvoiceInfos 也存入 fields
+      // 这样不会丢失任何原始信息
+      if (ocrResult.fields && typeof ocrResult.fields === 'object') {
+        for (const [key, val] of Object.entries(
+          ocrResult.fields as Record<string, unknown>,
+        )) {
+          if (val && !structuredFields.some((f) => f.name === key)) {
+            structuredFields.push({
+              name: key,
+              desc: key,
+              value: val as unknown,
+              confidence: 0.9,
+            });
+          }
+        }
+      }
+
+      const jsonOutput = {
+        document_type: 'invoice',
+        summary: record?.summary || '发票OCR识别结果',
+        process_time: new Date().toISOString(),
+        structured_fields: structuredFields,
+        // 保存完整的 OCR 原始返回，用于审计和二次分析
+        raw_ocr_response: ocrResult.rawResponse || null,
+        items: ocrResult.items || [],
       };
 
+      // ❌ 不再设置 fields，raw.structured_fields 已包含
       const recordEntity = this.extractedRecordRepo.create({
         sourceFileId: sourceFileId,
-        occurredAt: normalizeDate(ocrResult.record.date),
-        amount:
-          ocrResult.record.amount != null
-            ? String(ocrResult.record.amount)
-            : undefined,
-        taxAmount:
-          ocrResult.record.taxAmount != null
-            ? String(ocrResult.record.taxAmount)
-            : undefined,
-        totalAmount:
-          ocrResult.record.totalAmount != null
-            ? String(ocrResult.record.totalAmount)
-            : undefined,
-        taxRate:
-          ocrResult.record.taxRate != null
-            ? String(ocrResult.record.taxRate)
-            : undefined,
-        currency: 'CNY',
-        counterparty: ocrResult.record.counterparty || '',
-        category: ocrResult.record.category || '',
-        documentNo: ocrResult.record.invoiceNo || '',
-        confidence: String(ocrResult.record.confidence),
-        summary: ocrResult.record.summary,
-        raw: ocrResult,
+        recordType: 'invoice',
+        raw: jsonOutput,
       });
 
       await this.extractedRecordRepo.save(recordEntity);

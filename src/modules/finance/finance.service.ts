@@ -34,6 +34,7 @@ import type { TaskProgressPayload } from '../../types/task-progress.type';
 import type { PaginationOptionsType } from '../../types/pagination.type';
 import { RedisTTL } from '../../common/constants/redis-TTL.constant';
 import { FinanceExtractedRecord } from './entities/finance-extracted-record.entity';
+import { normalizeExtractedFields } from './utils/extracted-fields-normalizer.util';
 
 interface SseEvent {
   data: unknown;
@@ -374,6 +375,8 @@ export class FinanceService {
 
     const cached =
       await this.redisService.getWithLogicExpire<FinanceSourceFile>(cacheKey);
+
+    let sourceFile: FinanceSourceFile;
     if (cached.data) {
       if (cached.data.merchantId !== merchant.id) {
         throw new NotFoundException('无权访问该资源');
@@ -381,10 +384,109 @@ export class FinanceService {
       if (cached.isExpired) {
         void this.rebuildDetailCache(cacheKey, id, merchant.id);
       }
-      return cached.data;
+      sourceFile = cached.data;
+    } else {
+      sourceFile = await this.rebuildDetailCache(cacheKey, id, merchant.id);
     }
 
-    return await this.rebuildDetailCache(cacheKey, id, merchant.id);
+    // 将数据二次规一化为绝对统一的前端极简渲染 JSON 格式！
+    if (sourceFile.extractedRecords) {
+      // 定义结构化字段类型
+      interface StructuredField {
+        name: string;
+        desc: string;
+        value: unknown;
+        confidence: number;
+      }
+
+      // 定义 rawObj 的类型
+      interface RawObj {
+        structured_fields?: StructuredField[];
+        document_type?: string;
+        documentType?: string;
+        summary?: string;
+        process_time?: string;
+        [key: string]: unknown;
+      }
+
+      // 定义 fields 元素的类型（包含可选的 confidence）
+      interface FieldWithConfidence {
+        name: string;
+        desc: string;
+        value: unknown;
+        confidence?: number;
+      }
+
+      sourceFile.extractedRecords = sourceFile.extractedRecords.map(
+        (record) => {
+          let rawObj: RawObj = {};
+          try {
+            const parsed =
+              typeof record.raw === 'string'
+                ? (JSON.parse(record.raw) as RawObj)
+                : record.raw;
+            if (typeof parsed === 'object' && parsed !== null) {
+              rawObj = parsed as RawObj;
+            }
+          } catch {
+            // JSON 解析失败，使用空对象
+          }
+
+          // 1. 获取统一格式的 structured_fields
+          // 优先使用 raw.structured_fields，兼容旧数据的 fields 列
+          const structuredFields: StructuredField[] =
+            rawObj && Array.isArray(rawObj.structured_fields)
+              ? rawObj.structured_fields
+              : record.fields && record.fields.length > 0
+                ? (record.fields as FieldWithConfidence[]).map((f) => ({
+                    name: f.name,
+                    desc: f.desc,
+                    value: f.value,
+                    confidence:
+                      typeof f.confidence === 'number' ? f.confidence : 0.95,
+                  }))
+                : normalizeExtractedFields(record).map((f) => ({
+                    name: f.name,
+                    desc: f.desc,
+                    value: f.value,
+                    confidence: 0.95,
+                  }));
+
+          // 2. 字段类型适配
+          const documentType =
+            rawObj?.document_type ??
+            rawObj?.documentType ??
+            record.recordType ??
+            'general_image';
+
+          // 3. 摘要适配（从 raw 中获取，已归一化存储）
+          const summary = rawObj?.summary ?? '要素提取结果';
+
+          // 4. 解析时间适配
+          const processTime =
+            rawObj?.process_time ??
+            (record.createdAt instanceof Date
+              ? record.createdAt.toISOString()
+              : new Date().toISOString());
+
+          // 5. 融合成用户最期待的完美 JSON 标准结构
+          const unifiedResult = {
+            document_type: documentType,
+            summary,
+            process_time: processTime,
+            structured_fields: structuredFields,
+          };
+
+          return {
+            ...record,
+            // ❌ 不再返回 fields，raw.structured_fields 已包含
+            raw: unifiedResult, // 确保 raw 中包含绝对标准的结构以利于前端极简渲染！
+          };
+        },
+      );
+    }
+
+    return sourceFile;
   }
 
   private async rebuildDetailCache(

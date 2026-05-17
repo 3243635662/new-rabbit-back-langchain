@@ -8,17 +8,29 @@ export const buildPersistNode = (repo: Repository<FinanceExtractedRecord>) => {
     const r = state.merged;
     if (!r) return {};
 
+    // 计算整体置信度平均值
+    const avgConfidence =
+      r.structured_fields.length > 0
+        ? r.structured_fields.reduce(
+            (sum, f) => sum + (f.confidence ?? 0.9),
+            0,
+          ) / r.structured_fields.length
+        : 0.95;
+
+    // 组装完美的统一 JSON 对象并落库
+    const jsonOutput = {
+      document_type: r.document_type || 'general_image',
+      summary: r.summary || '',
+      process_time: r.process_time || new Date().toISOString(),
+      structured_fields: r.structured_fields || [],
+      confidence: avgConfidence,
+    };
+
+    // ❌ 不再设置 fields，raw.structured_fields 已包含
     const entity = repo.create({
       sourceFileId: state.sourceFileId,
-      recordType: r.documentType || 'image_scan',
-      occurredAt: r.occurredAt ? new Date(r.occurredAt) : undefined,
-      amount: r.amount != null ? String(r.amount) : undefined,
-      totalAmount: r.totalAmount != null ? String(r.totalAmount) : undefined,
-      currency: r.currency || 'CNY',
-      counterparty: r.counterparty || '',
-      category: r.category || '通用图片',
-      confidence: String(r.confidence ?? 0),
-      raw: { ...r, _upgraded: state.upgraded, _warnings: state.warnings },
+      recordType: jsonOutput.document_type,
+      raw: jsonOutput,
     });
 
     await repo.save(entity);

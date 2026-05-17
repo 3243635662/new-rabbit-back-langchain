@@ -2,18 +2,19 @@
 import { z } from 'zod';
 
 export const visionExtractSchema = z.object({
-  documentType: z.string(),
-  title: z.string().nullable(),
-  summary: z.string(),
-  occurredAt: z.string().nullable(),
-  amount: z.number().nullable(),
-  totalAmount: z.number().nullable(),
-  currency: z.string().default('CNY'),
-  counterparty: z.string().nullable(),
-  category: z.string().nullable(),
-  keyFields: z.record(z.string(), z.any()).default({}),
-  warnings: z.array(z.string()).default([]),
-  confidence: z.number().min(0).max(1).default(0.8),
+  document_type: z.string().default('unknown'),
+  summary: z.string().default(''),
+  process_time: z.string().default(() => new Date().toISOString()),
+  structured_fields: z
+    .array(
+      z.object({
+        name: z.string(),
+        desc: z.string(),
+        value: z.any(),
+        confidence: z.number().default(0.9),
+      }),
+    )
+    .default([]),
 });
 
 export type VisionExtractRecord = z.infer<typeof visionExtractSchema>;

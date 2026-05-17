@@ -1,6 +1,8 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import * as fsp from 'fs/promises';
+import * as path from 'path';
 import { QiniuService } from '../../qiniu/qiniu.service';
 import { FinanceExtractedRecord } from '../entities/finance-extracted-record.entity';
 import { buildVisionGraph } from '../../../langchain/graph/vision/vision-graph.builder';
@@ -50,10 +52,23 @@ export class FinanceVisionService implements OnModuleInit {
     qiniuKey: string;
     docType: 'image' | 'pdf' | 'docx';
   }) {
-    return this.compiledGraph.invoke(input, {
-      configurable: {
-        thread_id: `vision::${input.sourceFileId}`,
-      },
-    });
+    try {
+      return await this.compiledGraph.invoke(input, {
+        configurable: {
+          thread_id: `vision::${input.sourceFileId}`,
+        },
+      });
+    } finally {
+      const TMP_DIR = path.resolve(process.cwd(), '.vision-tmp');
+      const dir = path.join(TMP_DIR, `${input.sourceFileId}`);
+      try {
+        await fsp.rm(dir, { recursive: true, force: true });
+        this.logger.log(
+          `[sourceFileId:${input.sourceFileId}] 视觉解析临时目录已自动清理: ${dir}`,
+        );
+      } catch (err) {
+        this.logger.warn(`清理视觉解析临时目录失败: ${dir}`, err);
+      }
+    }
   }
 }

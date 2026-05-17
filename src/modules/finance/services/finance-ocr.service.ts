@@ -96,7 +96,7 @@ export class FinanceOcrService {
       const getVal = (name: string) => fields[name] || null;
 
       const seller = getVal('销售方名称');
-      const buyer = getVal('购买方名称');
+      // buyer 已在 record 对象中使用 getVal('购买方名称') 获取
 
       // 提取金额并去除可能存在的非数字字符（保留小数点和负号）
       const parseAmount = (...keys: string[]): number => {
@@ -170,20 +170,46 @@ export class FinanceOcrService {
         : `采购：${firstItemName}`;
 
       const record: FinanceVatInvoiceRecord = {
+        // 基础信息
         recordType: 'invoice',
+        invoiceCode: getVal('发票代码'),
+        invoiceNo: getVal('发票号码'),
         date: getVal('开票日期'),
+
+        // 金额相关
         amount:
           amount > 0 ? amount : totalAmount > 0 ? totalAmount - taxAmount : 0,
         taxAmount,
         totalAmount,
-        seller,
-        buyer,
+        taxRate,
+
+        // 购买方信息
+        buyer: getVal('购买方名称'),
+        buyerTaxId: getVal('购买方识别号'),
+        buyerAddressPhone: getVal('购买方地址电话'),
+        buyerBankInfo: getVal('购买方开户行及账号'),
+
+        // 销售方信息
+        seller: getVal('销售方名称'),
+        sellerTaxId: getVal('销售方识别号'),
+        sellerAddressPhone: getVal('销售方地址电话'),
+        sellerBankInfo: getVal('销售方开户行及账号'),
+
+        // 其他信息
         category,
-        invoiceNo: getVal('发票号码'),
         counterparty: seller,
         confidence: 0.95,
         summary,
-        taxRate,
+
+        // 备注和开票人信息
+        remark: getVal('备注'),
+        payee: getVal('收款人'),
+        checker: getVal('复核'),
+        issuer: getVal('开票人'),
+
+        // 发票类型信息
+        invoiceType: getVal('发票类型'),
+        serviceType: getVal('服务类型') || getVal('发票消费类型'),
       };
 
       // 清洗 items：将带千分位的金额字符串转换为标准数字，供大模型更好分析

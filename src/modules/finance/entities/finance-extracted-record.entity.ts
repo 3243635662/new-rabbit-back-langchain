@@ -1,5 +1,5 @@
 /**
- * @description 做趋势分析、同比环比、发票明细查询，建议单独建表存提取后的明细。
+ * @description 通用图片/文档解析结果实体 - 所有提取的字段统一存储到 fields 或 raw JSON 中
  */
 
 import {
@@ -12,24 +12,25 @@ import {
 } from 'typeorm';
 import { FinanceSourceFile } from './finance-source-file.entity';
 
+export interface ExtractedField {
+  name: string;
+  desc: string;
+  value: unknown;
+  confidence?: number;
+}
+
 @Entity('finance_extracted_record')
 export class FinanceExtractedRecord {
   @PrimaryGeneratedColumn({
-    comment: '主键，示例：1',
+    comment: '主键',
   })
   id: number;
 
   @Column({
     nullable: true,
-    comment: '来源文件 ID，示例：88',
+    comment: '来源文件 ID',
   })
   sourceFileId: number;
-
-  @Column({
-    nullable: true,
-    comment: '记录类型（业务大类），示例：invoice / contract / image_scan',
-  })
-  recordType: string;
 
   @ManyToOne(() => FinanceSourceFile, (file) => file.extractedRecords, {
     onDelete: 'SET NULL',
@@ -40,93 +41,27 @@ export class FinanceExtractedRecord {
 
   @Column({
     nullable: true,
-    comment: '业务发生日期（发票日期/签约日期等），示例：2026-05-01',
+    comment: '记录类型（用于分类）：invoice / contract / general_image 等',
   })
-  occurredAt: Date;
-
-  @Column({
-    type: 'decimal',
-    precision: 12,
-    scale: 2,
-    nullable: true,
-    comment: '不含税或主要金额（合同金额等），示例：1000.00',
-  })
-  amount: string;
-
-  @Column({
-    type: 'decimal',
-    precision: 12,
-    scale: 2,
-    nullable: true,
-    comment: '税额，示例：60.00',
-  })
-  taxAmount: string;
-
-  @Column({
-    type: 'decimal',
-    precision: 12,
-    scale: 2,
-    nullable: true,
-    comment: '含税总额或最终金额，示例：1060.00',
-  })
-  totalAmount: string;
-
-  @Column({
-    type: 'decimal',
-    precision: 5,
-    scale: 4,
-    nullable: true,
-    comment: '税率，示例：0.13',
-  })
-  taxRate: string;
-
-  @Column({
-    default: 'CNY',
-    comment: '币种，示例：CNY',
-  })
-  currency: string;
-
-  @Column({
-    nullable: true,
-    comment: '交易对方（供应商/合同对方公司），示例：某某供应商',
-  })
-  counterparty: string;
-
-  @Column({
-    nullable: true,
-    comment: '收入或支出分类，示例：办公用品',
-  })
-  category: string;
-
-  @Column({
-    nullable: true,
-    comment: '单据编号（发票号码/合同编号等），示例：12345678',
-  })
-  documentNo: string;
-
-  @Column({
-    type: 'text',
-    nullable: true,
-    comment: '文字提取摘要或正文内容（适用于合同、通用图片）',
-  })
-  summary: string;
-
-  @Column({
-    type: 'decimal',
-    precision: 4,
-    scale: 2,
-    nullable: true,
-    comment: 'AI 提取置信度，示例：0.91',
-  })
-  confidence: string;
+  recordType: string;
 
   @Column({
     type: 'json',
     nullable: true,
-    comment: '特定类型的专属数据存放地，示例：{...}',
+    comment: '标准化要素列表 [{ name, desc, value, confidence? }]',
   })
-  raw: unknown;
+  fields: ExtractedField[];
 
-  @CreateDateColumn()
+  @Column({
+    type: 'json',
+    nullable: true,
+    comment:
+      '原始解析结果（腾讯云 OCR 等第三方 API 的原始返回），用于追溯和审计',
+  })
+  raw: Record<string, unknown>;
+
+  @CreateDateColumn({
+    comment: '创建时间',
+  })
   createdAt: Date;
 }

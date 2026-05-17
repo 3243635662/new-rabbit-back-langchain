@@ -26,7 +26,13 @@ export const buildVisionGraph = (deps: {
   checkpointer?: BaseCheckpointSaver;
 }) => {
   const confidenceGate = (state: VisionStateType) => {
-    const c = state.merged?.confidence ?? 0;
+    if (!state.merged || !state.merged.structured_fields) return 'persist';
+    const fields = state.merged.structured_fields;
+    const c =
+      fields.length > 0
+        ? fields.reduce((sum, f) => sum + (f.confidence ?? 0.9), 0) /
+          fields.length
+        : 0.95;
     if (state.upgraded) return 'persist';
     return c >= 0.85 ? 'persist' : 'upgrade';
   };

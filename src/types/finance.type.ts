@@ -56,11 +56,28 @@ export const FinanceTaskPollStatus = {
 export interface FinanceVatInvoiceRecord {
   recordType: 'invoice';
 
+  // === 基础信息 ===
+  /**
+   * 发票代码
+   */
+  invoiceCode: string | null;
+
+  /**
+   * 发票号码
+   */
+  invoiceNo: string | null;
+
   /**
    * 开票日期，格式：YYYY-MM-DD
    */
   date: string | null;
 
+  /**
+   * 发票类型（增值税专用发票/普通发票等）
+   */
+  invoiceType: string | null;
+
+  // === 金额相关 ===
   /**
    * 不含税金额
    */
@@ -77,29 +94,87 @@ export interface FinanceVatInvoiceRecord {
   totalAmount: number | null;
 
   /**
-   * 销售方名称
+   * 税率，例如 0.13
    */
-  seller: string | null;
+  taxRate: number | null;
 
+  // === 购买方信息 ===
   /**
    * 购买方名称
    */
   buyer: string | null;
 
   /**
+   * 购买方纳税人识别号
+   */
+  buyerTaxId: string | null;
+
+  /**
+   * 购买方地址电话
+   */
+  buyerAddressPhone: string | null;
+
+  /**
+   * 购买方开户行及账号
+   */
+  buyerBankInfo: string | null;
+
+  // === 销售方信息 ===
+  /**
+   * 销售方名称
+   */
+  seller: string | null;
+
+  /**
+   * 销售方纳税人识别号
+   */
+  sellerTaxId: string | null;
+
+  /**
+   * 销售方地址电话
+   */
+  sellerAddressPhone: string | null;
+
+  /**
+   * 销售方开户行及账号
+   */
+  sellerBankInfo: string | null;
+
+  // === 其他信息 ===
+  /**
    * 发票业务分类：商品采购 / 物流费用 / 办公设备 / 办公用品 / 其他费用
    */
   category: string | null;
 
   /**
-   * 发票号码
-   */
-  invoiceNo: string | null;
-
-  /**
    * 交易对方。对于商家进项发票，通常是销售方。
    */
   counterparty: string | null;
+
+  /**
+   * 备注
+   */
+  remark: string | null;
+
+  /**
+   * 收款人
+   */
+  payee: string | null;
+
+  /**
+   * 复核人
+   */
+  checker: string | null;
+
+  /**
+   * 开票人
+   */
+  issuer: string | null;
+
+  /**
+   * 服务类型或发票消费类型
+   */
+  serviceType: string | null;
 
   /**
    * 当前先给固定值，后续可以根据 OCR 字段完整度动态计算
@@ -110,11 +185,6 @@ export interface FinanceVatInvoiceRecord {
    * 简短摘要
    */
   summary: string;
-
-  /**
-   * 税率，例如 0.13
-   */
-  taxRate: number | null;
 }
 
 /**
