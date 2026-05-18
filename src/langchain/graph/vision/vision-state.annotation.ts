@@ -34,11 +34,6 @@ export const VisionStateAnnotation = Annotation.Root({
     default: () => null,
   }),
 
-  upgraded: Annotation<boolean>({
-    reducer: (_, next) => next,
-    default: () => false,
-  }),
-
   warnings: Annotation<string[]>({
     reducer: (prev, next) => [...prev, ...(next || [])],
     default: () => [],

@@ -9,6 +9,13 @@ import { buildVisionGraph } from '../../../langchain/graph/vision/vision-graph.b
 import { DocumentNormalizerService } from './document-normalizer.service';
 import { ModelProviderService } from '../../../langchain/model-provider.service';
 import { PostgresCheckpointerProvider } from '../../../langchain/persistence/postgres-checkpointer.provider';
+import type { FinanceSourceProgressPhaseValue } from '../../../types/finance.type';
+
+type ProgressFn = (
+  progress: number,
+  status: FinanceSourceProgressPhaseValue,
+  message: string,
+) => Promise<void>;
 
 @Injectable()
 export class FinanceVisionService implements OnModuleInit {
@@ -38,24 +45,25 @@ export class FinanceVisionService implements OnModuleInit {
       modelProvider: {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-return
         getVisionModel: () => this.modelProvider.getVisionModel() as any,
-        getStrongVisionModel: () =>
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-          this.modelProvider.getStrongVisionModel() as any,
       },
       repo: this.repo,
       checkpointer,
     });
   }
 
-  async run(input: {
-    sourceFileId: number;
-    qiniuKey: string;
-    docType: 'image' | 'pdf' | 'docx';
-  }) {
+  async run(
+    input: {
+      sourceFileId: number;
+      qiniuKey: string;
+      docType: 'image' | 'pdf' | 'docx';
+    },
+    pushProgress?: ProgressFn,
+  ) {
     try {
       return await this.compiledGraph.invoke(input, {
         configurable: {
           thread_id: `vision::${input.sourceFileId}`,
+          pushProgress,
         },
       });
     } finally {

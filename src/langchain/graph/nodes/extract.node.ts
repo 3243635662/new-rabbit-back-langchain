@@ -11,47 +11,55 @@ import type {
 import type { VisionExtractRecord } from '../vision/schemas/vision-extract.schema';
 import { normalizeExtractedFields } from '../../../modules/finance/utils/extracted-fields-normalizer.util';
 
+// 安全地转字符串，避免 unknown 触发 no-base-to-string
+const safeStr = (val: unknown, fallback: string): string =>
+  val != null && typeof val !== 'object'
+    ? String(val as string | number | boolean)
+    : fallback;
+
 // 兜底归一化函数：防止大模型返回中文扁平发票结构或任意未知图片结构导致 Zod 崩溃
-function normalizeRawOutput(data: Record<string, any>): VisionExtractRecord {
+function normalizeRawOutput(
+  data: Record<string, unknown>,
+): VisionExtractRecord {
   // 1. document_type 归一化
-  const documentType = String(
-    data.document_type ??
-      data.documentType ??
-      (data['发票号码'] ? 'invoice' : 'general_image'),
+  const documentType = safeStr(
+    data.document_type ?? data.documentType ?? data['发票号码'],
+    'general_image',
   );
 
   // 2. summary 归一化
-  const summary = String(
-    data.summary ?? data['内容摘要'] ?? data['描述'] ?? '要素提取结果',
+  const summary = safeStr(
+    data.summary ?? data['内容摘要'] ?? data['描述'],
+    '要素提取结果',
   );
 
   // 3. process_time 归一化
-  const processTime = String(
-    data.process_time ?? data.processTime ?? new Date().toISOString(),
+  const processTime = safeStr(
+    data.process_time ?? data.processTime,
+    new Date().toISOString(),
   );
 
   // 4. structured_fields 归一化
-  let structuredFields: Array<{
-    name: string;
-    desc: string;
-    value: any;
-    confidence: number;
-  }> = [];
+  interface RawField {
+    name?: unknown;
+    desc?: unknown;
+    value?: unknown;
+    confidence?: unknown;
+  }
+
+  const toStructured = (f: RawField) => ({
+    name: safeStr(f.name, ''),
+    desc: safeStr(f.desc, ''),
+    value: f.value,
+    confidence: typeof f.confidence === 'number' ? f.confidence : 0.95,
+  });
+
+  let structuredFields: ReturnType<typeof toStructured>[] = [];
 
   if (Array.isArray(data.structured_fields)) {
-    structuredFields = data.structured_fields.map((f: any) => ({
-      name: String(f.name || ''),
-      desc: String(f.desc || ''),
-      value: f.value,
-      confidence: typeof f.confidence === 'number' ? f.confidence : 0.95,
-    }));
+    structuredFields = data.structured_fields.map(toStructured);
   } else if (Array.isArray(data.fields)) {
-    structuredFields = data.fields.map((f: any) => ({
-      name: String(f.name || ''),
-      desc: String(f.desc || ''),
-      value: f.value,
-      confidence: typeof f.confidence === 'number' ? f.confidence : 0.95,
-    }));
+    structuredFields = data.fields.map(toStructured);
   } else {
     // 自动降级解析平面中文键值对
     const normalized = normalizeExtractedFields(data);
@@ -72,11 +80,20 @@ function normalizeRawOutput(data: Record<string, any>): VisionExtractRecord {
 }
 
 export const buildExtractNode = (getModel: () => BaseChatModel) => {
-  return async (state: VisionStateType) => {
+  return async (
+    state: VisionStateType,
+    config?: { configurable?: Record<string, unknown> },
+  ) => {
+    const pushProgress = config?.configurable?.pushProgress as
+      | ((progress: number, status: string, message: string) => Promise<void>)
+      | undefined;
+
     const llm = getModel();
     const structured = llm.withStructuredOutput(visionExtractSchema, {
       name: 'vision_extract',
     });
+
+    await pushProgress?.(50, 'extracting', '正在使用 AI 提取财务信息...');
 
     const results: VisionPageResult[] = [];
 

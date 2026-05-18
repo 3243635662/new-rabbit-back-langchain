@@ -4,9 +4,18 @@ import type { VisionStateType } from '../vision/vision-state.annotation';
 import { FinanceExtractedRecord } from '../../../modules/finance/entities/finance-extracted-record.entity';
 
 export const buildPersistNode = (repo: Repository<FinanceExtractedRecord>) => {
-  return async (state: VisionStateType) => {
+  return async (
+    state: VisionStateType,
+    config?: { configurable?: Record<string, unknown> },
+  ) => {
+    const pushProgress = config?.configurable?.pushProgress as
+      | ((progress: number, status: string, message: string) => Promise<void>)
+      | undefined;
+
     const r = state.merged;
     if (!r) return {};
+
+    await pushProgress?.(80, 'persisting', '正在写入数据库...');
 
     // 计算整体置信度平均值
     const avgConfidence =

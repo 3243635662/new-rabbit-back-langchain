@@ -48,13 +48,6 @@ export class FinanceExtractedRecord {
   @Column({
     type: 'json',
     nullable: true,
-    comment: '标准化要素列表 [{ name, desc, value, confidence? }]',
-  })
-  fields: ExtractedField[];
-
-  @Column({
-    type: 'json',
-    nullable: true,
     comment:
       '原始解析结果（腾讯云 OCR 等第三方 API 的原始返回），用于追溯和审计',
   })

@@ -59,9 +59,9 @@ export class DocumentNormalizerService {
    */
   async docxToImages(file: string): Promise<string[]> {
     const buf = await fsp.readFile(file);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+
     const zip = await JSZip.loadAsync(buf);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+
     const mediaDir = zip.folder('word/media');
     if (!mediaDir) return [];
 
@@ -69,17 +69,14 @@ export class DocumentNormalizerService {
     const dir = path.join(TMP_DIR, `docx-${Date.now()}`);
     await fsp.mkdir(dir, { recursive: true });
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
     const files = Object.keys(zip.files || {}).filter((f) =>
       f.startsWith('word/media/'),
     );
 
     for (const f of files) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       const zipFile = zip.file(f);
       if (zipFile) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-        const fileData = (await zipFile.async('nodebuffer')) as Buffer;
+        const fileData = await zipFile.async('nodebuffer');
         const imgPath = path.join(dir, path.basename(f));
         await fsp.writeFile(imgPath, fileData);
         outputPaths.push(imgPath);

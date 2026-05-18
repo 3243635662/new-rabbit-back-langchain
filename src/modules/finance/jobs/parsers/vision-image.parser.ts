@@ -37,7 +37,18 @@ export class VisionImageParser {
       FinanceSourceProgressPhase.PARSING,
       '准备视觉抽取...',
     );
-    await this.visionService.run({ sourceFileId, qiniuKey, docType: mapped });
+
+    // 绑定 job，传给 visionService 以便 LangGraph 内也能推送进度
+    const boundProgress = (
+      progress: number,
+      status: FinanceSourceProgressPhaseValue,
+      message: string,
+    ) => pushProgress(job, progress, status, message);
+
+    await this.visionService.run(
+      { sourceFileId, qiniuKey, docType: mapped },
+      boundProgress,
+    );
     await pushProgress(
       job,
       100,

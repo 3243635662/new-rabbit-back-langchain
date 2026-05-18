@@ -381,10 +381,12 @@ export class FinanceService {
       if (cached.data.merchantId !== merchant.id) {
         throw new NotFoundException('无权访问该资源');
       }
-      if (cached.isExpired) {
-        void this.rebuildDetailCache(cacheKey, id, merchant.id);
+      // 缓存过期或解析未完成（可能新记录已入库但缓存是旧的）→ 强制刷新
+      if (cached.isExpired || !cached.data.isParsed) {
+        sourceFile = await this.rebuildDetailCache(cacheKey, id, merchant.id);
+      } else {
+        sourceFile = cached.data;
       }
-      sourceFile = cached.data;
     } else {
       sourceFile = await this.rebuildDetailCache(cacheKey, id, merchant.id);
     }
@@ -409,14 +411,6 @@ export class FinanceService {
         [key: string]: unknown;
       }
 
-      // 定义 fields 元素的类型（包含可选的 confidence）
-      interface FieldWithConfidence {
-        name: string;
-        desc: string;
-        value: unknown;
-        confidence?: number;
-      }
-
       sourceFile.extractedRecords = sourceFile.extractedRecords.map(
         (record) => {
           let rawObj: RawObj = {};
@@ -433,24 +427,16 @@ export class FinanceService {
           }
 
           // 1. 获取统一格式的 structured_fields
-          // 优先使用 raw.structured_fields，兼容旧数据的 fields 列
+          // 优先使用 raw.structured_fields，不再访问已删除的 fields 列
           const structuredFields: StructuredField[] =
             rawObj && Array.isArray(rawObj.structured_fields)
               ? rawObj.structured_fields
-              : record.fields && record.fields.length > 0
-                ? (record.fields as FieldWithConfidence[]).map((f) => ({
-                    name: f.name,
-                    desc: f.desc,
-                    value: f.value,
-                    confidence:
-                      typeof f.confidence === 'number' ? f.confidence : 0.95,
-                  }))
-                : normalizeExtractedFields(record).map((f) => ({
-                    name: f.name,
-                    desc: f.desc,
-                    value: f.value,
-                    confidence: 0.95,
-                  }));
+              : normalizeExtractedFields(record).map((f) => ({
+                  name: f.name,
+                  desc: f.desc,
+                  value: f.value,
+                  confidence: 0.95,
+                }));
 
           // 2. 字段类型适配
           const documentType =
@@ -533,15 +519,27 @@ export class FinanceService {
       throw new NotFoundException('找不到指定资源或无权限访问');
     }
 
-    // 1. 删除关联的结构化记录 (手动删以保持数据整洁)
+    // 1. 删除七牛云文件（不阻塞主流程，失败只记录日志）
+    try {
+      if (sourceFile.qiniuKey) {
+        await this.qiniuService.deleteFile(sourceFile.qiniuKey);
+      }
+    } catch (err) {
+      this.logger.warn(
+        `删除七牛云文件失败: ${sourceFile.qiniuKey}`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+
+    // 2. 删除关联的结构化记录 (手动删以保持数据整洁)
     if (sourceFile.extractedRecords?.length > 0) {
       await this.extractedRecordRepo.remove(sourceFile.extractedRecords);
     }
 
-    // 2. 删除主文件记录
+    // 3. 删除主文件记录
     await this.sourceFileRepo.remove(sourceFile);
 
-    // 3. 清理缓存
+    // 4. 清理缓存
     // 删除详情缓存
     await this.redisService.del(RedisKeys.FINANCE.getSourceDetailKey(id));
     // 批量删除列表缓存
