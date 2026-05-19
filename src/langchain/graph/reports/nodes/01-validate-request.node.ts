@@ -1,11 +1,36 @@
-import { FinanceReportStateAnnotation } from '../finance-report.annotation';
+import type { FinanceReportGraphState } from '../finance-report.annotation';
 
-export const validateRequestNode = async (
-  state: typeof FinanceReportStateAnnotation.State,
-) => {
-  // TODO: 验证请求参数合法性
-  // - 校验日期范围
-  // - 校验 dataScopes 非空
-  // - 校验 reportType 合法
-  return {};
+export const validateRequestNode = (state: FinanceReportGraphState) => {
+  const request = { ...state.request };
+
+  if (!request.startDate || !request.endDate) {
+    throw new Error('请选择报表时间范围');
+  }
+
+  const start = new Date(request.startDate);
+  const end = new Date(request.endDate);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    throw new Error('日期格式不合法');
+  }
+
+  if (start.getTime() > end.getTime()) {
+    throw new Error('开始时间不能晚于结束时间');
+  }
+
+  if (!request.dataScopes || request.dataScopes.length === 0) {
+    throw new Error('请至少选择一个数据范围');
+  }
+
+  request.options = {
+    comparisonAnalysis: request.options?.comparisonAnalysis ?? false,
+    trendForecast: request.options?.trendForecast ?? false,
+    chartEnabled: request.options?.chartEnabled ?? true, // 默认开启图表
+    aiInsight: request.options?.aiInsight ?? true, // 默认开启 AI 洞察
+  };
+
+  return {
+    request,
+    logs: ['报表请求参数校验完成'],
+  };
 };

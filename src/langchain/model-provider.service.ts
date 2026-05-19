@@ -6,6 +6,7 @@ import { ConfigService } from '@nestjs/config';
 export class ModelProviderService {
   private readonly model: ChatOpenAI;
   private readonly visionModel: ChatOpenAI;
+  private readonly reportModel: ChatOpenAI;
 
   constructor(private readonly configService: ConfigService) {
     // 默认文本模型 (GLM / DashScope, 例如 glm-4.5-air)
@@ -37,9 +38,23 @@ export class ModelProviderService {
         },
       },
     });
+
+    // 财务报告专业模型 (白山智算 DeepSeek-V3.2-EXP)
+    this.reportModel = new ChatOpenAI({
+      apiKey: this.configService.get<string>('BAISHAN_DASHSCOPE_API_KEY'),
+      configuration: {
+        baseURL: this.configService.get<string>('BAISHAN_DASHSCOPE_BASE_URL'),
+      },
+      modelName:
+        this.configService.get<string>('REPORT_MODEL_NAME') ||
+        'DeepSeek-V3.2-EXP',
+      streaming: false,
+    });
   }
 
   getModel = () => this.model;
 
   getVisionModel = () => this.visionModel;
+
+  getReportModel = () => this.reportModel;
 }

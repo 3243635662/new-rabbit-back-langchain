@@ -1,7 +1,7 @@
-import { FinanceReportStateAnnotation } from '../finance-report.annotation';
+import type { FinanceReportGraphState } from '../finance-report.annotation';
 
 export const calculateReportMetricsNode = async (
-  state: typeof FinanceReportStateAnnotation.State,
+  state: FinanceReportGraphState,
 ) => {
   // TODO: 基于 normalizedData 计算核心财务指标
   // - 计算总收入、总成本、毛利、毛利率

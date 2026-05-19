@@ -1,7 +1,7 @@
-import { FinanceReportStateAnnotation } from '../finance-report.annotation';
+import type { FinanceReportGraphState } from '../finance-report.annotation';
 
 export const generateReportHtmlNode = async (
-  state: typeof FinanceReportStateAnnotation.State,
+  state: FinanceReportGraphState,
 ) => {
   // TODO: 使用 htmlContext 渲染 HTML 报告模板
   // - 组装 HTML 上下文

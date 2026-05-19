@@ -1,7 +1,7 @@
-import { FinanceReportStateAnnotation } from '../finance-report.annotation';
+import type { FinanceReportGraphState } from '../finance-report.annotation';
 
 export const buildReportChartsNode = async (
-  state: typeof FinanceReportStateAnnotation.State,
+  state: FinanceReportGraphState,
 ) => {
   // TODO: 基于 metrics 生成 ECharts 图表配置
   // - 收入趋势图（line）

@@ -8,13 +8,16 @@ import { ReportChartResult } from '../../../types/reports/report-chart.type';
 import { ReportNarrative } from '../../../types/reports/report-narrative.type';
 import { ReportHtmlContext } from '../../../types/reports/report-html-context.type';
 import { ReportExportResult } from '../../../types/reports/report-export-result.type';
+import { UserContextType } from '../../../types/reports/report-userContext.type';
 
 export const FinanceReportStateAnnotation = Annotation.Root({
   request: Annotation<GenerateFinanceReportDto>(),
-  user: Annotation<unknown>(),
+  user: Annotation<UserContextType>(),
 
   rawData: Annotation<ReportRawData | undefined>(),
+  comparisonRawData: Annotation<ReportRawData | undefined>(),
   normalizedData: Annotation<NormalizedReportData | undefined>(),
+  comparisonNormalizedData: Annotation<NormalizedReportData | undefined>(),
   comparisonRange: Annotation<ComparisonRange | undefined>(),
   metrics: Annotation<ReportMetrics | undefined>(),
   chartResult: Annotation<ReportChartResult | undefined>(),

@@ -1,7 +1,7 @@
-import { FinanceReportStateAnnotation } from '../finance-report.annotation';
+import type { FinanceReportGraphState } from '../finance-report.annotation';
 
 export const generateReportNarrativeNode = async (
-  state: typeof FinanceReportStateAnnotation.State,
+  state: FinanceReportGraphState,
 ) => {
   // TODO: 调用 LLM 生成文字解读
   // - 生成总体摘要

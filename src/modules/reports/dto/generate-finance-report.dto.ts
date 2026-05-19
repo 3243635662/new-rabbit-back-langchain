@@ -44,10 +44,10 @@ export class GenerateFinanceReportDto {
   @IsDateString()
   endDate: string;
 
-  // 数据范围（订单数据  销售数据 库存数据 发票数据  合同数据以及recordType值为非invoice的数据  ）
+  // 数据范围（订单数据  库存数据 发票数据  合同数据以及recordType值为非invoice的数据  ）
   @IsArray()
   @ArrayMinSize(1)
-  @IsIn(['order', 'sales', 'inventory', 'invoice', 'finance_resource'], {
+  @IsIn(['order', 'inventory', 'invoice', 'finance_resource'], {
     each: true,
   })
   dataScopes: Array<

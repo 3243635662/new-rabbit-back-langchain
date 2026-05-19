@@ -1,7 +1,7 @@
-import { FinanceReportStateAnnotation } from '../finance-report.annotation';
+import type { FinanceReportGraphState } from '../finance-report.annotation';
 
 export const exportReportNode = async (
-  state: typeof FinanceReportStateAnnotation.State,
+  state: FinanceReportGraphState,
 ) => {
   // TODO: 根据 exportFormat 导出报告文件
   // - PDF 导出
