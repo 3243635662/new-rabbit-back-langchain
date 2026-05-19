@@ -1,5 +1,3 @@
-import * as fsp from 'fs/promises';
-import * as path from 'path';
 import type {
   VisionStateType,
   VisionPage,

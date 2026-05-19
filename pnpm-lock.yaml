@@ -80,6 +80,9 @@ importers:
       d3-dsv:
         specifier: ^3.0.1
         version: 3.0.1
+      dayjs:
+        specifier: ^1.11.20
+        version: 1.11.20
       docx:
         specifier: ^9.6.1
         version: 9.6.1

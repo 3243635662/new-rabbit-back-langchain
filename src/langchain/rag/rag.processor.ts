@@ -12,16 +12,13 @@ import {
 import { MerchantRagService } from './merchant-rag/merchant-rag.service';
 import { QiniuService } from '../../modules/qiniu/qiniu.service';
 import { RedisService } from '../../modules/db/redis/redis.service';
-import {
-  RAGJobData,
-  RagIngestProgressPhase,
-  type RagIngestProgressPhaseValue,
-} from '../../types/rag.type';
+import { RAGJobData, RagIngestProgressPhase } from '../../types/rag.type';
 import {
   RedisKeys,
   TaskProgressKeys,
 } from '../../common/constants/redis-key.constant';
 import { EXT_MIME_MAP } from '../../types/rag.type';
+import { pushTaskProgress } from '../../utils/task-progress.util';
 
 const RAG_TMP_DIR = path.resolve(process.cwd(), '.rag-tmp');
 
@@ -40,38 +37,19 @@ export class RagProcessor extends WorkerHost {
     super();
   }
 
-  private pushProgress = async (
-    job: Job<RAGJobData>,
-    progress: number,
-    status: RagIngestProgressPhaseValue,
-    message: string,
-  ) => {
-    const taskId = String(job.id);
-    const payload = { progress, status, message };
-    await job.updateProgress(progress);
-    await this.redisService.publishTaskProgress(
-      TaskProgressKeys.RAG,
-      taskId,
-      payload,
-    );
-    await this.redisService.setTaskProgressCache(
-      TaskProgressKeys.RAG,
-      taskId,
-      payload,
-    );
-  };
-
   override process = async (job: Job<RAGJobData>): Promise<void> => {
     const { qiniuKey, merchantId, fileName } = job.data;
     let localFilePath = '';
 
     try {
       // ─── 1. 更新状态 → processing ───
-      await this.pushProgress(
+      await pushTaskProgress(
         job,
+        this.redisService,
         10,
         RagIngestProgressPhase.DOWNLOADING,
         '开始处理...',
+        TaskProgressKeys.RAG,
       );
       const record = await this.kbRepo.findOne({ where: { qiniuKey } });
       if (record) {
@@ -81,11 +59,13 @@ export class RagProcessor extends WorkerHost {
       }
 
       // ─── 2. 从七牛下载到项目 .rag-tmp/（LangChain Loader 需要本地文件路径） ───
-      await this.pushProgress(
+      await pushTaskProgress(
         job,
+        this.redisService,
         20,
         RagIngestProgressPhase.DOWNLOADING,
         '正在从七牛下载文件...',
+        TaskProgressKeys.RAG,
       );
       const ext = path.extname(qiniuKey) || '.txt';
       const mimeType = EXT_MIME_MAP[ext] || 'text/plain';
@@ -107,16 +87,25 @@ export class RagProcessor extends WorkerHost {
         mimeType,
         merchantId,
         fileName,
-        (p: number, s: RagIngestProgressPhaseValue, m: string) =>
-          this.pushProgress(job, p, s, m),
+        (p, s, m) =>
+          pushTaskProgress(
+            job,
+            this.redisService,
+            p,
+            s,
+            m,
+            TaskProgressKeys.RAG,
+          ),
       );
 
       // ─── 4. 更新数据库记录 → completed ───
-      await this.pushProgress(
+      await pushTaskProgress(
         job,
+        this.redisService,
         90,
         RagIngestProgressPhase.PERSISTING,
         '正在保存结果...',
+        TaskProgressKeys.RAG,
       );
       if (record) {
         await this.kbRepo.update(record.id, {
@@ -125,11 +114,13 @@ export class RagProcessor extends WorkerHost {
         });
       }
 
-      await this.pushProgress(
+      await pushTaskProgress(
         job,
+        this.redisService,
         100,
         RagIngestProgressPhase.COMPLETED,
         '解析完成，已就绪',
+        TaskProgressKeys.RAG,
       );
       this.logger.log(
         `[taskId:${job.id}] RAG处理完成: ${qiniuKey} → ${result.count} 个片段`,
@@ -137,11 +128,13 @@ export class RagProcessor extends WorkerHost {
     } catch (error) {
       const errMsg = (error as Error).message;
       this.logger.error(`[taskId:${job.id}] RAG处理失败: ${errMsg}`);
-      await this.pushProgress(
+      await pushTaskProgress(
         job,
+        this.redisService,
         0,
         RagIngestProgressPhase.FAILED,
         `处理失败: ${errMsg}`,
+        TaskProgressKeys.RAG,
       );
 
       // 通过 qiniuKey 找到对应记录更新状态

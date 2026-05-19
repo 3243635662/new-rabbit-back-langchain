@@ -4,7 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { FinanceService } from './finance.service';
 import { FinanceController } from './finance.controller';
 import { FinanceSourceFile } from './entities/finance-source-file.entity';
-import { FinanceReport } from './entities/finance-report.entity';
+import { FinanceReport } from '../reports/entities/finance-report.entity';
 import { FinanceExtractedRecord } from './entities/finance-extracted-record.entity';
 import { Merchant } from '../merchant/entities/merchant.entity';
 import { QiniuModule } from '../qiniu/qiniu.module';

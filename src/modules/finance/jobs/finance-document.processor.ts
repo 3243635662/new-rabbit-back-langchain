@@ -13,18 +13,18 @@ import {
   FinanceSourceParseStatus,
   FinanceSourceProgressPhase,
   type FinanceSourceFileJobData,
-  type FinanceSourceProgressPhaseValue,
 } from '../../../types/finance.type';
 import { VisionImageParser } from './parsers/vision-image.parser';
 import { ContractParser } from './parsers/contract.parser';
 import { InvoiceOcrParser } from './parsers/invoice-ocr.parser';
+import { pushTaskProgress } from '../../../utils/task-progress.util';
 
 /**
  * 财务原始文件处理 Worker（资源解析）。
  * 专门负责处理从七牛上传后的原始财务文件解析。
  *
  * 路由策略：
- *  - GENERAL_IMG  → VisionImageParser（统一 LangGraph 视觉抽取流程）
+ *  - GENERAL_IMG → VisionImageParser（统一 LangGraph 视觉抽取流程）
  *  - INVOICE      → InvoiceOcrParser（腾讯云 OCR 发票高精度抽取流程）
  *  - CONTRACT     → ContractParser（合同文本解析 + 视觉抽取）
  */
@@ -44,28 +44,6 @@ export class FinanceSourceProcessor extends WorkerHost {
     super();
   }
 
-  // 统一进度推送函数
-  private pushProgress = async (
-    job: Job<FinanceSourceFileJobData>,
-    progress: number,
-    status: FinanceSourceProgressPhaseValue,
-    message: string,
-  ) => {
-    const taskId = String(job.id);
-    const payload = { progress, status, message };
-    await job.updateProgress(progress);
-    await this.redisService.publishTaskProgress(
-      TaskProgressKeys.FINANCE_SOURCE,
-      taskId,
-      payload,
-    );
-    await this.redisService.setTaskProgressCache(
-      TaskProgressKeys.FINANCE_SOURCE,
-      taskId,
-      payload,
-    );
-  };
-
   override process = async (
     job: Job<FinanceSourceFileJobData>,
   ): Promise<void> => {
@@ -76,17 +54,44 @@ export class FinanceSourceProcessor extends WorkerHost {
       switch (job.name) {
         // 通用图片 → 统一走视觉解析流程
         case RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_SOURCE_GENERAL_IMG:
-          await this.visionParser.parse(job, this.pushProgress);
+          await this.visionParser.parse(job, (j, p, s, m) =>
+            pushTaskProgress(
+              j,
+              this.redisService,
+              p,
+              s,
+              m,
+              TaskProgressKeys.FINANCE_SOURCE,
+            ),
+          );
           break;
 
         // 发票 → 走腾讯云 OCR 发票高精度提取流程
         case RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_SOURCE_INVOICE:
-          await this.invoiceOcrParser.parse(job, this.pushProgress);
+          await this.invoiceOcrParser.parse(job, (j, p, s, m) =>
+            pushTaskProgress(
+              j,
+              this.redisService,
+              p,
+              s,
+              m,
+              TaskProgressKeys.FINANCE_SOURCE,
+            ),
+          );
           break;
 
         // 合同 → 走合同专属解析流程（同样走 Vision，但 docType 会是 pdf/docx）
         case RedisKeys.FINANCE.JOB_NAMES.PROCESS_FINANCE_SOURCE_CONTRACT:
-          await this.contractParser.parse(job, this.pushProgress);
+          await this.contractParser.parse(job, (j, p, s, m) =>
+            pushTaskProgress(
+              j,
+              this.redisService,
+              p,
+              s,
+              m,
+              TaskProgressKeys.FINANCE_SOURCE,
+            ),
+          );
           break;
 
         default:
@@ -130,11 +135,13 @@ export class FinanceSourceProcessor extends WorkerHost {
         isParsed: true,
       },
     );
-    await this.pushProgress(
+    await pushTaskProgress(
       job,
+      this.redisService,
       100,
       FinanceSourceProgressPhase.COMPLETED,
       `解析完成：${fileName}`,
+      TaskProgressKeys.FINANCE_SOURCE,
     );
   }
 
@@ -150,11 +157,13 @@ export class FinanceSourceProcessor extends WorkerHost {
         isParsed: false,
       },
     );
-    await this.pushProgress(
+    await pushTaskProgress(
       job,
+      this.redisService,
       0,
       FinanceSourceProgressPhase.FAILED,
       `解析失败: ${errMsg}`,
+      TaskProgressKeys.FINANCE_SOURCE,
     );
     throw error;
   }

@@ -1,10 +1,9 @@
 import { ChatOpenAI } from '@langchain/openai';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class ModelProviderService {
-  private readonly logger = new Logger(ModelProviderService.name);
   private readonly model: ChatOpenAI;
   private readonly visionModel: ChatOpenAI;
 
