@@ -12,13 +12,8 @@ import {
   type ChartMode,
 } from '../utils/chart-input.util';
 import { sanitizeLLMCharts } from '../utils/chart-sanitize.util';
-import { buildFallbackCharts } from '../utils/chart-fallback.util';
 
 /* ---------- 辅助函数 ---------- */
-
-const getErrorMessage = (err: unknown): string => {
-  return err instanceof Error ? err.message : String(err);
-};
 
 /**
  * 从 LLM 响应内容中提取 JSON 对象
@@ -85,10 +80,10 @@ const generateChartsByLLM = async (
  * - 根据 metrics / normalizedData / reportTypes / chartEnabled
  * - 调用 LLM 直接生成 ECharts option
  * - 校验、清洗、安全过滤、数量控制
- * - 失败时使用 fallback 默认图表兜底
  *
  * 输入：state.metrics, state.normalizedData, state.request.reportTypes, state.request.options.chartEnabled
  * 输出：state.chartResult (ReportChartResult)
+ * 异常：LLM 不可用或生成失败时将直接抛出错误
  */
 export const buildReportChartsNode = async (
   state: FinanceReportGraphState,
@@ -108,15 +103,9 @@ export const buildReportChartsNode = async (
   const deps = config?.configurable;
   const chartMode = getChartMode(state);
 
-  // 如果没有提供 LLM 模型依赖，直接使用 fallback 图表
+  // 检查 LLM 模型是否可用
   if (!deps?.getModel) {
-    const fallback = buildFallbackCharts(state, chartMode);
-    return {
-      chartResult: fallback,
-      logs: [
-        `未提供 LLM 模型，已使用默认图表配置，模式：${chartMode}，共生成 ${fallback.charts.length} 个图表`,
-      ],
-    };
+    throw new Error('节点五：未提供 LLM 模型，无法生成图表配置');
   }
 
   try {
@@ -132,13 +121,7 @@ export const buildReportChartsNode = async (
       ],
     };
   } catch (err) {
-    const fallback = buildFallbackCharts(state, chartMode);
-
-    return {
-      chartResult: fallback,
-      logs: [
-        `LLM 图表配置生成失败，已降级为默认图表配置，模式：${chartMode}，共生成 ${fallback.charts.length} 个图表，原因：${getErrorMessage(err)}`,
-      ],
-    };
+    const error = err instanceof Error ? err : new Error(String(err));
+    throw new Error(`节点五：LLM 图表配置生成失败 - ${error.message}`);
   }
 };

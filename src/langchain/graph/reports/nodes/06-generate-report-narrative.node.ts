@@ -5,16 +5,12 @@ import { generateReportNarrativePrompt } from '../prompts/generate-report-narrat
 import { LLMReportNarrativeSchema } from '../schemas/report-narrative.schema';
 import { buildNarrativeLLMInput } from '../utils/narrative-input.util';
 import { sanitizeNarrative } from '../utils/narrative-sanitize.util';
-import { buildFallbackNarrative } from '../utils/narrative-fallback.util';
 
 /* ---------- 辅助函数 ---------- */
 
-const getErrorMessage = (err: unknown): string => {
-  return err instanceof Error ? err.message : String(err);
-};
-
 const extractJsonObject = (content: string): unknown => {
   const trimmed = content.trim();
+
   try {
     return JSON.parse(trimmed);
   } catch {
@@ -70,10 +66,10 @@ const generateNarrativeByLLM = async (
  * - 适配节点五的自由图表类型，不假设图表只包含 bar/line/pie
  * - 优先参考 metrics.warnings 生成风险点
  * - 趋势预测由节点七独立生成，此处不再参考 metrics.forecast
- * - aiInsight=false 或 LLM 失败时使用 fallback 基础解读
  *
  * 输入：state.metrics, state.normalizedData, state.chartResult, state.request
  * 输出：state.narrative (ReportNarrative)
+ * 异常：LLM 不可用或生成失败时将直接抛出错误
  */
 export const generateReportNarrativeNode = async (
   state: FinanceReportGraphState,
@@ -87,24 +83,11 @@ export const generateReportNarrativeNode = async (
     throw new Error('缺少归一化报表数据，无法生成报表解读');
   }
 
-  // aiInsight=false 时不调用 LLM，直接使用基础模板
-  if (state.request.options?.aiInsight === false) {
-    const fallback = buildFallbackNarrative(state);
-    return {
-      narrative: fallback,
-      logs: ['AI 智能解读未开启，已使用基础模板生成报表解读'],
-    };
-  }
-
   const deps = config?.configurable;
 
-  // 没有 LLM 模型依赖时，直接使用基础模板
+  // 检查 LLM 模型是否可用
   if (!deps?.getModel) {
-    const fallback = buildFallbackNarrative(state);
-    return {
-      narrative: fallback,
-      logs: ['未提供 LLM 模型，已使用基础模板生成报表解读'],
-    };
+    throw new Error('节点六：未提供 LLM 模型，无法生成报表文字解读');
   }
 
   try {
@@ -114,12 +97,7 @@ export const generateReportNarrativeNode = async (
       logs: ['AI 报表文字解读生成完成'],
     };
   } catch (err) {
-    const fallback = buildFallbackNarrative(state);
-    return {
-      narrative: fallback,
-      logs: [
-        `AI 报表文字解读生成失败，已降级为基础模板：${getErrorMessage(err)}`,
-      ],
-    };
+    const error = err instanceof Error ? err : new Error(String(err));
+    throw new Error(`节点六：AI 报表文字解读生成失败 - ${error.message}`);
   }
 };

@@ -27,11 +27,6 @@ export class GenerateFinanceReportOptionsDto {
   @IsOptional()
   @IsBoolean()
   chartEnabled?: boolean;
-
-  // AI 智能解读
-  @IsOptional()
-  @IsBoolean()
-  aiInsight?: boolean;
 }
 
 //  生成报告参数Dto

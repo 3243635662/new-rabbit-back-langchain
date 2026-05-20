@@ -7,11 +7,6 @@ import {
   validateGeneratedHtml,
   sanitizeGeneratedHtml,
 } from '../utils/html-sanitize.util';
-import { buildFallbackHtml } from '../utils/html-fallback.util';
-
-const getErrorMessage = (err: unknown): string => {
-  return err instanceof Error ? err.message : String(err);
-};
 
 /**
  * 节点七：根据全量报表数据生成完整 HTML 报表
@@ -22,10 +17,10 @@ const getErrorMessage = (err: unknown): string => {
  * - 调用 LLM 生成完整单文件 HTML
  * - 校验 HTML 完整性（DOCTYPE、CDN、ECharts 渲染）
  * - 清洗危险内容（不允许 iframe、fetch 等）
- * - LLM 失败或校验不通过时使用 fallback HTML 模板
  *
  * 输入：state.request, state.normalizedData, state.metrics, state.chartResult, state.narrative
  * 输出：state.html, state.htmlContext, state.logs
+ * 异常：LLM 不可用或生成失败时将直接抛出错误
  */
 export const generateReportHtmlNode = async (
   state: FinanceReportGraphState,
@@ -36,14 +31,9 @@ export const generateReportHtmlNode = async (
 
   const deps = config?.configurable;
 
-  // 没有 LLM 模型时直接使用 fallback
+  // 检查 LLM 模型是否可用
   if (!deps?.getModel) {
-    const fallbackHtml = buildFallbackHtml(input);
-    return {
-      html: fallbackHtml,
-      htmlContext: input,
-      logs: ['节点七：未提供 LLM 模型，已使用 fallback HTML 模板生成报表。'],
-    };
+    throw new Error('节点七：未提供 LLM 模型，无法生成 HTML 报表');
   }
 
   try {
@@ -65,12 +55,7 @@ export const generateReportHtmlNode = async (
       logs: [trendLog],
     };
   } catch (err) {
-    const fallbackHtml = buildFallbackHtml(input);
-    const errorMsg = `节点七：LLM HTML 生成失败，已降级 fallback。错误：${getErrorMessage(err)}`;
-    return {
-      html: fallbackHtml,
-      htmlContext: input,
-      logs: [errorMsg],
-    };
+    const error = err instanceof Error ? err : new Error(String(err));
+    throw new Error(`节点七：LLM HTML 生成失败 - ${error.message}`);
   }
 };

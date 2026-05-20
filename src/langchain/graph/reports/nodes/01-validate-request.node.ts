@@ -26,7 +26,6 @@ export const validateRequestNode = (state: FinanceReportGraphState) => {
     comparisonAnalysis: request.options?.comparisonAnalysis ?? false,
     trendForecast: request.options?.trendForecast ?? false,
     chartEnabled: request.options?.chartEnabled ?? true, // 默认开启图表
-    aiInsight: request.options?.aiInsight ?? true, // 默认开启 AI 洞察
   };
 
   return {
