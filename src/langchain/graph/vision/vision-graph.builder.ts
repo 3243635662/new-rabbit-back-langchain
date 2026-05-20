@@ -8,6 +8,7 @@ import { VisionStateAnnotation } from './vision-state.annotation';
 import { buildDownloadNode } from '../nodes/download.node';
 import { buildNormalizeNode } from '../nodes/normalize.node';
 import { buildExtractNode } from '../nodes/extract.node';
+import { buildExtractDateNode } from '../nodes/extract-date.node';
 import { buildMergeNode } from '../nodes/merge.node';
 import { buildPersistNode } from '../nodes/persist.node';
 
@@ -24,12 +25,17 @@ export const buildVisionGraph = (deps: {
     .addNode('download', buildDownloadNode(deps.qiniuService))
     .addNode('normalize', buildNormalizeNode(deps.normalizerDeps))
     .addNode('extract', buildExtractNode(deps.modelProvider.getVisionModel))
+    .addNode(
+      'extract-date',
+      buildExtractDateNode(deps.modelProvider.getVisionModel),
+    )
     .addNode('merge', buildMergeNode())
     .addNode('persist', buildPersistNode(deps.repo))
     .addEdge(START, 'download')
     .addEdge('download', 'normalize')
     .addEdge('normalize', 'extract')
-    .addEdge('extract', 'merge')
+    .addEdge('extract', 'extract-date')
+    .addEdge('extract-date', 'merge')
     .addEdge('merge', 'persist')
     .addEdge('persist', END);
 

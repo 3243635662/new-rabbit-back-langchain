@@ -38,6 +38,12 @@ export const VisionStateAnnotation = Annotation.Root({
     reducer: (prev, next) => [...prev, ...(next || [])],
     default: () => [],
   }),
+
+  // LLM 提取的资源实际日期
+  extractedDate: Annotation<string | null>({
+    reducer: (_, next) => next,
+    default: () => null,
+  }),
 });
 // upgraded 标记是否已经升级过模型，避免无限循环。pageResults 用累积 reducer。
 export type VisionStateType = typeof VisionStateAnnotation.State;

@@ -1,8 +1,8 @@
 export type ReportChart = {
   id: string;
   title: string;
-  type: 'bar' | 'line' | 'pie';
-  echartsOption: any;
+  type: string; // 不限制图表类型，交给 LLM 自由发挥
+  echartsOption: unknown;
   description?: string;
 };
 

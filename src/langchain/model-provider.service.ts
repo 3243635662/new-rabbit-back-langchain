@@ -30,7 +30,9 @@ export class ModelProviderService {
       configuration: {
         baseURL: this.configService.get<string>('QINIU_DASHSCOPE_BASE_URL'),
       },
-      modelName: 'qwen/qwen3.5-35b-a3b',
+      modelName:
+        this.configService.get<string>('VISION_MODEL_NAME') ||
+        'qwen/qwen3.5-35b-a3b',
       streaming: false,
       modelKwargs: {
         thinking: {
@@ -39,16 +41,20 @@ export class ModelProviderService {
       },
     });
 
-    // 财务报告专业模型 (白山智算 DeepSeek-V3.2-EXP)
+    // 财务报告专业模型
     this.reportModel = new ChatOpenAI({
       apiKey: this.configService.get<string>('BAISHAN_DASHSCOPE_API_KEY'),
       configuration: {
         baseURL: this.configService.get<string>('BAISHAN_DASHSCOPE_BASE_URL'),
       },
       modelName:
-        this.configService.get<string>('REPORT_MODEL_NAME') ||
-        'DeepSeek-V3.2-EXP',
+        this.configService.get<string>('REPORT_MODEL_NAME') || 'MiniMax-M2.5',
       streaming: false,
+      modelKwargs: {
+        thinking: {
+          type: 'enabled',
+        },
+      },
     });
   }
 

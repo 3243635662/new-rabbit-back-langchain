@@ -5,6 +5,7 @@ export const visionExtractSchema = z.object({
   document_type: z.string().default('unknown'),
   summary: z.string().default(''),
   process_time: z.string().default(() => new Date().toISOString()),
+  document_date: z.string().nullable().default(null),
   structured_fields: z
     .array(
       z.object({

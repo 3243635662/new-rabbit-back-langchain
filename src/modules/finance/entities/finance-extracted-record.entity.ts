@@ -57,4 +57,11 @@ export class FinanceExtractedRecord {
     comment: '创建时间',
   })
   createdAt: Date;
+
+  @Column({
+    type: 'date',
+    nullable: true,
+    comment: 'LLM 提取的资源实际日期（用于报表按实际日期过滤）',
+  })
+  extractedDate: string | null;
 }

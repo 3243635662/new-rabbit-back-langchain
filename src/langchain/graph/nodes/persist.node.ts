@@ -31,15 +31,22 @@ export const buildPersistNode = (repo: Repository<FinanceExtractedRecord>) => {
       document_type: r.document_type || 'general_image',
       summary: r.summary || '',
       process_time: r.process_time || new Date().toISOString(),
+      document_date: r.document_date || null,
       structured_fields: r.structured_fields || [],
       confidence: avgConfidence,
     };
 
-    // ❌ 不再设置 fields，raw.structured_fields 已包含
+    // 提取 LLM 识别的资源实际日期
+    const extractedDate =
+      r.document_date && typeof r.document_date === 'string'
+        ? r.document_date.trim() || null
+        : null;
+
     const entity = repo.create({
       sourceFileId: state.sourceFileId,
       recordType: jsonOutput.document_type,
       raw: jsonOutput,
+      extractedDate,
     });
 
     await repo.save(entity);

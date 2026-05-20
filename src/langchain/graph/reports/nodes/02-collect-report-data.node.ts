@@ -1,4 +1,4 @@
-import { Between, Repository, ObjectLiteral } from 'typeorm';
+import { Between, IsNull, Repository, ObjectLiteral } from 'typeorm';
 import { Order } from '../../../../modules/order/entities/orders.entity';
 import { Inventory } from '../../../../modules/inventory/entities/inventory.entity';
 import { InventoryLog } from '../../../../modules/inventory/entities/inventory_logs.entity';
@@ -248,13 +248,21 @@ export const collectReportDataNode = async (
     if (queryInvoice || queryResource) {
       try {
         const recordRepository = getRepo(FinanceExtractedRecord);
+        // 优先按 extractedDate 过滤，未提取实际日期的按 createdAt 兜底
+        const startStr = start.toISOString().split('T')[0];
+        const endStr = end.toISOString().split('T')[0];
         const records = await recordRepository.find({
-          where: {
-            createdAt: Between(start, end),
-            sourceFile: {
-              merchantId,
+          where: [
+            {
+              extractedDate: Between(startStr, endStr),
+              sourceFile: { merchantId },
             },
-          },
+            {
+              extractedDate: IsNull(),
+              createdAt: Between(start, end),
+              sourceFile: { merchantId },
+            },
+          ],
           relations: ['sourceFile'],
         });
 
@@ -297,9 +305,10 @@ export const collectReportDataNode = async (
               getFieldValue(structuredFields, 'invoiceCode') ||
               '';
 
-            const invoiceDate =
-              getFieldValue(structuredFields, 'date') ||
-              record.createdAt.toISOString();
+            const invoiceDate = record.extractedDate
+              ? new Date(record.extractedDate + 'T00:00:00').toISOString()
+              : getFieldValue(structuredFields, 'date') ||
+                record.createdAt.toISOString();
 
             const totalAmount = Number(
               getFieldValue(structuredFields, 'totalAmount') ||
@@ -381,7 +390,9 @@ export const collectReportDataNode = async (
               return {
                 id: record.id,
                 recordType: record.recordType || 'general_image',
-                createdAt: record.createdAt.toISOString(),
+                createdAt: record.extractedDate
+                  ? new Date(record.extractedDate + 'T00:00:00').toISOString()
+                  : record.createdAt.toISOString(),
                 amount,
                 title,
                 structuredFields,

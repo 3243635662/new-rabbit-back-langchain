@@ -44,25 +44,22 @@ export class GenerateFinanceReportDto {
   @IsDateString()
   endDate: string;
 
-  // 数据范围（订单数据  库存数据 发票数据  合同数据以及recordType值为非invoice的数据  ）
+  // 数据范围（订单数据<包含销售>  库存数据 发票数据  合同数据以及recordType值为非invoice的数据  ）
   @IsArray()
   @ArrayMinSize(1)
   @IsIn(['order', 'inventory', 'invoice', 'finance_resource'], {
     each: true,
   })
-  dataScopes: Array<
-    'order' | 'sales' | 'inventory' | 'invoice' | 'finance_resource'
-  >;
+  dataScopes: Array<'order' | 'inventory' | 'invoice' | 'finance_resource'>;
 
-  // 报表类型
-  @IsIn([
-    'overview', // 财务总览报告（综合展示整体财务状况）
-    'profit', // 利润分析报告(分析收入、成本、利润、毛利率等)
-    'cost', // 成本费用分析 (分析成本结构和费用占比)
-    'sales', // 销售分析报告 （分析销售表现）
-    'cashflow', // 现金流量报告 (分析现金流入和现金流出)
-  ])
-  reportType: 'overview' | 'profit' | 'cost' | 'sales' | 'cashflow';
+  // 报告类型（可多选）
+  @IsArray()
+  @ArrayMinSize(1, { message: '至少选择一种报告类型' })
+  @IsIn(['overview', 'profit', 'cost', 'sales', 'cashflow'], {
+    each: true,
+    message: '报告类型无效',
+  })
+  reportTypes: Array<'overview' | 'profit' | 'cost' | 'sales' | 'cashflow'>;
 
   // 导出格式
   @IsString()

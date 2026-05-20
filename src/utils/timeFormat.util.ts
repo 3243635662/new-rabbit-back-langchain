@@ -26,20 +26,32 @@ export function getComparisonRange(
   let compareStartDate: dayjs.Dayjs;
   let compareEndDate: dayjs.Dayjs;
 
+  // 按选择跨度天数智能判断对比模式
   if (diffDays <= 7) {
+    // 天/周视图：前移 diffDays 天，保证对比区间与选择区间等长
+    // 例: 05-17~05-17(1天) → 05-16~05-16
+    // 例: 05-15~05-17(3天) → 05-12~05-14
+    // 例: 05-13~05-19(7天) → 05-06~05-12
     compareMode = 'day';
-    compareStartDate = start.subtract(1, 'day');
-    compareEndDate = end.subtract(1, 'day');
-  } else if (diffDays <= 30) {
+    compareStartDate = start.subtract(diffDays, 'day');
+    compareEndDate = end.subtract(diffDays, 'day');
+  } else if (diffDays <= 31) {
+    // 月视图：前 1 个完整日历月（用 startOf/endOf 自动补齐不确定天数）
+    // 例: 04-01~04-30 → 03-01~03-31（3月有31天，不会丢1天）
     compareMode = 'month';
-    // dayjs 自动处理 05-31 减一个月变成 04-30 的边界情况
-    compareStartDate = start.subtract(1, 'month');
-    compareEndDate = end.subtract(1, 'month');
-  } else {
+    compareStartDate = start.subtract(1, 'month').startOf('month');
+    compareEndDate = end.subtract(1, 'month').endOf('month');
+  } else if (diffDays <= 366) {
+    // 年视图：前 1 个完整日历年
+    // 例: 2026-01-01~2026-12-31 → 2025-01-01~2025-12-31
     compareMode = 'year';
-    // dayjs 同样会自动处理闰年 02-29 减一年变成 02-28 的情况
-    compareStartDate = start.subtract(1, 'year');
-    compareEndDate = end.subtract(1, 'year');
+    compareStartDate = start.subtract(1, 'year').startOf('year');
+    compareEndDate = end.subtract(1, 'year').endOf('year');
+  } else {
+    // 跨年
+    compareMode = 'year';
+    compareStartDate = start.subtract(1, 'year').startOf('year');
+    compareEndDate = end.subtract(1, 'year').endOf('year');
   }
 
   return {

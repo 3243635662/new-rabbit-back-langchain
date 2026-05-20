@@ -67,6 +67,13 @@ export class FinanceReport {
   reportMarkdown: string;
 
   @Column({
+    type: 'json',
+    nullable: true,
+    comment: '用户选择的报告类型列表，示例：["overview", "profit"]',
+  })
+  reportTypes: string[];
+
+  @Column({
     nullable: true,
     comment: 'PDF 文件在七牛云的 key，示例：finance/reports/12/1001/report.pdf',
   })
