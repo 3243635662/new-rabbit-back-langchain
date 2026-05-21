@@ -3,10 +3,11 @@ import {
   Post,
   Body,
   Req,
-  UseGuards,
   Sse,
   Param,
   Get,
+  Delete,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -15,13 +16,11 @@ import { RedisKeys } from '../../common/constants/redis-key.constant';
 import { GenerateFinanceReportDto } from './dto/generate-finance-report.dto';
 import { resFormatMethod } from '../../utils/resFormat.util';
 import { JwtPayloadType } from '../../types/auth.type';
-import { AuthGuard } from '../auth/auth.guard';
 import { ReportsService, SseEvent } from './reports.service';
 import { PaginateOptions } from '../../common/decorators/pagination.decorator';
 import type { PaginationOptionsType } from '../../types/pagination.type';
 
 @Controller('reports')
-@UseGuards(AuthGuard)
 export class ReportsController {
   constructor(
     @InjectQueue(RedisKeys.FINANCE.REPORT_QUEUE_NAME)
@@ -55,7 +54,7 @@ export class ReportsController {
       id: report.id,
       title: report.title,
       status: report.status,
-      pdfUrl: report.pdfUrl,
+      url: report.url,
       createdAt: report.createdAt,
       updatedAt: report.updatedAt,
       failReason: report.failReason,
@@ -81,13 +80,32 @@ export class ReportsController {
         id: r.id,
         title: r.title,
         status: r.status,
-        pdfUrl: r.pdfUrl,
+        url: r.url,
         createdAt: r.createdAt,
         updatedAt: r.updatedAt,
       })),
       total,
       page: paginationOptions.page,
       limit: paginationOptions.limit,
+    });
+  }
+
+  @Delete(':id')
+  async deleteReport(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: { user: JwtPayloadType },
+  ) {
+    const userContext = await this.reportsService.getUserContext(req.user.id);
+    const result = await this.reportsService.deleteReport(
+      id,
+      userContext.merchantId || 0,
+    );
+    if (!result.deleted) {
+      return resFormatMethod(1, '报表不存在或无权限删除', null);
+    }
+    return resFormatMethod(0, '报表删除成功', {
+      id,
+      title: result.reportTitle,
     });
   }
 

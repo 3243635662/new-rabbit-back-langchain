@@ -10,6 +10,7 @@ import { TaskProgressKeys } from '../../common/constants/redis-key.constant';
 import type { TaskProgressPayload } from '../../types/task-progress.type';
 import { FinanceReport } from './entities/finance-report.entity';
 import { FinanceReportProgressPhase } from '../../types/reports/report-status.type';
+import { QiniuService } from '../qiniu/qiniu.service';
 
 export interface SseEvent {
   data: unknown;
@@ -25,6 +26,7 @@ export class ReportsService {
     @InjectRepository(FinanceReport)
     private readonly financeReportRepo: Repository<FinanceReport>,
     private readonly redisService: RedisService,
+    private readonly qiniuService: QiniuService,
   ) {}
 
   // *根据用户 ID 获取用户上下文（用于报表生成）
@@ -65,6 +67,42 @@ export class ReportsService {
       skip: (page - 1) * limit,
       take: limit,
     });
+  };
+
+  /**
+   * 删除报告：先删七牛文件，再删数据库记录
+   */
+  deleteReport = async (
+    reportId: number,
+    merchantId: number,
+  ): Promise<{ deleted: boolean; reportTitle: string | null }> => {
+    const report = await this.financeReportRepo.findOne({
+      where: { id: reportId, merchantId },
+    });
+
+    if (!report) {
+      return { deleted: false, reportTitle: null };
+    }
+
+    const title = report.title;
+
+    if (report.qiniuKey) {
+      try {
+        await this.qiniuService.deleteFile(report.qiniuKey);
+        this.logger.log(`七牛文件删除成功: ${report.qiniuKey}`);
+      } catch (err) {
+        this.logger.error(
+          `七牛文件删除失败 [${report.qiniuKey}]: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+
+    await this.financeReportRepo.remove(report);
+    this.logger.log(
+      `报表记录删除成功 [id:${reportId}, merchantId:${merchantId}]`,
+    );
+
+    return { deleted: true, reportTitle: title };
   };
 
   /**

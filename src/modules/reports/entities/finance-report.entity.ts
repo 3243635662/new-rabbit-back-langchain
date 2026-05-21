@@ -77,30 +77,19 @@ export class FinanceReport {
   })
   reportTypes: string[];
 
+  /** 通用导出文件字段（支持 pdf / image / html） */
   @Column({
     nullable: true,
-    comment: 'PDF 文件在七牛云的 key，示例：finance/reports/12/1001/report.pdf',
+    comment: '导出文件在七牛云的 key，示例：finance/reports/12/1001/report.pdf',
   })
-  pdfQiniuKey: string;
-
-  @Column({
-    nullable: true,
-    comment: 'PDF 下载或访问地址，示例：https://cdn.xxx.com/.../report.pdf',
-  })
-  pdfUrl: string;
+  qiniuKey: string;
 
   @Column({
     nullable: true,
     comment:
-      'Word 文件在七牛云的 key，示例：finance/reports/12/1001/report.docx',
+      '导出文件下载或访问地址，支持 pdf/image/html，示例：https://cdn.xxx.com/.../report.pdf',
   })
-  wordQiniuKey: string;
-
-  @Column({
-    nullable: true,
-    comment: 'Word 下载或访问地址，示例：https://cdn.xxx.com/.../report.docx',
-  })
-  wordUrl: string;
+  url: string;
 
   @Column({
     nullable: true,

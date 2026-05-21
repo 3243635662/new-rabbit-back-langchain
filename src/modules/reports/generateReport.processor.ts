@@ -148,8 +148,8 @@ export class FinanceReportProcessor extends WorkerHost {
     // 更新数据库记录为已完成
     const updateData: Record<string, unknown> = {
       status: FinanceReportStatus.COMPLETED,
-      pdfUrl: reportUrl || undefined,
-      pdfQiniuKey: exportResult.key || undefined,
+      url: reportUrl || undefined,
+      qiniuKey: exportResult.key || undefined,
     };
     if (state.metrics) updateData['metrics'] = state.metrics;
     if (state.normalizedData)
