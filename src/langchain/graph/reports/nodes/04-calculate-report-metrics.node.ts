@@ -1,7 +1,10 @@
+import type { RunnableConfig } from '@langchain/core/runnables';
 import type { FinanceReportGraphState } from '../finance-report.annotation';
 import type { NormalizedReportData } from '../../../../types/reports/normalized-report-data.type';
 import type { ReportMetrics } from '../../../../types/reports/report-metrics.type';
 import type { ComparisonRange } from '../../../../types/reports/comparison-range.type';
+import { FinanceReportProgressPhase } from '../../../../types/reports/report-status.type';
+import type { FinanceReportNodeDeps } from '../../../../types/reports/finance-report-node-deps.type';
 
 const toNumber = (value: unknown, fallback = 0): number => {
   const n = Number(value ?? fallback);
@@ -417,59 +420,75 @@ const buildWarnings = (
   return Array.from(new Set(warnings));
 };
 
-export const calculateReportMetricsNode = (
-  state: FinanceReportGraphState,
-): Partial<FinanceReportGraphState> => {
-  if (!state.normalizedData) {
-    throw new Error('缺少 normalizedData，无法计算报表指标');
-  }
+export const buildCalculateReportMetricsNode = (
+  _deps: FinanceReportNodeDeps,
+) => {
+  void _deps; // intentionally unused – kept for interface consistency
+  return async (
+    state: FinanceReportGraphState,
+    config?: RunnableConfig,
+  ): Promise<Partial<FinanceReportGraphState>> => {
+    if (!state.normalizedData) {
+      throw new Error('缺少 normalizedData，无法计算报表指标');
+    }
 
-  const dataScopes = state.request?.dataScopes || [];
+    const pushProgress = config?.configurable?.pushProgress as
+      | ((progress: number, status: string, message: string) => Promise<void>)
+      | undefined;
 
-  // 当前区间指标
-  const currentOrderCount = state.rawData?.orders?.length || 0;
-  const metrics = calculateMetricsFromNormalizedData(
-    state.normalizedData,
-    currentOrderCount,
-  );
-
-  // 对比区间指标
-  if (
-    state.request?.options?.comparisonAnalysis &&
-    state.comparisonNormalizedData &&
-    state.comparisonRange
-  ) {
-    const comparisonOrderCount = state.comparisonRawData?.orders?.length || 0;
-    const comparisonMetrics = calculateMetricsFromNormalizedData(
-      state.comparisonNormalizedData,
-      comparisonOrderCount,
+    await pushProgress?.(
+      50,
+      FinanceReportProgressPhase.CALCULATING,
+      '正在计算财务指标...',
     );
-    metrics.comparison = buildComparison(
+
+    const dataScopes = state.request?.dataScopes || [];
+
+    // 当前区间指标
+    const currentOrderCount = state.rawData?.orders?.length || 0;
+    const metrics = calculateMetricsFromNormalizedData(
+      state.normalizedData,
+      currentOrderCount,
+    );
+
+    // 对比区间指标
+    if (
+      state.request?.options?.comparisonAnalysis &&
+      state.comparisonNormalizedData &&
+      state.comparisonRange
+    ) {
+      const comparisonOrderCount = state.comparisonRawData?.orders?.length || 0;
+      const comparisonMetrics = calculateMetricsFromNormalizedData(
+        state.comparisonNormalizedData,
+        comparisonOrderCount,
+      );
+      metrics.comparison = buildComparison(
+        metrics,
+        comparisonMetrics,
+        state.comparisonRange,
+      );
+    }
+
+    // 预警（传入 dataScopes 和 state，支持库存日志预警）
+    metrics.warnings = buildWarnings(metrics, dataScopes, state);
+
+    const logs = [
+      `报表核心指标计算完成：收入 ${metrics.totalRevenue}，成本 ${metrics.totalCost}，净利润 ${metrics.netProfit}`,
+    ];
+
+    if (metrics.comparison) {
+      logs.push(
+        `对比指标计算完成：收入变化率 ${metrics.comparison.totalRevenueChangeRate ?? 0}，净利润变化率 ${metrics.comparison.netProfitChangeRate ?? 0}`,
+      );
+    }
+
+    if (metrics.warnings.length > 0) {
+      logs.push(`生成 ${metrics.warnings.length} 条预警信息`);
+    }
+
+    return {
       metrics,
-      comparisonMetrics,
-      state.comparisonRange,
-    );
-  }
-
-  // 预警（传入 dataScopes 和 state，支持库存日志预警）
-  metrics.warnings = buildWarnings(metrics, dataScopes, state);
-
-  const logs = [
-    `报表核心指标计算完成：收入 ${metrics.totalRevenue}，成本 ${metrics.totalCost}，净利润 ${metrics.netProfit}`,
-  ];
-
-  if (metrics.comparison) {
-    logs.push(
-      `对比指标计算完成：收入变化率 ${metrics.comparison.totalRevenueChangeRate ?? 0}，净利润变化率 ${metrics.comparison.netProfitChangeRate ?? 0}`,
-    );
-  }
-
-  if (metrics.warnings.length > 0) {
-    logs.push(`生成 ${metrics.warnings.length} 条预警信息`);
-  }
-
-  return {
-    metrics,
-    logs,
+      logs,
+    };
   };
 };

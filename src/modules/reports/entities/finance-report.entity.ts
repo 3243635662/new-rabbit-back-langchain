@@ -12,6 +12,7 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { Merchant } from '../../merchant/entities/merchant.entity';
+import { FinanceReportStatus } from '../../../types/reports/report-status.type';
 
 @Entity('finance_report')
 export class FinanceReport {
@@ -35,9 +36,12 @@ export class FinanceReport {
   title: string;
 
   @Column({
+    type: 'enum',
+    enum: FinanceReportStatus,
+    default: FinanceReportStatus.PENDING,
     comment: '报告生成状态：pending / processing / completed / failed',
   })
-  status: string;
+  status: FinanceReportStatus;
 
   @Column({
     nullable: true,

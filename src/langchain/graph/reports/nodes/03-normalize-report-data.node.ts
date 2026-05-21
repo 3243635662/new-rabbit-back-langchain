@@ -1,10 +1,12 @@
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+import type { RunnableConfig } from '@langchain/core/runnables';
 import type { FinanceReportGraphState } from '../finance-report.annotation';
-import type { FinanceReportNodeDeps } from '../../../../types/reports/finance-report-node-deps.type';
+import { FinanceReportProgressPhase } from '../../../../types/reports/report-status.type';
 import type { ReportRawData } from '../../../../types/reports/report-raw-data.type';
 import type { NormalizedReportData } from '../../../../types/reports/normalized-report-data.type';
 import { normalizedReportDataSchema } from '../schemas/normalized-report.schema';
 import { buildNormalizeReportDataPrompt } from '../prompts/normalize-report-data.prompt';
+import type { FinanceReportNodeDeps } from '../../../../types/reports/finance-report-node-deps.type';
 
 const toNumber = (value: unknown, fallback = 0): number => {
   const n = Number(value ?? fallback);
@@ -475,45 +477,40 @@ const normalizeByLLM = async (
   }
 };
 
-export const normalizeReportDataNode = async (
-  state: FinanceReportGraphState,
-  config?: { configurable?: FinanceReportNodeDeps },
-): Promise<Partial<FinanceReportGraphState>> => {
-  if (!state.rawData) {
-    throw new Error('缺少 rawData，无法进行报表数据归一化');
-  }
+export const buildNormalizeReportDataNode = (deps: FinanceReportNodeDeps) => {
+  return async (
+    state: FinanceReportGraphState,
+    config?: RunnableConfig,
+  ): Promise<Partial<FinanceReportGraphState>> => {
+    if (!state.rawData) {
+      throw new Error('缺少 rawData，无法进行报表数据归一化');
+    }
 
-  const deps = config?.configurable;
-  const logs: string[] = [];
+    const pushProgress = config?.configurable?.pushProgress as
+      | ((progress: number, status: string, message: string) => Promise<void>)
+      | undefined;
+    const logs: string[] = [];
 
-  let normalizedData: NormalizedReportData;
+    let normalizedData: NormalizedReportData;
 
-  if (!deps?.getModel) {
-    normalizedData = normalizeReportRawDataByRule(state.rawData);
-    logs.push('未提供 LLM 模型，已使用规则归一化当前区间数据');
-  } else {
     try {
+      await pushProgress?.(
+        35,
+        FinanceReportProgressPhase.NORMALIZING,
+        '正在使用 AI 归一化报表数据...',
+      );
       normalizedData = await normalizeByLLM(state.rawData, state, deps);
       logs.push('当前区间数据已通过 LLM 完成智能归一化');
     } catch (err) {
       normalizedData = normalizeReportRawDataByRule(state.rawData);
       logs.push(
-        `当前区间 LLM 归一化失败，已使用规则归一化兜底：${
-          err instanceof Error ? err.message : String(err)
-        }`,
+        `当前区间 LLM 归一化失败，已使用规则归一化兜底：${err instanceof Error ? err.message : String(err)}`,
       );
     }
-  }
 
-  let comparisonNormalizedData: NormalizedReportData | undefined;
+    let comparisonNormalizedData: NormalizedReportData | undefined;
 
-  if (state.comparisonRawData) {
-    if (!deps?.getModel) {
-      comparisonNormalizedData = normalizeReportRawDataByRule(
-        state.comparisonRawData,
-      );
-      logs.push('未提供 LLM 模型，已使用规则归一化对比区间数据');
-    } else {
+    if (state.comparisonRawData) {
       try {
         comparisonNormalizedData = await normalizeByLLM(
           state.comparisonRawData,
@@ -526,17 +523,15 @@ export const normalizeReportDataNode = async (
           state.comparisonRawData,
         );
         logs.push(
-          `对比区间 LLM 归一化失败，已使用规则归一化兜底：${
-            err instanceof Error ? err.message : String(err)
-          }`,
+          `对比区间 LLM 归一化失败，已使用规则归一化兜底：${err instanceof Error ? err.message : String(err)}`,
         );
       }
     }
-  }
 
-  return {
-    normalizedData,
-    comparisonNormalizedData,
-    logs,
+    return {
+      normalizedData,
+      comparisonNormalizedData,
+      logs,
+    };
   };
 };

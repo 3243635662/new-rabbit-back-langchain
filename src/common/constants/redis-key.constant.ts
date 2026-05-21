@@ -395,6 +395,20 @@ export const RedisKeys = {
       `finance:source:progress:data:${taskId}`,
 
     /**
+     * 财务报表生成进度 Pub/Sub 频道
+     * @param taskId BullMQ 任务 ID
+     */
+    getReportProgressChannel: (taskId: string) =>
+      `finance:report:progress:${taskId}`,
+
+    /**
+     * 财务报表生成进度数据缓存（SSE 先读后订）
+     * @param taskId BullMQ 任务 ID
+     */
+    getReportProgressDataKey: (taskId: string) =>
+      `finance:report:progress:data:${taskId}`,
+
+    /**
      * 财务资源列表缓存（分页）
      * 格式：finance:source:list:{merchantId}:{page}:{limit}:{keyword}:{sourceType}:{startTime}:{endTime}
      * @param merchantId 商户 ID
@@ -529,5 +543,9 @@ export const TaskProgressKeys = {
   FINANCE_SOURCE: {
     getProgressChannel: RedisKeys.FINANCE.getProgressChannel,
     getProgressDataKey: RedisKeys.FINANCE.getProgressDataKey,
+  },
+  FINANCE_REPORT: {
+    getProgressChannel: RedisKeys.FINANCE.getReportProgressChannel,
+    getProgressDataKey: RedisKeys.FINANCE.getReportProgressDataKey,
   },
 } as const satisfies Record<string, TaskProgressRedisKeySet>;

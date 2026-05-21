@@ -1,10 +1,12 @@
+import type { RunnableConfig } from '@langchain/core/runnables';
 import type { FinanceReportGraphState } from '../finance-report.annotation';
-import type { FinanceReportNodeDeps } from '../../../../types/reports/finance-report-node-deps.type';
 import type { ReportNarrative } from '../../../../types/reports/report-narrative.type';
 import { generateReportNarrativePrompt } from '../prompts/generate-report-narrative.prompt';
 import { LLMReportNarrativeSchema } from '../schemas/report-narrative.schema';
 import { buildNarrativeLLMInput } from '../utils/narrative-input.util';
 import { sanitizeNarrative } from '../utils/narrative-sanitize.util';
+import type { FinanceReportNodeDeps } from '../../../../types/reports/finance-report-node-deps.type';
+import { FinanceReportProgressPhase } from '../../../../types/reports/report-status.type';
 
 /* ---------- 辅助函数 ---------- */
 
@@ -71,33 +73,39 @@ const generateNarrativeByLLM = async (
  * 输出：state.narrative (ReportNarrative)
  * 异常：LLM 不可用或生成失败时将直接抛出错误
  */
-export const generateReportNarrativeNode = async (
-  state: FinanceReportGraphState,
-  config?: { configurable?: FinanceReportNodeDeps },
-): Promise<Partial<FinanceReportGraphState>> => {
-  if (!state.metrics) {
-    throw new Error('缺少报表指标数据，无法生成报表解读');
-  }
+export const buildGenerateReportNarrativeNode = (
+  deps: FinanceReportNodeDeps,
+) => {
+  return async (
+    state: FinanceReportGraphState,
+    config?: RunnableConfig,
+  ): Promise<Partial<FinanceReportGraphState>> => {
+    if (!state.metrics) {
+      throw new Error('缺少报表指标数据，无法生成报表解读');
+    }
 
-  if (!state.normalizedData) {
-    throw new Error('缺少归一化报表数据，无法生成报表解读');
-  }
+    if (!state.normalizedData) {
+      throw new Error('缺少归一化报表数据，无法生成报表解读');
+    }
 
-  const deps = config?.configurable;
+    const pushProgress = config?.configurable?.pushProgress as
+      | ((progress: number, status: string, message: string) => Promise<void>)
+      | undefined;
 
-  // 检查 LLM 模型是否可用
-  if (!deps?.getModel) {
-    throw new Error('节点六：未提供 LLM 模型，无法生成报表文字解读');
-  }
-
-  try {
-    const narrative = await generateNarrativeByLLM(state, deps);
-    return {
-      narrative,
-      logs: ['AI 报表文字解读生成完成'],
-    };
-  } catch (err) {
-    const error = err instanceof Error ? err : new Error(String(err));
-    throw new Error(`节点六：AI 报表文字解读生成失败 - ${error.message}`);
-  }
+    try {
+      await pushProgress?.(
+        80,
+        FinanceReportProgressPhase.GENERATING_NARRATIVE,
+        '正在使用 AI 生成报表分析文本...',
+      );
+      const narrative = await generateNarrativeByLLM(state, deps);
+      return {
+        narrative,
+        logs: ['AI 报表文字解读生成完成'],
+      };
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      throw new Error(`节点六：AI 报表文字解读生成失败 - ${error.message}`);
+    }
+  };
 };

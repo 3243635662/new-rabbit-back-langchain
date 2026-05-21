@@ -1,5 +1,5 @@
+import type { RunnableConfig } from '@langchain/core/runnables';
 import type { FinanceReportGraphState } from '../finance-report.annotation';
-import type { FinanceReportNodeDeps } from '../../../../types/reports/finance-report-node-deps.type';
 import { buildFullReportHtmlInput } from '../utils/html-input.util';
 import { buildGenerateReportHtmlPrompt } from '../prompts/generate-report-html.prompt';
 import {
@@ -7,6 +7,8 @@ import {
   validateGeneratedHtml,
   sanitizeGeneratedHtml,
 } from '../utils/html-sanitize.util';
+import type { FinanceReportNodeDeps } from '../../../../types/reports/finance-report-node-deps.type';
+import { FinanceReportProgressPhase } from '../../../../types/reports/report-status.type';
 
 /**
  * 节点七：根据全量报表数据生成完整 HTML 报表
@@ -22,40 +24,44 @@ import {
  * 输出：state.html, state.htmlContext, state.logs
  * 异常：LLM 不可用或生成失败时将直接抛出错误
  */
-export const generateReportHtmlNode = async (
-  state: FinanceReportGraphState,
-  config?: { configurable?: FinanceReportNodeDeps },
-): Promise<Partial<FinanceReportGraphState>> => {
-  const input = buildFullReportHtmlInput(state);
-  const trendForecast = state.request?.options?.trendForecast ?? false;
+export const buildGenerateReportHtmlNode = (deps: FinanceReportNodeDeps) => {
+  return async (
+    state: FinanceReportGraphState,
+    config?: RunnableConfig,
+  ): Promise<Partial<FinanceReportGraphState>> => {
+    const input = buildFullReportHtmlInput(state);
+    const trendForecast = state.request?.options?.trendForecast ?? false;
 
-  const deps = config?.configurable;
+    const pushProgress = config?.configurable?.pushProgress as
+      | ((progress: number, status: string, message: string) => Promise<void>)
+      | undefined;
 
-  // 检查 LLM 模型是否可用
-  if (!deps?.getModel) {
-    throw new Error('节点七：未提供 LLM 模型，无法生成 HTML 报表');
-  }
+    try {
+      const model = deps.getModel();
+      const prompt = buildGenerateReportHtmlPrompt(input);
 
-  try {
-    const model = deps.getModel();
-    const prompt = buildGenerateReportHtmlPrompt(input);
+      await pushProgress?.(
+        90,
+        FinanceReportProgressPhase.GENERATING_HTML,
+        '正在使用 AI 生成 HTML 报表...',
+      );
+      const response = await model.invoke(prompt);
+      const rawHtml = extractHtmlFromModelResponse(response);
+      const validatedHtml = validateGeneratedHtml(rawHtml);
+      const sanitizedHtml = sanitizeGeneratedHtml(validatedHtml);
 
-    const response = await model.invoke(prompt);
-    const rawHtml = extractHtmlFromModelResponse(response);
-    const validatedHtml = validateGeneratedHtml(rawHtml);
-    const sanitizedHtml = sanitizeGeneratedHtml(validatedHtml);
+      const trendLog = trendForecast
+        ? '节点七：LLM 已生成完整 HTML 报表（含趋势预测分析）。'
+        : '节点七：LLM 已生成完整 HTML 报表。';
 
-    const trendLog = trendForecast
-      ? '节点七：LLM 已生成完整 HTML 报表（含趋势预测分析）。'
-      : '节点七：LLM 已生成完整 HTML 报表。';
-
-    return {
-      html: sanitizedHtml,
-      htmlContext: input,
-      logs: [trendLog],
-    };
-  } catch (err) {
-    const error = err instanceof Error ? err : new Error(String(err));
-    throw new Error(`节点七：LLM HTML 生成失败 - ${error.message}`);
-  }
+      return {
+        html: sanitizedHtml,
+        htmlContext: input,
+        logs: [trendLog],
+      };
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      throw new Error(`节点七：LLM HTML 生成失败 - ${error.message}`);
+    }
+  };
 };
