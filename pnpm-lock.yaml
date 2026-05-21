@@ -22,7 +22,7 @@ importers:
         version: 0.1.9
       '@langchain/community':
         specifier: ^1.1.27
-        version: 1.1.27(@browserbasehq/sdk@2.10.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.59.1)(deepmerge@4.3.1)(dotenv@17.2.3)(openai@6.34.0(ws@8.20.0)(zod@4.3.6))(zod@4.3.6))(@huggingface/transformers@3.8.1)(@ibm-cloud/watsonx-ai@1.7.11(typescript@5.9.3))(@langchain/core@1.1.40(openai@6.34.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0))(chromadb@3.4.3)(d3-dsv@3.0.1)(ibm-cloud-sdk-core@5.4.11)(ignore@7.0.5)(ioredis@5.10.1)(jsonwebtoken@9.0.3)(lodash@4.17.23)(mammoth@1.12.0)(mysql2@3.20.0(@types/node@22.19.15))(openai@6.34.0(ws@8.20.0)(zod@4.3.6))(pdf-parse@1.1.4)(pg@8.20.0)(playwright@1.59.1)(typeorm@0.3.28(ioredis@5.10.1)(mysql2@3.20.0(@types/node@22.19.15))(pg@8.20.0)(ts-node@10.9.2(@types/node@22.19.15)(typescript@5.9.3)))(ws@8.20.0)
+        version: 1.1.27(@browserbasehq/sdk@2.10.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.59.1)(deepmerge@4.3.1)(dotenv@17.2.3)(openai@6.34.0(ws@8.20.0)(zod@4.3.6))(zod@4.3.6))(@huggingface/transformers@3.8.1)(@ibm-cloud/watsonx-ai@1.7.11(typescript@5.9.3))(@langchain/core@1.1.40(openai@6.34.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0))(chromadb@3.4.3)(d3-dsv@3.0.1)(ibm-cloud-sdk-core@5.4.11)(ignore@7.0.5)(ioredis@5.10.1)(jsonwebtoken@9.0.3)(lodash@4.17.23)(mammoth@1.12.0)(mysql2@3.20.0(@types/node@22.19.15))(openai@6.34.0(ws@8.20.0)(zod@4.3.6))(pdf-parse@1.1.4)(pg@8.20.0)(playwright@1.60.0)(typeorm@0.3.28(ioredis@5.10.1)(mysql2@3.20.0(@types/node@22.19.15))(pg@8.20.0)(ts-node@10.9.2(@types/node@22.19.15)(typescript@5.9.3)))(ws@8.20.0)
       '@langchain/core':
         specifier: ^1.1.40
         version: 1.1.40(openai@6.34.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0)
@@ -119,6 +119,9 @@ importers:
       pg:
         specifier: ^8.20.0
         version: 8.20.0
+      playwright:
+        specifier: ^1.60.0
+        version: 1.60.0
       qiniu:
         specifier: ^7.15.1
         version: 7.15.1
@@ -4123,8 +4126,18 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
+  playwright-core@1.60.0:
+    resolution: {integrity: sha512-9bW6zvX/m0lEbgTKJ6YppOKx8H3VOPBMOCFh2irXFOT4BbHgrx5hPjwJYLT40Lu+4qtD36qKc/Hn56StUW57IA==}
+    engines: {node: '>=18'}
+    hasBin: true
+
   playwright@1.59.1:
     resolution: {integrity: sha512-C8oWjPR3F81yljW9o5OxcWzfh6avkVwDD2VYdwIGqTkl+OGFISgypqzfu7dOe4QNLL2aqcWBmI3PMtLIK233lw==}
+    engines: {node: '>=18'}
+    hasBin: true
+
+  playwright@1.60.0:
+    resolution: {integrity: sha512-hheHdokM8cdqCb0lcE3s+zT4t4W+vvjpGxsZlDnikarzx8tSzMebh3UiFtgqwFwnTnjYQcsyMF8ei2mCO/tpeA==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -6006,7 +6019,7 @@ snapshots:
       - openai
       - ws
 
-  '@langchain/community@1.1.27(@browserbasehq/sdk@2.10.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.59.1)(deepmerge@4.3.1)(dotenv@17.2.3)(openai@6.34.0(ws@8.20.0)(zod@4.3.6))(zod@4.3.6))(@huggingface/transformers@3.8.1)(@ibm-cloud/watsonx-ai@1.7.11(typescript@5.9.3))(@langchain/core@1.1.40(openai@6.34.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0))(chromadb@3.4.3)(d3-dsv@3.0.1)(ibm-cloud-sdk-core@5.4.11)(ignore@7.0.5)(ioredis@5.10.1)(jsonwebtoken@9.0.3)(lodash@4.17.23)(mammoth@1.12.0)(mysql2@3.20.0(@types/node@22.19.15))(openai@6.34.0(ws@8.20.0)(zod@4.3.6))(pdf-parse@1.1.4)(pg@8.20.0)(playwright@1.59.1)(typeorm@0.3.28(ioredis@5.10.1)(mysql2@3.20.0(@types/node@22.19.15))(pg@8.20.0)(ts-node@10.9.2(@types/node@22.19.15)(typescript@5.9.3)))(ws@8.20.0)':
+  '@langchain/community@1.1.27(@browserbasehq/sdk@2.10.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.59.1)(deepmerge@4.3.1)(dotenv@17.2.3)(openai@6.34.0(ws@8.20.0)(zod@4.3.6))(zod@4.3.6))(@huggingface/transformers@3.8.1)(@ibm-cloud/watsonx-ai@1.7.11(typescript@5.9.3))(@langchain/core@1.1.40(openai@6.34.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0))(chromadb@3.4.3)(d3-dsv@3.0.1)(ibm-cloud-sdk-core@5.4.11)(ignore@7.0.5)(ioredis@5.10.1)(jsonwebtoken@9.0.3)(lodash@4.17.23)(mammoth@1.12.0)(mysql2@3.20.0(@types/node@22.19.15))(openai@6.34.0(ws@8.20.0)(zod@4.3.6))(pdf-parse@1.1.4)(pg@8.20.0)(playwright@1.60.0)(typeorm@0.3.28(ioredis@5.10.1)(mysql2@3.20.0(@types/node@22.19.15))(pg@8.20.0)(ts-node@10.9.2(@types/node@22.19.15)(typescript@5.9.3)))(ws@8.20.0)':
     dependencies:
       '@browserbasehq/stagehand': 1.14.0(@playwright/test@1.59.1)(deepmerge@4.3.1)(dotenv@17.2.3)(openai@6.34.0(ws@8.20.0)(zod@4.3.6))(zod@4.3.6)
       '@ibm-cloud/watsonx-ai': 1.7.11(typescript@5.9.3)
@@ -6035,7 +6048,7 @@ snapshots:
       mysql2: 3.20.0(@types/node@22.19.15)
       pdf-parse: 1.1.4
       pg: 8.20.0
-      playwright: 1.59.1
+      playwright: 1.60.0
       typeorm: 0.3.28(ioredis@5.10.1)(mysql2@3.20.0(@types/node@22.19.15))(pg@8.20.0)(ts-node@10.9.2(@types/node@22.19.15)(typescript@5.9.3))
       ws: 8.20.0
     transitivePeerDependencies:
@@ -9025,9 +9038,17 @@ snapshots:
 
   playwright-core@1.59.1: {}
 
+  playwright-core@1.60.0: {}
+
   playwright@1.59.1:
     dependencies:
       playwright-core: 1.59.1
+    optionalDependencies:
+      fsevents: 2.3.2
+
+  playwright@1.60.0:
+    dependencies:
+      playwright-core: 1.60.0
     optionalDependencies:
       fsevents: 2.3.2
 

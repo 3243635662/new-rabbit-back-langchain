@@ -29,7 +29,6 @@ import { QiniuModule } from './modules/qiniu/qiniu.module';
 import { KnowledgeBaseModule } from './modules/knowledge-base/knowledge-base.module';
 import { BullModule } from '@nestjs/bullmq';
 import { FinanceModule } from './modules/finance/finance.module';
-import { ReportsService } from './modules/reports/reports.service';
 import { ReportsModule } from './modules/reports/reports.module';
 import Redis from 'ioredis';
 @Module({
@@ -90,7 +89,6 @@ import Redis from 'ioredis';
   controllers: [AppController],
   providers: [
     AppService,
-    ReportsService,
 
     // {
     //   provide: APP_GUARD,

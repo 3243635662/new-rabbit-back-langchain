@@ -232,4 +232,53 @@ export class QiniuService {
       fileStream,
     );
   };
+
+  /**
+   * 服务端直传 Buffer 到七牛云（用于上传生成的报告等）
+   * @param buffer 文件内容
+   * @param key 七牛云存储路径（完整 key，含前缀和文件名）
+   * @param mimeType 文件 MIME 类型
+   * @returns 上传后的公开访问 URL
+   */
+  uploadBuffer = (
+    buffer: Buffer,
+    key: string,
+    mimeType: string,
+  ): Promise<string> => {
+    const putPolicy = new qiniu.rs.PutPolicy({
+      scope: this.bucket,
+    });
+    const uploadToken = putPolicy.uploadToken(this.mac);
+
+    const putExtra = new qiniu.form_up.PutExtra();
+    if (mimeType) {
+      putExtra.mimeType = mimeType;
+    }
+
+    const readable = Readable.from(buffer);
+
+    return new Promise((resolve, reject) => {
+      const formUploader = new qiniu.form_up.FormUploader(
+        new qiniu.conf.Config(),
+      );
+      void formUploader.putStream(
+        uploadToken,
+        key,
+        readable,
+        putExtra,
+        (err, _respBody, respInfo) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          const info = respInfo as { statusCode: number };
+          if (info.statusCode !== 200) {
+            reject(new Error(`七牛上传失败，状态码: ${info.statusCode}`));
+            return;
+          }
+          resolve(this.buildUrl(key));
+        },
+      );
+    });
+  };
 }

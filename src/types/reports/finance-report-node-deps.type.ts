@@ -8,5 +8,18 @@ export type FinanceReportNodeDeps = {
   invoiceRepo?: any;
   financeRecordRepo?: any;
 
-  qiniuService?: any;
+  /** 七牛云上传服务 */
+  qiniuService?: {
+    uploadBuffer: (
+      buffer: Buffer,
+      key: string,
+      mimeType: string,
+    ) => Promise<string>;
+  };
+
+  /** Playwright 渲染服务（PDF/图片导出） */
+  reportRenderService?: {
+    htmlToPdfBuffer: (html: string) => Promise<Buffer>;
+    htmlToImageBuffer: (html: string) => Promise<Buffer>;
+  };
 };

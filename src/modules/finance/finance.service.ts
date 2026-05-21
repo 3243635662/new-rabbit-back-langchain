@@ -18,6 +18,7 @@ import {
   RedisKeys,
   TaskProgressKeys,
 } from '../../common/constants/redis-key.constant';
+import { QINIU_KEY_PREFIX } from '../../common/constants/qiniuKeyPrefix';
 import {
   FINANCE_ALLOWED_MIME_MAP,
   FINANCE_UPLOAD_MIME_LIMIT,
@@ -83,7 +84,7 @@ export class FinanceService {
     }
 
     const merchantId = merchant.id.toString();
-    const keyPrefix = `finance/raw/${merchantId}`;
+    const keyPrefix = QINIU_KEY_PREFIX.FINANCE(merchantId);
     return this.qiniuService.generatePresign(
       keyPrefix,
       fileName,

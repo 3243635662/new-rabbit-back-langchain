@@ -12,14 +12,16 @@ const SYSTEM_PROMPT = `你是一个专业的财务文档日期识别助手。
 
 export const buildExtractDateNode = (getModel: () => BaseChatModel) => {
   return async (state: VisionStateType) => {
-    const merged = state.merged;
-    if (!merged) {
+    // extract-date 在 merge 之前执行，应读取最新的 pageResult 而非 state.merged
+    const latestResult = state.pageResults?.[state.pageResults.length - 1];
+    if (!latestResult) {
       return { extractedDate: null };
     }
+    const data = latestResult.data;
 
     // 优先使用结构化字段中识别出的日期
-    const fields = Array.isArray(merged.structured_fields)
-      ? merged.structured_fields
+    const fields = Array.isArray(data.structured_fields)
+      ? data.structured_fields
       : [];
     const dateField = fields.find(
       (f) =>
@@ -35,10 +37,10 @@ export const buildExtractDateNode = (getModel: () => BaseChatModel) => {
       }
     }
 
-    // 兜底：调用 LLM 从 raw 中识别
+    // 兜底：调用 LLM 从 data 中识别
     try {
       const model = getModel();
-      const raw = state.merged ? JSON.stringify(state.merged) : '';
+      const raw = JSON.stringify(data);
       const response = await model.invoke([
         new SystemMessage(SYSTEM_PROMPT),
         new HumanMessage(`请识别以下文档解析结果中的实际业务日期：\n${raw}`),

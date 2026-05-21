@@ -75,6 +75,7 @@ function normalizeRawOutput(
     document_type: documentType,
     summary,
     process_time: processTime,
+    document_date: null,
     structured_fields: structuredFields,
   };
 }

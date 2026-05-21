@@ -19,6 +19,7 @@ import {
   RedisKeys,
   TaskProgressKeys,
 } from '../../common/constants/redis-key.constant';
+import { QINIU_KEY_PREFIX } from '../../common/constants/qiniuKeyPrefix';
 import type { PresignResult, ConfirmBody } from '../../types/file.type';
 import type { TaskProgressPayload } from '../../types/task-progress.type';
 
@@ -59,7 +60,7 @@ export class KnowledgeBaseService {
     }
 
     const merchantId = merchant.id.toString();
-    const keyPrefix = `rag/raw/${merchantId}`;
+    const keyPrefix = QINIU_KEY_PREFIX.RAG(merchantId);
     return this.qiniuService.generatePresign(keyPrefix, fileName);
   };
 

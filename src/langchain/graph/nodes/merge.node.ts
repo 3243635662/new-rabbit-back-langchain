@@ -41,6 +41,7 @@ export const buildMergeNode = () => {
         .filter(Boolean)
         .join('\n'),
       process_time: new Date().toISOString(),
+      document_date: null,
       structured_fields: mergedFields,
     };
 
