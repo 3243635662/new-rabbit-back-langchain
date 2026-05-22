@@ -80,6 +80,7 @@ export const buildGenerateReportNarrativeNode = (
     state: FinanceReportGraphState,
     config?: RunnableConfig,
   ): Promise<Partial<FinanceReportGraphState>> => {
+    console.log('[Node 6] 进入节点：生成报表文字解读');
     if (!state.metrics) {
       throw new Error('缺少报表指标数据，无法生成报表解读');
     }
@@ -99,6 +100,7 @@ export const buildGenerateReportNarrativeNode = (
         '正在使用 AI 生成报表分析文本...',
       );
       const narrative = await generateNarrativeByLLM(state, deps);
+      console.log('[Node 6] 离开节点，返回数据');
       return {
         narrative,
         logs: ['AI 报表文字解读生成完成'],

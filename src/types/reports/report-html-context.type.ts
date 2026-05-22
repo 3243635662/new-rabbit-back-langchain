@@ -6,7 +6,10 @@ import { ReportNarrative } from './report-narrative.type';
 export type ReportHtmlContext = {
   request: GenerateFinanceReportDto;
   title: string;
+  generatedAt?: string;
+  normalizedData?: unknown;
   metrics: ReportMetrics;
-  chartResult: ReportChartResult;
+  chartResult?: ReportChartResult;
+  rawChartJson?: string;
   narrative: ReportNarrative;
 };

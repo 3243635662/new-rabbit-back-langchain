@@ -1,6 +1,6 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Job } from 'bullmq';
-import { Injectable, Logger } from '@nestjs/common';
+import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
+import { Job, Queue } from 'bullmq';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TaskProgressKeys } from '../../common/constants/redis-key.constant';
@@ -54,7 +54,7 @@ const buildReportTitle = (request: GenerateFinanceReportDto): string => {
   // 每 30 秒检测一次 stalled，尽早续期
   stalledInterval: 30_000,
 })
-export class FinanceReportProcessor extends WorkerHost {
+export class FinanceReportProcessor extends WorkerHost implements OnModuleInit {
   private readonly logger = new Logger(FinanceReportProcessor.name);
   private readonly compiledGraph: ReturnType<typeof buildFinanceReportGraph>;
 
@@ -72,6 +72,8 @@ export class FinanceReportProcessor extends WorkerHost {
     private readonly financeRecordRepo: Repository<FinanceExtractedRecord>,
     @InjectRepository(FinanceReport)
     private readonly financeReportRepo: Repository<FinanceReport>,
+    @InjectQueue('finance-report-queue')
+    private readonly financeQueue: Queue,
   ) {
     super();
     this.compiledGraph = buildFinanceReportGraph({
@@ -82,6 +84,20 @@ export class FinanceReportProcessor extends WorkerHost {
       qiniuService: this.qiniuService,
       reportRenderService: this.reportRenderService,
     });
+  }
+
+  /** 启动时清空并重置队列 */
+  async onModuleInit() {
+    try {
+      await this.financeQueue.obliterate({ force: true });
+      this.logger.log('✅ 启动时已清空并重置报表生成队列');
+    } catch (err) {
+      this.logger.warn(
+        `⚠️ 启动时清空队列失败（可能队列尚不存在）：${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 
   override process = async (job: Job<ReportJobData>): Promise<void> => {
@@ -144,6 +160,7 @@ export class FinanceReportProcessor extends WorkerHost {
         { request, user: userContext, logs: [] },
         { configurable: { pushProgress, extendLock } },
       );
+      this.logger.log(`[taskId:${job.id}] LangGraph 工作流执行完毕`);
 
       await this.finishReport(job, state);
     } catch (error) {

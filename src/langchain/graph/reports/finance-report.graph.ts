@@ -13,15 +13,64 @@ import { buildExportReportNode } from './nodes/08-export-report.node';
 import type { FinanceReportNodeDeps } from '../../../types/reports/finance-report-node-deps.type';
 
 export const buildFinanceReportGraph = (deps: FinanceReportNodeDeps) => {
+  const wrapNode = <T extends string>(
+    name: T,
+    fn: (state: unknown, config?: unknown) => Promise<unknown>,
+  ) => {
+    return async (state: unknown, config?: unknown): Promise<unknown> => {
+      console.log(`[Graph] 开始执行节点: ${name}`);
+      const startTime = Date.now();
+      try {
+        const result = await fn(state, config);
+        console.log(
+          `[Graph] 节点执行完成: ${name}，耗时 ${Date.now() - startTime}ms`,
+        );
+        return result;
+      } catch (err) {
+        console.error(
+          `[Graph] 节点执行失败: ${name}，耗时 ${Date.now() - startTime}ms，错误: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        throw err;
+      }
+    };
+  };
+
   const workflow = new StateGraph(FinanceReportStateAnnotation)
-    .addNode('validateRequest', buildValidateRequestNode(deps))
-    .addNode('collectReportData', buildCollectReportDataNode(deps))
-    .addNode('normalizeReportData', buildNormalizeReportDataNode(deps))
-    .addNode('calculateReportMetrics', buildCalculateReportMetricsNode(deps))
-    .addNode('buildReportCharts', buildReportChartsNode(deps))
-    .addNode('generateReportNarrative', buildGenerateReportNarrativeNode(deps))
-    .addNode('generateReportHtml', buildGenerateReportHtmlNode(deps))
-    .addNode('exportReport', buildExportReportNode(deps))
+    .addNode(
+      'validateRequest',
+      wrapNode('validateRequest', buildValidateRequestNode(deps)),
+    )
+    .addNode(
+      'collectReportData',
+      wrapNode('collectReportData', buildCollectReportDataNode(deps)),
+    )
+    .addNode(
+      'normalizeReportData',
+      wrapNode('normalizeReportData', buildNormalizeReportDataNode(deps)),
+    )
+    .addNode(
+      'calculateReportMetrics',
+      wrapNode('calculateReportMetrics', buildCalculateReportMetricsNode(deps)),
+    )
+    .addNode(
+      'buildReportCharts',
+      wrapNode('buildReportCharts', buildReportChartsNode(deps)),
+    )
+    .addNode(
+      'generateReportNarrative',
+      wrapNode(
+        'generateReportNarrative',
+        buildGenerateReportNarrativeNode(deps),
+      ),
+    )
+    .addNode(
+      'generateReportHtml',
+      wrapNode('generateReportHtml', buildGenerateReportHtmlNode(deps)),
+    )
+    .addNode(
+      'exportReport',
+      wrapNode('exportReport', buildExportReportNode(deps)),
+    )
     .addEdge(START, 'validateRequest')
     .addEdge('validateRequest', 'collectReportData')
     .addEdge('collectReportData', 'normalizeReportData')

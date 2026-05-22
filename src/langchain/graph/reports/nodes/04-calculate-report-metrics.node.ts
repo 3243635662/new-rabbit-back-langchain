@@ -428,6 +428,7 @@ export const buildCalculateReportMetricsNode = (
     state: FinanceReportGraphState,
     config?: RunnableConfig,
   ): Promise<Partial<FinanceReportGraphState>> => {
+    console.log('[Node 4] 进入节点：计算报表指标');
     if (!state.normalizedData) {
       throw new Error('缺少 normalizedData，无法计算报表指标');
     }
@@ -486,6 +487,7 @@ export const buildCalculateReportMetricsNode = (
       logs.push(`生成 ${metrics.warnings.length} 条预警信息`);
     }
 
+    console.log('[Node 4] 离开节点，返回数据');
     return {
       metrics,
       logs,

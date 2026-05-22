@@ -29,6 +29,7 @@ export const buildGenerateReportHtmlNode = (deps: FinanceReportNodeDeps) => {
     state: FinanceReportGraphState,
     config?: RunnableConfig,
   ): Promise<Partial<FinanceReportGraphState>> => {
+    console.log('[Node 7] 进入节点：生成 HTML 报表');
     const input = buildFullReportHtmlInput(state);
     const trendForecast = state.request?.options?.trendForecast ?? false;
 
@@ -54,6 +55,7 @@ export const buildGenerateReportHtmlNode = (deps: FinanceReportNodeDeps) => {
         ? '节点七：LLM 已生成完整 HTML 报表（含趋势预测分析）。'
         : '节点七：LLM 已生成完整 HTML 报表。';
 
+      console.log('[Node 7] 离开节点，返回数据');
       return {
         html: sanitizedHtml,
         htmlContext: input,

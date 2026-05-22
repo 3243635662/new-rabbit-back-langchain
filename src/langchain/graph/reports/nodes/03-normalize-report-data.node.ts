@@ -482,6 +482,7 @@ export const buildNormalizeReportDataNode = (deps: FinanceReportNodeDeps) => {
     state: FinanceReportGraphState,
     config?: RunnableConfig,
   ): Promise<Partial<FinanceReportGraphState>> => {
+    console.log('[Node 3] 进入节点：归一化报表数据');
     if (!state.rawData) {
       throw new Error('缺少 rawData，无法进行报表数据归一化');
     }
@@ -528,6 +529,7 @@ export const buildNormalizeReportDataNode = (deps: FinanceReportNodeDeps) => {
       }
     }
 
+    console.log('[Node 3] 离开节点，返回数据');
     return {
       normalizedData,
       comparisonNormalizedData,

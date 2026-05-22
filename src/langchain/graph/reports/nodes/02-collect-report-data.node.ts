@@ -55,6 +55,7 @@ export const buildCollectReportDataNode = (deps: FinanceReportNodeDeps) => {
     state: FinanceReportGraphState,
     config?: RunnableConfig,
   ): Promise<Partial<FinanceReportGraphState>> => {
+    console.log('[Node 2] 进入节点：收集基础业务数据');
     const pushProgress = config?.configurable?.pushProgress as
       | ((progress: number, status: string, message: string) => Promise<void>)
       | undefined;
@@ -472,6 +473,7 @@ export const buildCollectReportDataNode = (deps: FinanceReportNodeDeps) => {
       }
     }
 
+    console.log('[Node 2] 离开节点，返回数据');
     return {
       rawData,
       comparisonRawData,

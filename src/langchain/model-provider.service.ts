@@ -14,6 +14,7 @@ export class ModelProviderService {
       apiKey: this.configService.get<string>('GLM_DASHSCOPE_API_KEY'),
       configuration: {
         baseURL: this.configService.get<string>('GLM_DASHSCOPE_BASE_URL'),
+        timeout: 60_000,
       },
       modelName: this.configService.get<string>('MODEL_NAME') || 'glm-4.5-air',
       streaming: true,
@@ -29,6 +30,7 @@ export class ModelProviderService {
       apiKey: this.configService.get<string>('QINIU_DASHSCOPE_API_KEY'),
       configuration: {
         baseURL: this.configService.get<string>('QINIU_DASHSCOPE_BASE_URL'),
+        timeout: 60_000,
       },
       modelName:
         this.configService.get<string>('VISION_MODEL_NAME') ||
@@ -41,19 +43,15 @@ export class ModelProviderService {
       },
     });
 
-    // 财务报告专业模型
+    // 财务报告专业模型（关闭 thinking，避免思考内容混入 JSON 输出导致解析失败）
     this.reportModel = new ChatOpenAI({
       apiKey: this.configService.get<string>('BAISHAN_DASHSCOPE_API_KEY'),
       configuration: {
         baseURL: this.configService.get<string>('BAISHAN_DASHSCOPE_BASE_URL'),
+        timeout: 1200_000,
       },
       modelName: this.configService.get<string>('REPORT_MODEL_NAME'),
       streaming: false,
-      modelKwargs: {
-        thinking: {
-          type: 'enabled',
-        },
-      },
     });
   }
 

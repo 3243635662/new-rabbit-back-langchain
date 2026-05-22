@@ -21,6 +21,7 @@ export const FinanceReportStateAnnotation = Annotation.Root({
   comparisonRange: Annotation<ComparisonRange | undefined>(),
   metrics: Annotation<ReportMetrics | undefined>(),
   chartResult: Annotation<ReportChartResult | undefined>(),
+  rawChartJson: Annotation<string | undefined>(),
   narrative: Annotation<ReportNarrative | undefined>(),
   htmlContext: Annotation<ReportHtmlContext | undefined>(),
   html: Annotation<string | undefined>(),

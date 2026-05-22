@@ -6,6 +6,7 @@ import { FinanceReportProgressPhase } from '../../../../types/reports/report-sta
 export const buildValidateRequestNode = (_deps: FinanceReportNodeDeps) => {
   void _deps; //  intentionally unused – kept for interface consistency
   return async (state: FinanceReportGraphState, config?: RunnableConfig) => {
+    console.log('[Node 1] 进入节点：校验报表请求参数');
     const pushProgress = config?.configurable?.pushProgress as
       | ((progress: number, status: string, message: string) => Promise<void>)
       | undefined;
@@ -42,6 +43,7 @@ export const buildValidateRequestNode = (_deps: FinanceReportNodeDeps) => {
       chartEnabled: request.options?.chartEnabled ?? true, // 默认开启图表
     };
 
+    console.log('[Node 1] 离开节点，返回数据');
     return {
       request,
       logs: ['报表请求参数校验完成'],

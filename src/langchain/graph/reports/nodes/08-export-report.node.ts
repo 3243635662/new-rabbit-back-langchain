@@ -74,6 +74,7 @@ export const buildExportReportNode = (deps: FinanceReportNodeDeps) => {
     state: FinanceReportGraphState,
     config?: RunnableConfig,
   ): Promise<Partial<FinanceReportGraphState>> => {
+    console.log('[Node 8] 进入节点：导出报表文件');
     const html = state.html;
     if (!html) {
       throw new Error('节点八：报表 HTML 不存在，无法导出文件');
@@ -145,6 +146,7 @@ export const buildExportReportNode = (deps: FinanceReportNodeDeps) => {
       key: uploaded.key,
     };
 
+    console.log('[Node 8] 离开节点，返回数据');
     return {
       exportResult,
       logs: [
