@@ -168,7 +168,7 @@ export class OrderTimeoutScheduler {
             'REFUND',
             order.orderNo,
             '订单超时取消，回滚库存',
-            queryRunner,
+            queryRunner.manager,
           );
         } catch (error) {
           this.logger.warn(

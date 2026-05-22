@@ -486,6 +486,39 @@ export const RedisKeys = {
   },
 
   // *═══════════════════════════════════════════════════════
+  // *商家商品模块 (Merchant Goods)
+  // *═══════════════════════════════════════════════════════
+  MERCHANT_GOODS: {
+    /**
+     * 商家商品列表缓存（分页）
+     * 格式：merchant:goods:list:{merchantId}:{page}:{limit}:{keyword}:{category}:{sort}:{order}
+     */
+    getListKey: (
+      merchantId: number,
+      page: number,
+      limit: number,
+      keyword: string,
+      category: string,
+      sort: string,
+      order: string,
+    ) =>
+      `merchant:goods:list:${merchantId}:${page}:${limit}:${keyword || '_'}:${category || '_'}:${sort || '_'}:${order || '_'}`,
+
+    /**
+     * 商家商品列表缓存前缀（用于批量清除）
+     * 格式：merchant:goods:list:{merchantId}:
+     */
+    getListPrefix: (merchantId: number) =>
+      `merchant:goods:list:${merchantId}:`,
+
+    /**
+     * SKU 详情缓存
+     * 格式：merchant:goods:sku:detail:{skuId}
+     */
+    getSkuDetailKey: (skuId: number) => `merchant:goods:sku:detail:${skuId}`,
+  },
+
+  // *═══════════════════════════════════════════════════════
   // *库存模块 (Inventory)
   // *═══════════════════════════════════════════════════════
   INVENTORY: {

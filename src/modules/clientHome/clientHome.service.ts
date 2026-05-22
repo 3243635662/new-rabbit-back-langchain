@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { RedisService } from '../db/redis/redis.service';
 import {
   CarouselData,
@@ -10,6 +10,10 @@ import { RedisKeys } from '../../common/constants/redis-key.constant';
 import { RedisTTL } from '../../common/constants/redis-TTL.constant';
 import { HomeBanner } from './entities/home-banner.entity';
 import { HomeCategory } from './entities/home-category.entity';
+import { Goods } from '../goods/entities/goods.entity';
+import { GoodsSku } from '../goods/entities/goods_sku.entity';
+import { GoodsInfo } from '../goods/entities/goodInfo.entity';
+import { Inventory } from '../inventory/entities/inventory.entity';
 
 @Injectable()
 export class ClientHomeService {
@@ -19,6 +23,14 @@ export class ClientHomeService {
     private readonly homeBannerRepo: Repository<HomeBanner>,
     @InjectRepository(HomeCategory)
     private readonly homeCategoryRepo: Repository<HomeCategory>,
+    @InjectRepository(Goods)
+    private readonly goodsRepo: Repository<Goods>,
+    @InjectRepository(GoodsSku)
+    private readonly skuRepo: Repository<GoodsSku>,
+    @InjectRepository(GoodsInfo)
+    private readonly goodsInfoRepo: Repository<GoodsInfo>,
+    @InjectRepository(Inventory)
+    private readonly inventoryRepo: Repository<Inventory>,
   ) {}
 
   // *获取首页轮播图
@@ -52,6 +64,182 @@ export class ClientHomeService {
         return categories.length > 0 ? categories : CarouselSideRecommendation;
       },
     );
+  }
+
+  // *获取推荐商品列表（客户端首页）
+  async getRecommendedGoods() {
+    // 比赛项目：直接写死推荐的商品ID（merchant为1，goodId为2,3,4,22）
+    const fixedGoodsIds = [2, 3, 4, 22];
+
+    const goods = await this.goodsRepo.find({
+      where: {
+        id: In(fixedGoodsIds),
+        merchantId: 1,
+        isReviewed: true,
+        isReviewedSeccuss: true,
+        status: true,
+      },
+    });
+
+    const result = await Promise.all(
+      goods.map(async (goodsItem) => {
+        // 获取该商品的所有SKU（先尝试已上架的，如果没有则获取所有）
+        let skus = await this.skuRepo.find({
+          where: { goodsId: goodsItem.id, isLaunching: true },
+        });
+
+        // 如果没有已上架的SKU，则获取所有SKU
+        if (skus.length === 0) {
+          skus = await this.skuRepo.find({
+            where: { goodsId: goodsItem.id },
+          });
+        }
+
+        // 计算最低价格
+        let minPrice = '0.00';
+        if (skus.length > 0) {
+          const prices = skus
+            .map((sku) => Number(sku.price))
+            .filter((price) => !isNaN(price) && price > 0);
+
+          if (prices.length > 0) {
+            minPrice = Math.min(...prices).toFixed(2);
+          }
+        }
+
+        return {
+          id: goodsItem.id,
+          name: goodsItem.name,
+          desc: goodsItem.description,
+          price: minPrice,
+          picture: goodsItem.mainPicture || '',
+        };
+      }),
+    );
+
+    return result;
+  }
+
+  // *获取商品详情（购买页）
+  async getGoodsDetail(goodsId: number) {
+    const goods = await this.goodsRepo.findOne({
+      where: {
+        id: goodsId,
+        isReviewed: true,
+        isReviewedSeccuss: true,
+        status: true,
+      },
+      relations: ['category', 'merchant', 'brandRelation'],
+    });
+
+    if (!goods) {
+      throw new Error('商品不存在');
+    }
+
+    const goodsInfo = await this.goodsInfoRepo.findOne({
+      where: { goodsId: goods.id },
+    });
+
+    // 获取该商品的所有SKU（先尝试已上架的，如果没有则获取所有）
+    let skus = await this.skuRepo.find({
+      where: { goodsId: goods.id, isLaunching: true },
+    });
+
+    // 如果没有已上架的SKU，则获取所有SKU
+    if (skus.length === 0) {
+      skus = await this.skuRepo.find({
+        where: { goodsId: goods.id },
+      });
+    }
+
+    const skuIds = skus.map((sku) => sku.id);
+    const inventories = await this.inventoryRepo.find({
+      where: { skuId: In(skuIds) },
+    });
+
+    const inventoryMap = new Map(inventories.map((inv) => [inv.skuId, inv]));
+
+    const totalInventory = inventories.reduce((sum, inv) => sum + inv.stock, 0);
+
+    const skuList = skus.map((sku) => {
+      const inventory = inventoryMap.get(sku.id);
+      return {
+        skusId: sku.id,
+        skuCode: sku.skuCode || '',
+        price: Number(sku.price).toFixed(2),
+        oldPrice: Number(sku.price).toFixed(2),
+        inventory: inventory ? inventory.stock : 0,
+        picture: sku.picture || '',
+        specs: sku.specs || [],
+      };
+    });
+
+    const specMap = new Map<
+      string,
+      { name: string; picture: string; desc: string; inventory: number }[]
+    >();
+    for (const sku of skus) {
+      const inventory = inventoryMap.get(sku.id);
+      const skuInventory = inventory ? inventory.stock : 0;
+      for (const spec of sku.specs || []) {
+        const key = spec.name;
+        if (!specMap.has(key)) {
+          specMap.set(key, []);
+        }
+        const values = specMap.get(key)!;
+        if (!values.some((v) => v.name === spec.value)) {
+          values.push({
+            name: spec.value,
+            picture: sku.picture || '',
+            desc: '',
+            inventory: skuInventory,
+          });
+        }
+      }
+    }
+
+    const specs = Array.from(specMap.entries()).map(([name, values]) => ({
+      name,
+      id: `1-${name}`,
+      values,
+    }));
+
+    const categories: Array<{
+      id: string;
+      name: string;
+      layer: number;
+      parent: null;
+    }> = [];
+    if (goods.category) {
+      categories.push({
+        id: String(goods.category.id),
+        name: goods.category.name,
+        layer: 2,
+        parent: null,
+      });
+    }
+
+    return {
+      id: String(goods.id),
+      name: goods.name,
+      spuCode: `goods-spu-${goods.id}`,
+      desc: goods.description,
+      price: skus.length > 0 ? Number(skus[0].price).toFixed(2) : '0.00',
+      oldPrice: skus.length > 0 ? Number(skus[0].price).toFixed(2) : '0.00',
+      discount: 1,
+      inventory: totalInventory,
+      brand: goods.merchant?.name || '',
+      salesCount: goodsInfo?.salesCount || 0,
+      commentCount: goodsInfo?.commentCount || 0,
+      collectCount: goodsInfo?.collectCount || 0,
+      mainVideos: goodsInfo?.videoUrl ? [goodsInfo.videoUrl] : [],
+      videoScale: null,
+      smallPictures: goodsInfo?.smallPictures || [],
+      bigPictures: goodsInfo?.bigPictures || [],
+      skus: skuList,
+      specs,
+      categories,
+    };
   }
 
   /**

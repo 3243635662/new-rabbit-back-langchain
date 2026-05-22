@@ -20,14 +20,40 @@ import {
   ShippingStatus,
 } from '../order/entities/order_items.entity';
 import { InventoryService } from '../inventory/inventory.service';
+import { RedisService } from '../db/redis/redis.service';
+import { Inventory } from '../inventory/entities/inventory.entity';
 import { JwtPayloadType } from '../../types/auth.type';
 import { PaginationOptionsType } from '../../types/pagination.type';
 import { IPaginationOptions, paginate } from 'nestjs-typeorm-paginate';
 import { timeFormatMethod } from '../../utils/timeFormat.util';
 import { createGoodsDto } from './dto/createGoods.dto';
+import { RedisKeys } from '../../common/constants/redis-key.constant';
+import { RedisTTL } from '../../common/constants/redis-TTL.constant';
 
 const DEFAULT_GOODS_PICTURE =
   'https://img2.baidu.com/it/u=1634170865,2624005952&fm=253&fmt=auto&app=138&f=JPEG?w=500&h=500';
+
+/**
+ * 类型安全的 MERCHANT_GOODS Redis Keys 访问对象
+ * 直接定义 key 生成逻辑，避免 ESLint no-unsafe-* 规则的类型解析问题
+ */
+const MerchantGoodsKeys = {
+  getListKey: (
+    merchantId: number,
+    page: number,
+    limit: number,
+    keyword: string,
+    category: string,
+    sort: string,
+    order: string,
+  ): string =>
+    `merchant:goods:list:${merchantId}:${page}:${limit}:${keyword || '_'}:${category || '_'}:${sort || '_'}:${order || '_'}`,
+  getListPrefix: (merchantId: number): string =>
+    `merchant:goods:list:${merchantId}:`,
+  getSkuDetailKey: (skuId: number): string =>
+    `merchant:goods:sku:detail:${skuId}`,
+} as const;
+
 @Injectable()
 export class MerchantService {
   constructor(
@@ -47,6 +73,7 @@ export class MerchantService {
     @InjectRepository(OrderItem)
     private readonly orderItemRepo: Repository<OrderItem>,
     private readonly inventoryService: InventoryService,
+    private readonly redisService: RedisService,
   ) {}
 
   //* 获取商家的商品列表 (SKU级细分)
@@ -79,6 +106,38 @@ export class MerchantService {
       }
 
       finalMerchantId = merchant.id;
+    }
+
+    // 类型守卫：确保 finalMerchantId 已正确赋值
+    if (!finalMerchantId) {
+      return {
+        list: [],
+        total: 0,
+        page: options.page || 1,
+        limit: options.limit || 10,
+        totalPage: 0,
+      };
+    }
+
+    const cacheKey = MerchantGoodsKeys.getListKey(
+      Number(finalMerchantId),
+      options.page || 1,
+      options.limit || 10,
+      options.keyword || '',
+      String(options.category || ''),
+      options.sort || '',
+      options.order || '',
+    );
+
+    const cached = await this.redisService.get<{
+      list: unknown[];
+      total: number;
+      totalPage: number;
+      page: number;
+      limit: number;
+    }>(cacheKey);
+    if (cached) {
+      return cached;
     }
 
     // 构建查询构建器 (基于 SKU)
@@ -158,14 +217,140 @@ export class MerchantService {
       };
     });
 
-    return {
+    const result = {
       list: formattedItems,
       total: paginationData.meta.totalItems,
       totalPage: paginationData.meta.totalPages,
       page: paginationData.meta.currentPage,
       limit: paginationData.meta.itemsPerPage,
     };
+
+    await this.redisService.set(
+      cacheKey,
+      result,
+      RedisTTL.CACHE.INVENTORY_LIST,
+    );
+    return result;
   }
+
+  /**
+   * 删除 SKU（Spec 级别）
+   * 物理删除 SKU 及其关联库存，操作前校验归属权
+   */
+  deleteSku = async (
+    payload: JwtPayloadType,
+    skuId: number,
+  ): Promise<{ skuId: number; deleted: boolean }> => {
+    const { id: userId } = payload;
+    const merchant = await this.merchantRepo.findOne({
+      where: { userId: userId.toString() },
+      select: ['id'],
+    });
+    if (!merchant) {
+      throw new ForbiddenException('当前用户不是商户');
+    }
+
+    const sku = await this.skuRepo.findOne({
+      where: { id: skuId },
+      relations: ['goods', 'inventory'],
+    });
+    if (!sku) {
+      throw new NotFoundException('SKU不存在');
+    }
+    if (sku.goods?.merchantId !== merchant.id) {
+      throw new ForbiddenException('无权操作该SKU');
+    }
+
+    const inventoryId = sku.inventory?.id;
+
+    await this.skuRepo.manager.transaction(async (manager) => {
+      if (sku.inventory) {
+        await manager.delete(Inventory, { id: sku.inventory.id });
+      }
+      await manager.delete(GoodsSku, { id: skuId });
+    });
+
+    // 清除相关缓存
+    await this.clearMerchantGoodsCache(merchant.id);
+    await this.clearSkuRelatedCache(skuId, inventoryId, merchant.id);
+
+    return { skuId, deleted: true };
+  };
+
+  /**
+   * 上架商品（SPU 级别）
+   * 将指定商品下所有 SKU 的 isLaunching 设为 true
+   */
+  launchGoods = async (
+    payload: JwtPayloadType,
+    goodsId: number,
+  ): Promise<{ goodsId: number; launched: boolean }> => {
+    const { id: userId } = payload;
+    const merchant = await this.merchantRepo.findOne({
+      where: { userId: userId.toString() },
+      select: ['id'],
+    });
+    if (!merchant) {
+      throw new ForbiddenException('当前用户不是商户');
+    }
+
+    const goods = await this.goodsRepo.findOne({
+      where: { id: goodsId },
+      select: ['id', 'merchantId'],
+    });
+    if (!goods) {
+      throw new NotFoundException('商品不存在');
+    }
+    if (goods.merchantId !== merchant.id) {
+      throw new ForbiddenException('无权操作该商品');
+    }
+
+    await this.skuRepo.update({ goodsId }, { isLaunching: true });
+
+    // 清除相关缓存
+    await this.clearMerchantGoodsCache(merchant.id);
+
+    return { goodsId, launched: true };
+  };
+
+  /**
+   * 清除商家商品列表缓存
+   */
+  private clearMerchantGoodsCache = async (
+    merchantId: number,
+  ): Promise<void> => {
+    try {
+      await this.redisService.delByPrefixSafe(
+        MerchantGoodsKeys.getListPrefix(merchantId),
+      );
+    } catch {
+      // 缓存清除失败不影响主流程
+    }
+  };
+
+  /**
+   * 清除 SKU 相关缓存（库存统计、库存详情、库存列表）
+   */
+  private clearSkuRelatedCache = async (
+    skuId: number,
+    inventoryId: number | undefined,
+    merchantId: number,
+  ): Promise<void> => {
+    try {
+      await this.redisService.del(MerchantGoodsKeys.getSkuDetailKey(skuId));
+      await this.redisService.del(RedisKeys.INVENTORY.getStatsKey(skuId));
+      if (inventoryId) {
+        await this.redisService.del(
+          RedisKeys.INVENTORY.getDetailKey(inventoryId),
+        );
+      }
+      await this.redisService.delByPrefixSafe(
+        RedisKeys.INVENTORY.getMerchantListPrefix(merchantId),
+      );
+    } catch {
+      // 缓存清除失败不影响主流程
+    }
+  };
 
   // *获取商家的分类树
   async getMerchantCategories(
@@ -333,13 +518,14 @@ export class MerchantService {
       // 保存所有 SKU
       await manager.save(GoodsSku, allSkus);
 
-      // 批量创建库存记录
+      // 批量创建库存记录（一次调用，传入事务 manager）
       await this.inventoryService.batchInitStock(
         allSkus.map((sku) => ({
           skuId: sku.id,
           stock: body.stock,
           warningStock: body.warningStock || 0,
         })),
+        manager,
       );
 
       // 如果没有传主图，使用第一个 SKU 的图片

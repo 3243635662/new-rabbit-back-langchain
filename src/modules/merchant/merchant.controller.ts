@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Post, Req, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Req,
+  Query,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { MerchantService } from './merchant.service';
 import { resFormatMethod } from '../../utils/resFormat.util';
 import { JwtPayloadType } from '../../types/auth.type';
@@ -27,6 +35,30 @@ export class MerchantController {
       paginationOptions,
     );
     return resFormatMethod(0, '商品列表查询成功', goodsList);
+  }
+
+  /**
+   * 删除 SKU（Spec 级别）
+   */
+  @Post('sku/delete')
+  async deleteSku(
+    @Req() req: { user: JwtPayloadType },
+    @Body('skuId', ParseIntPipe) skuId: number,
+  ) {
+    const result = await this.merchantService.deleteSku(req.user, skuId);
+    return resFormatMethod(0, '删除成功', result);
+  }
+
+  /**
+   * 上架商品（SPU 级别）
+   */
+  @Post('goods/launch')
+  async launchGoods(
+    @Req() req: { user: JwtPayloadType },
+    @Body('goodsId', ParseIntPipe) goodsId: number,
+  ) {
+    const result = await this.merchantService.launchGoods(req.user, goodsId);
+    return resFormatMethod(0, '上架成功', result);
   }
 
   /**

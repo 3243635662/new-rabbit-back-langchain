@@ -100,7 +100,7 @@ export class OrderService {
             await this.inventoryService.checkStock(
               item.skuId,
               item.count,
-              queryRunner,
+              queryRunner.manager,
             );
           } catch {
             throw new BadRequestException('商品库存不足');
@@ -184,7 +184,7 @@ export class OrderService {
             item.count,
             'ORDER',
             orderNo,
-            queryRunner,
+            queryRunner.manager,
           );
         } catch (e) {
           this.logger.error(

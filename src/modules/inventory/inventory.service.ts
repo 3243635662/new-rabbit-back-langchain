@@ -5,7 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, QueryRunner, Brackets } from 'typeorm';
+import { Repository, Brackets, EntityManager } from 'typeorm';
 import { Inventory } from './entities/inventory.entity';
 import { InventoryLog } from './entities/inventory_logs.entity';
 import { GoodsSku } from '../goods/entities/goods_sku.entity';
@@ -472,18 +472,18 @@ export class InventoryService {
     skuId: number,
     stock: number,
     warningStock = 0,
-    queryRunner?: QueryRunner,
+    manager?: EntityManager,
   ): Promise<Inventory> => {
-    const manager = queryRunner?.manager ?? this.inventoryRepo.manager;
+    const m = manager ?? this.inventoryRepo.manager;
 
-    const inventory = manager.create(Inventory, {
+    const inventory = m.create(Inventory, {
       skuId,
       stock,
       warningStock,
       isWarning: warningStock > 0 && stock <= warningStock,
     });
 
-    return manager.save(Inventory, inventory);
+    return m.save(Inventory, inventory);
   };
 
   /**
@@ -492,14 +492,14 @@ export class InventoryService {
    */
   batchInitStock = async (
     items: { skuId: number; stock: number; warningStock?: number }[],
-    queryRunner?: QueryRunner,
+    manager?: EntityManager,
   ): Promise<Inventory[]> => {
     if (items.length === 0) return [];
 
-    const manager = queryRunner?.manager ?? this.inventoryRepo.manager;
+    const m = manager ?? this.inventoryRepo.manager;
 
     const inventories = items.map((item) =>
-      manager.create(Inventory, {
+      m.create(Inventory, {
         skuId: item.skuId,
         stock: item.stock,
         warningStock: item.warningStock ?? 0,
@@ -509,7 +509,7 @@ export class InventoryService {
       }),
     );
 
-    return manager.save(Inventory, inventories);
+    return m.save(Inventory, inventories);
   };
 
   /**
@@ -538,11 +538,11 @@ export class InventoryService {
     count: number,
     type: 'ORDER' | 'MANUAL_REDUCE' = 'ORDER',
     relatedId?: string,
-    queryRunner?: QueryRunner,
+    manager?: EntityManager,
   ): Promise<Inventory> => {
-    const manager = queryRunner?.manager ?? this.inventoryRepo.manager;
+    const m = manager ?? this.inventoryRepo.manager;
 
-    const inventory = await manager.findOne(Inventory, {
+    const inventory = await m.findOne(Inventory, {
       where: { skuId },
       lock: { mode: 'pessimistic_write' },
     });
@@ -565,16 +565,16 @@ export class InventoryService {
       inventory.isWarning = true;
     }
 
-    await manager.save(Inventory, inventory);
+    await m.save(Inventory, inventory);
 
-    const log = manager.create(InventoryLog, {
+    const log = m.create(InventoryLog, {
       skuId,
       change: -count,
       currentStock: inventory.stock,
       type,
       relatedId: relatedId ?? null,
     });
-    await manager.save(InventoryLog, log);
+    await m.save(InventoryLog, log);
 
     // 清除相关缓存
     try {
@@ -605,11 +605,11 @@ export class InventoryService {
     type: 'REFUND' | 'MANUAL_ADD' = 'REFUND',
     relatedId?: string,
     remark?: string,
-    queryRunner?: QueryRunner,
+    manager?: EntityManager,
   ): Promise<Inventory | null> => {
-    const manager = queryRunner?.manager ?? this.inventoryRepo.manager;
+    const m = manager ?? this.inventoryRepo.manager;
 
-    const inventory = await manager.findOne(Inventory, {
+    const inventory = await m.findOne(Inventory, {
       where: { skuId },
       lock: { mode: 'pessimistic_write' },
     });
@@ -625,9 +625,9 @@ export class InventoryService {
       inventory.isWarning = false;
     }
 
-    await manager.save(Inventory, inventory);
+    await m.save(Inventory, inventory);
 
-    const log = manager.create(InventoryLog, {
+    const log = m.create(InventoryLog, {
       skuId,
       change: count,
       currentStock: inventory.stock,
@@ -635,7 +635,7 @@ export class InventoryService {
       relatedId: relatedId ?? null,
       remark: remark ?? null,
     });
-    await manager.save(InventoryLog, log);
+    await m.save(InventoryLog, log);
 
     // 清除相关缓存
     try {
@@ -663,11 +663,11 @@ export class InventoryService {
   checkStock = async (
     skuId: number,
     count: number,
-    queryRunner?: QueryRunner,
+    manager?: EntityManager,
   ): Promise<Inventory> => {
-    const manager = queryRunner?.manager ?? this.inventoryRepo.manager;
+    const m = manager ?? this.inventoryRepo.manager;
 
-    const inventory = await manager.findOne(Inventory, {
+    const inventory = await m.findOne(Inventory, {
       where: { skuId },
       lock: { mode: 'pessimistic_read' },
     });

@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Param } from '@nestjs/common';
 import { ClientHomeService } from './clientHome.service';
 import { Public } from '../../common/decorators/public.decorator';
 import { ResponseMessage } from '../../common/decorators/response-message.decorator';
@@ -23,5 +23,23 @@ export class ClientHomeController {
   async getCarouselSideRecommendation() {
     const data = await this.clientHomeService.getCarouselSideRecommendation();
     return resFormatMethod(0, '获取轮播图侧边推荐成功', data);
+  }
+
+  // *获取推荐商品列表（客户端首页）
+  @Public()
+  @ResponseMessage('获取推荐商品列表成功')
+  @Get('recommended-goods')
+  async getRecommendedGoods() {
+    const data = await this.clientHomeService.getRecommendedGoods();
+    return resFormatMethod(0, '获取推荐商品列表成功', data);
+  }
+
+  // *获取商品详情（购买页）
+  @Public()
+  @ResponseMessage('获取商品详情成功')
+  @Get('goods-detail/:id')
+  async getGoodsDetail(@Param('id') id: string) {
+    const data = await this.clientHomeService.getGoodsDetail(Number(id));
+    return resFormatMethod(0, '获取商品详情成功', data);
   }
 }

@@ -47,8 +47,7 @@ export class ModelProviderService {
       configuration: {
         baseURL: this.configService.get<string>('BAISHAN_DASHSCOPE_BASE_URL'),
       },
-      modelName:
-        this.configService.get<string>('REPORT_MODEL_NAME') || 'MiniMax-M2.5',
+      modelName: this.configService.get<string>('REPORT_MODEL_NAME'),
       streaming: false,
       modelKwargs: {
         thinking: {
