@@ -11,7 +11,7 @@ import type { FinanceReportNodeDeps } from '../../../../types/reports/finance-re
 import { FinanceReportProgressPhase } from '../../../../types/reports/report-status.type';
 
 /**
- * 节点七：根据全量报表数据生成完整 HTML 报表
+ * 节点六：根据全量报表数据生成完整 HTML 报表
  *
  * 职责：
  * - 组装全量数据输入（request、normalizedData、metrics、chartResult、narrative）
@@ -29,7 +29,7 @@ export const buildGenerateReportHtmlNode = (deps: FinanceReportNodeDeps) => {
     state: FinanceReportGraphState,
     config?: RunnableConfig,
   ): Promise<Partial<FinanceReportGraphState>> => {
-    console.log('[Node 7] 进入节点：生成 HTML 报表');
+    console.log('[Node 6] 进入节点：生成 HTML 报表');
     const input = buildFullReportHtmlInput(state);
     const trendForecast = state.request?.options?.trendForecast ?? false;
 
@@ -52,10 +52,10 @@ export const buildGenerateReportHtmlNode = (deps: FinanceReportNodeDeps) => {
       const sanitizedHtml = sanitizeGeneratedHtml(validatedHtml);
 
       const trendLog = trendForecast
-        ? '节点七：LLM 已生成完整 HTML 报表（含趋势预测分析）。'
-        : '节点七：LLM 已生成完整 HTML 报表。';
+        ? '节点六：LLM 已生成完整 HTML 报表（含趋势预测分析）。'
+        : '节点六：LLM 已生成完整 HTML 报表。';
 
-      console.log('[Node 7] 离开节点，返回数据');
+      console.log('[Node 6] 离开节点，返回数据');
       return {
         html: sanitizedHtml,
         htmlContext: input,
@@ -63,7 +63,7 @@ export const buildGenerateReportHtmlNode = (deps: FinanceReportNodeDeps) => {
       };
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
-      throw new Error(`节点七：LLM HTML 生成失败 - ${error.message}`);
+      throw new Error(`节点六：LLM HTML 生成失败 - ${error.message}`);
     }
   };
 };

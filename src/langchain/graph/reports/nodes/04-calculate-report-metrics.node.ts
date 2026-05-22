@@ -202,7 +202,7 @@ const calculateMetricsFromNormalizedData = (
 
     costStructure: buildCostStructure(data),
 
-    // 对比/预警在后续函数中填充，趋势预测由节点七独立处理
+    // 对比/预警在后续函数中填充，趋势预测由节点六独立处理
     comparison: undefined,
     warnings: [],
   };

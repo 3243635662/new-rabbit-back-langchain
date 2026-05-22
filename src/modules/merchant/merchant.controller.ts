@@ -6,6 +6,7 @@ import {
   Req,
   Query,
   ParseIntPipe,
+  Delete,
 } from '@nestjs/common';
 import { MerchantService } from './merchant.service';
 import { resFormatMethod } from '../../utils/resFormat.util';
@@ -40,7 +41,7 @@ export class MerchantController {
   /**
    * 删除 SKU（Spec 级别）
    */
-  @Post('sku/delete')
+  @Delete('sku/delete')
   async deleteSku(
     @Req() req: { user: JwtPayloadType },
     @Body('skuId', ParseIntPipe) skuId: number,
@@ -50,14 +51,14 @@ export class MerchantController {
   }
 
   /**
-   * 上架商品（SPU 级别）
+   * 上架商品 SKU
    */
   @Post('goods/launch')
   async launchGoods(
     @Req() req: { user: JwtPayloadType },
-    @Body('goodsId', ParseIntPipe) goodsId: number,
+    @Body('skuId', ParseIntPipe) skuId: number,
   ) {
-    const result = await this.merchantService.launchGoods(req.user, goodsId);
+    const result = await this.merchantService.launchGoods(req.user, skuId);
     return resFormatMethod(0, '上架成功', result);
   }
 
@@ -268,5 +269,21 @@ export class MerchantController {
       body.orderItemId,
     );
     return resFormatMethod(0, '售后申请成功', result);
+  }
+
+  /**
+   * 修改 SKU 价格
+   */
+  @Post('sku/price')
+  async updateSkuPrice(
+    @Req() req: { user: JwtPayloadType },
+    @Body() body: { skuId: number; price: number },
+  ) {
+    const result = await this.merchantService.updateSkuPrice(
+      req.user,
+      body.skuId,
+      body.price,
+    );
+    return resFormatMethod(0, '价格修改成功', result);
   }
 }

@@ -56,7 +56,7 @@ const writeDebugHtml = async (
 /* ---------- 节点入口 ---------- */
 
 /**
- * 节点八：导出报表文件
+ * 节点七：导出报表文件
  *
  * 职责：
  * - 根据 exportFormat 将 state.html 导出为 pdf / image / html
@@ -74,10 +74,10 @@ export const buildExportReportNode = (deps: FinanceReportNodeDeps) => {
     state: FinanceReportGraphState,
     config?: RunnableConfig,
   ): Promise<Partial<FinanceReportGraphState>> => {
-    console.log('[Node 8] 进入节点：导出报表文件');
+    console.log('[Node 7] 进入节点：导出报表文件');
     const html = state.html;
     if (!html) {
-      throw new Error('节点八：报表 HTML 不存在，无法导出文件');
+      throw new Error('节点七：报表 HTML 不存在，无法导出文件');
     }
 
     const pushProgress = config?.configurable?.pushProgress as
@@ -100,7 +100,7 @@ export const buildExportReportNode = (deps: FinanceReportNodeDeps) => {
       buffer = Buffer.from(html, 'utf-8');
     } else if (format === 'pdf') {
       if (!deps.reportRenderService) {
-        throw new Error('节点八：未提供 reportRenderService，无法导出 PDF');
+        throw new Error('节点七：未提供 reportRenderService，无法导出 PDF');
       }
       await pushProgress?.(
         94,
@@ -110,7 +110,7 @@ export const buildExportReportNode = (deps: FinanceReportNodeDeps) => {
       buffer = await deps.reportRenderService.htmlToPdfBuffer(html);
     } else if (format === 'image') {
       if (!deps.reportRenderService) {
-        throw new Error('节点八：未提供 reportRenderService，无法导出图片');
+        throw new Error('节点七：未提供 reportRenderService，无法导出图片');
       }
       await pushProgress?.(
         94,
@@ -119,7 +119,7 @@ export const buildExportReportNode = (deps: FinanceReportNodeDeps) => {
       );
       buffer = await deps.reportRenderService.htmlToImageBuffer(html);
     } else {
-      throw new Error(`节点八：不支持的导出格式: ${String(format)}`);
+      throw new Error(`节点七：不支持的导出格式: ${String(format)}`);
     }
 
     // 上传七牛
@@ -146,11 +146,11 @@ export const buildExportReportNode = (deps: FinanceReportNodeDeps) => {
       key: uploaded.key,
     };
 
-    console.log('[Node 8] 离开节点，返回数据');
+    console.log('[Node 7] 离开节点，返回数据');
     return {
       exportResult,
       logs: [
-        `节点八：报表导出完成，格式: ${format}，文件名: ${fileName}，大小: ${String(buffer.length)} bytes` +
+        `节点七：报表导出完成，格式: ${format}，文件名: ${fileName}，大小: ${String(buffer.length)} bytes` +
           (uploaded.url ? `，已上传七牛` : ''),
       ],
     };

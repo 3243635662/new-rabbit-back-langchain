@@ -5,10 +5,9 @@ import { buildValidateRequestNode } from './nodes/01-validate-request.node';
 import { buildCollectReportDataNode } from './nodes/02-collect-report-data.node';
 import { buildNormalizeReportDataNode } from './nodes/03-normalize-report-data.node';
 import { buildCalculateReportMetricsNode } from './nodes/04-calculate-report-metrics.node';
-import { buildReportChartsNode } from './nodes/05-build-report-charts.node';
-import { buildGenerateReportNarrativeNode } from './nodes/06-generate-report-narrative.node';
-import { buildGenerateReportHtmlNode } from './nodes/07-generate-report-html.node';
-import { buildExportReportNode } from './nodes/08-export-report.node';
+import { buildGenerateReportNarrativeNode } from './nodes/05-generate-report-narrative.node';
+import { buildGenerateReportHtmlNode } from './nodes/06-generate-report-html.node';
+import { buildExportReportNode } from './nodes/07-export-report.node';
 
 import type { FinanceReportNodeDeps } from '../../../types/reports/finance-report-node-deps.type';
 
@@ -53,10 +52,6 @@ export const buildFinanceReportGraph = (deps: FinanceReportNodeDeps) => {
       wrapNode('calculateReportMetrics', buildCalculateReportMetricsNode(deps)),
     )
     .addNode(
-      'buildReportCharts',
-      wrapNode('buildReportCharts', buildReportChartsNode(deps)),
-    )
-    .addNode(
       'generateReportNarrative',
       wrapNode(
         'generateReportNarrative',
@@ -75,8 +70,7 @@ export const buildFinanceReportGraph = (deps: FinanceReportNodeDeps) => {
     .addEdge('validateRequest', 'collectReportData')
     .addEdge('collectReportData', 'normalizeReportData')
     .addEdge('normalizeReportData', 'calculateReportMetrics')
-    .addEdge('calculateReportMetrics', 'buildReportCharts')
-    .addEdge('buildReportCharts', 'generateReportNarrative')
+    .addEdge('calculateReportMetrics', 'generateReportNarrative')
     .addEdge('generateReportNarrative', 'generateReportHtml')
     .addEdge('generateReportHtml', 'exportReport')
     .addEdge('exportReport', END);

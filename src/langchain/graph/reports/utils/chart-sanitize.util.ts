@@ -26,7 +26,7 @@ const unsafePatterns = [
 
 /**
  * 检查 ECharts option JSON 是否包含危险字符串
- * 不是为了"绝对安全"，而是防止明显的 HTML / JS 注入进入节点七
+ * 不是为了"绝对安全"，而是防止明显的 HTML / JS 注入进入节点六
  */
 const assertSafeJsonObject = (value: unknown): void => {
   const json = JSON.stringify(value);

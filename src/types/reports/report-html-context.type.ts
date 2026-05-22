@@ -10,6 +10,5 @@ export type ReportHtmlContext = {
   normalizedData?: unknown;
   metrics: ReportMetrics;
   chartResult?: ReportChartResult;
-  rawChartJson?: string;
   narrative: ReportNarrative;
 };

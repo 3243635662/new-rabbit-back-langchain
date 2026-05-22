@@ -11,7 +11,6 @@ export interface FullReportHtmlLLMInput {
   normalizedData?: unknown;
   metrics: ReportMetrics;
   chartResult?: ReportChartResult;
-  rawChartJson?: string;
   narrative: ReportNarrative;
 }
 
@@ -46,10 +45,6 @@ export const buildFullReportHtmlInput = (
     throw new Error('缺少 metrics，无法生成 HTML 报表');
   }
 
-  if (!state.chartResult && !state.rawChartJson) {
-    throw new Error('缺少 chartResult 或 rawChartJson，无法生成 HTML 报表');
-  }
-
   if (!state.narrative) {
     throw new Error('缺少 narrative，无法生成 HTML 报表');
   }
@@ -61,7 +56,6 @@ export const buildFullReportHtmlInput = (
     normalizedData: state.normalizedData,
     metrics: state.metrics,
     chartResult: state.chartResult,
-    rawChartJson: state.rawChartJson,
     narrative: state.narrative,
   };
 };

@@ -6,12 +6,13 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
 import { Address } from '../address/entities/address.entity';
 import { RedisService } from '../db/redis/redis.service';
 import { GoodsSku } from '../goods/entities/goods_sku.entity';
 import { OrderItem } from './entities/order_items.entity';
-import { Order } from './entities/orders.entity';
+import { Order, OrderStatus } from './entities/orders.entity';
 import { SnowflakeIdService } from '../../common/services/snowflake-id.service';
 import { OrderNoGeneratorService } from '../../common/services/order-no-generator.service';
 import { CouponService } from '../coupon/coupon.service';
@@ -29,6 +30,8 @@ export class OrderService {
     private readonly orderNoGeneratorService: OrderNoGeneratorService,
     private readonly couponService: CouponService,
     private readonly inventoryService: InventoryService,
+    @InjectRepository(Order)
+    private readonly orderRepo: Repository<Order>,
   ) {}
 
   /**
@@ -235,4 +238,34 @@ export class OrderService {
       await this.redisService.unlockOrderCreateLock(userId);
     }
   }
+
+  /**
+   * 直接支付订单（测试用）
+   * 将订单状态改为已支付，记录支付时间
+   */
+  payOrder = async (userId: string, orderNo: string) => {
+    const order = await this.orderRepo.findOne({
+      where: { orderNo, userId },
+    });
+    if (!order) {
+      throw new NotFoundException('订单不存在');
+    }
+    if (order.status !== OrderStatus.PENDING_PAYMENT) {
+      throw new BadRequestException('订单当前状态不允许支付');
+    }
+
+    await this.orderRepo.update(
+      { orderNo },
+      {
+        status: OrderStatus.PAID,
+        paidAt: new Date(),
+        paymentMethod: 'test_direct_pay',
+        paymentNo: `PAY${Date.now()}`,
+      },
+    );
+
+    this.logger.log(`订单已支付: ${orderNo}`);
+
+    return { orderNo, status: '已支付' };
+  };
 }

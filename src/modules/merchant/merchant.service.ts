@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -22,6 +23,7 @@ import {
 import { InventoryService } from '../inventory/inventory.service';
 import { RedisService } from '../db/redis/redis.service';
 import { Inventory } from '../inventory/entities/inventory.entity';
+import { InventoryLog } from '../inventory/entities/inventory_logs.entity';
 import { JwtPayloadType } from '../../types/auth.type';
 import { PaginationOptionsType } from '../../types/pagination.type';
 import { IPaginationOptions, paginate } from 'nestjs-typeorm-paginate';
@@ -265,6 +267,9 @@ export class MerchantService {
 
     await this.skuRepo.manager.transaction(async (manager) => {
       if (sku.inventory) {
+        await manager.delete(InventoryLog, {
+          inventory: { id: sku.inventory.id },
+        });
         await manager.delete(Inventory, { id: sku.inventory.id });
       }
       await manager.delete(GoodsSku, { id: skuId });
@@ -278,13 +283,13 @@ export class MerchantService {
   };
 
   /**
-   * 上架商品（SPU 级别）
-   * 将指定商品下所有 SKU 的 isLaunching 设为 true
+   * 上架商品 SKU
+   * 将指定 SKU 的 isLaunching 设为 true
    */
   launchGoods = async (
     payload: JwtPayloadType,
-    goodsId: number,
-  ): Promise<{ goodsId: number; launched: boolean }> => {
+    skuId: number,
+  ): Promise<{ skuId: number; launched: boolean }> => {
     const { id: userId } = payload;
     const merchant = await this.merchantRepo.findOne({
       where: { userId: userId.toString() },
@@ -294,23 +299,28 @@ export class MerchantService {
       throw new ForbiddenException('当前用户不是商户');
     }
 
+    const sku = await this.skuRepo.findOne({
+      where: { id: skuId },
+      select: ['id', 'goodsId'],
+    });
+    if (!sku) {
+      throw new NotFoundException('SKU 不存在');
+    }
+
     const goods = await this.goodsRepo.findOne({
-      where: { id: goodsId },
+      where: { id: sku.goodsId },
       select: ['id', 'merchantId'],
     });
-    if (!goods) {
-      throw new NotFoundException('商品不存在');
-    }
-    if (goods.merchantId !== merchant.id) {
+    if (!goods || goods.merchantId !== merchant.id) {
       throw new ForbiddenException('无权操作该商品');
     }
 
-    await this.skuRepo.update({ goodsId }, { isLaunching: true });
+    await this.skuRepo.update({ id: skuId }, { isLaunching: true });
 
     // 清除相关缓存
     await this.clearMerchantGoodsCache(merchant.id);
 
-    return { goodsId, launched: true };
+    return { skuId, launched: true };
   };
 
   /**
@@ -1184,6 +1194,49 @@ export class MerchantService {
 
     return { orderItemId };
   }
+
+  /**
+   * 修改 SKU 价格
+   */
+  updateSkuPrice = async (
+    payload: JwtPayloadType,
+    skuId: number,
+    price: number,
+  ): Promise<{ skuId: number; price: number }> => {
+    const { id: userId } = payload;
+    const merchant = await this.merchantRepo.findOne({
+      where: { userId: userId.toString() },
+      select: ['id'],
+    });
+    if (!merchant) {
+      throw new ForbiddenException('当前用户不是商户');
+    }
+
+    const sku = await this.skuRepo.findOne({
+      where: { id: skuId },
+      select: ['id', 'goodsId'],
+    });
+    if (!sku) {
+      throw new NotFoundException('SKU 不存在');
+    }
+
+    const goods = await this.goodsRepo.findOne({
+      where: { id: sku.goodsId },
+      select: ['id', 'merchantId'],
+    });
+    if (!goods || goods.merchantId !== merchant.id) {
+      throw new ForbiddenException('无权操作该商品');
+    }
+
+    if (price <= 0) {
+      throw new BadRequestException('价格必须大于 0');
+    }
+
+    await this.skuRepo.update({ id: skuId }, { price });
+    await this.clearMerchantGoodsCache(merchant.id);
+
+    return { skuId, price };
+  };
 }
 
 export interface SpecValueCombo {

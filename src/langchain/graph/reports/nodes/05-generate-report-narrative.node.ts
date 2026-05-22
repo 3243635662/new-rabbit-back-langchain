@@ -59,15 +59,14 @@ const generateNarrativeByLLM = async (
 /* ---------- 节点入口 ---------- */
 
 /**
- * 节点六：AI 财务报表文字解读节点
+ * 节点五：AI 财务报表文字解读
  *
  * 职责：
  * - 基于 metrics、normalizedData、chartResult、warnings 生成 ReportNarrative
  * - 不重新计算指标，所有数字以 metrics 为准
  * - 不修改图表配置，chartResult 只作为图表摘要参考
- * - 适配节点五的自由图表类型，不假设图表只包含 bar/line/pie
  * - 优先参考 metrics.warnings 生成风险点
- * - 趋势预测由节点七独立生成，此处不再参考 metrics.forecast
+ * - 趋势预测由节点六独立生成，此处不再参考 metrics.forecast
  *
  * 输入：state.metrics, state.normalizedData, state.chartResult, state.request
  * 输出：state.narrative (ReportNarrative)
@@ -80,7 +79,7 @@ export const buildGenerateReportNarrativeNode = (
     state: FinanceReportGraphState,
     config?: RunnableConfig,
   ): Promise<Partial<FinanceReportGraphState>> => {
-    console.log('[Node 6] 进入节点：生成报表文字解读');
+    console.log('[Node 5] 进入节点：生成报表文字解读');
     if (!state.metrics) {
       throw new Error('缺少报表指标数据，无法生成报表解读');
     }
@@ -100,14 +99,14 @@ export const buildGenerateReportNarrativeNode = (
         '正在使用 AI 生成报表分析文本...',
       );
       const narrative = await generateNarrativeByLLM(state, deps);
-      console.log('[Node 6] 离开节点，返回数据');
+      console.log('[Node 5] 离开节点，返回数据');
       return {
         narrative,
         logs: ['AI 报表文字解读生成完成'],
       };
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
-      throw new Error(`节点六：AI 报表文字解读生成失败 - ${error.message}`);
+      throw new Error(`节点五：AI 报表文字解读生成失败 - ${error.message}`);
     }
   };
 };

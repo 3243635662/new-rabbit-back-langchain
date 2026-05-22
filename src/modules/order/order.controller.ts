@@ -21,4 +21,18 @@ export class OrderController {
     const result = await this.orderService.createDto(userId, createOrderDto);
     return resFormatMethod(0, '订单创建成功', result);
   }
+
+  /**
+   * 直接支付订单（测试用）
+   * 不需要真实支付，直接将订单状态改为已支付
+   */
+  @Post('pay')
+  async payOrder(
+    @Req() req: { user: JwtPayloadType },
+    @Body('orderNo') orderNo: string,
+  ) {
+    const { id: userId } = req.user;
+    const result = await this.orderService.payOrder(userId, orderNo);
+    return resFormatMethod(0, '支付成功', result);
+  }
 }
