@@ -221,12 +221,21 @@ export const buildReportChartsNode = (deps: FinanceReportNodeDeps) => {
       | ((progress: number, status: string, message: string) => Promise<void>)
       | undefined;
 
+    // 从 configurable 提取续期锁的回调（由 Processor 注入）
+    const extendLock = config?.configurable?.extendLock as
+      | (() => Promise<void>)
+      | undefined;
+
     try {
       await pushProgress?.(
         65,
         FinanceReportProgressPhase.BUILDING_CHARTS,
         '正在使用 AI 生成报表图表...',
       );
+
+      // LLM 调用前手动续期任务锁，防止长时间调用导致锁过期
+      await extendLock?.();
+
       const llmCharts = await generateChartsByLLM(state, deps, chartMode);
       const charts = sanitizeLLMCharts(llmCharts, chartMode);
 

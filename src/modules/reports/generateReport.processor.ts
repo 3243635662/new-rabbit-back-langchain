@@ -3,10 +3,7 @@ import { Job } from 'bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import {
-  RedisKeys,
-  TaskProgressKeys,
-} from '../../common/constants/redis-key.constant';
+import { TaskProgressKeys } from '../../common/constants/redis-key.constant';
 import { pushTaskProgress } from '../../utils/task-progress.util';
 import { RedisService } from '../db/redis/redis.service';
 import { ReportRenderService } from '../report-render/report-render.service';
@@ -48,7 +45,15 @@ const buildReportTitle = (request: GenerateFinanceReportDto): string => {
  * - 前端通过 SSE / 轮询读取进度
  */
 @Injectable()
-@Processor(RedisKeys.FINANCE.REPORT_QUEUE_NAME, { concurrency: 1 })
+@Processor('finance-report-queue', {
+  concurrency: 1,
+  // 锁超时 10 分钟，避免报表生成（含 LLM 调用）时间过长导致锁过期
+  lockDuration: 600_000,
+  // 自动续期间隔 5 分钟（锁有效期的一半），确保锁不会过期
+  lockRenewTime: 300_000,
+  // 每 30 秒检测一次 stalled，尽早续期
+  stalledInterval: 30_000,
+})
 export class FinanceReportProcessor extends WorkerHost {
   private readonly logger = new Logger(FinanceReportProcessor.name);
   private readonly compiledGraph: ReturnType<typeof buildFinanceReportGraph>;
@@ -106,8 +111,7 @@ export class FinanceReportProcessor extends WorkerHost {
         TaskProgressKeys.FINANCE_REPORT,
       );
 
-      // 绑定进度回调，与 Finance 模块的图节点模式一致：
-      // 节点内通过 config.configurable.pushProgress 推送自身进度
+      // 绑定进度回调
       const pushProgress = async (
         progress: number,
         status: string,
@@ -122,9 +126,23 @@ export class FinanceReportProcessor extends WorkerHost {
           TaskProgressKeys.FINANCE_REPORT,
         );
 
+      // 在 LLM 调用前手动续期锁的函数（防止长耗时 LLM 调用导致锁过期）
+      const extendLock = async () => {
+        try {
+          await job.extendLock(job.id!, 120_000);
+          this.logger.debug(`[taskId:${job.id}] 手动续期任务锁成功`);
+        } catch (err) {
+          this.logger.warn(
+            `[taskId:${job.id}] 手动续期任务锁失败：${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+        }
+      };
+
       const state = await this.compiledGraph.invoke(
         { request, user: userContext, logs: [] },
-        { configurable: { pushProgress } },
+        { configurable: { pushProgress, extendLock } },
       );
 
       await this.finishReport(job, state);
@@ -145,7 +163,6 @@ export class FinanceReportProcessor extends WorkerHost {
 
     const reportUrl = exportResult.url || '';
 
-    // 更新数据库记录为已完成
     const updateData: Record<string, unknown> = {
       status: FinanceReportStatus.COMPLETED,
       url: reportUrl || undefined,
@@ -175,7 +192,6 @@ export class FinanceReportProcessor extends WorkerHost {
     const errMsg = error instanceof Error ? error.message : String(error);
     this.logger.error(`[taskId:${job.id}] 报表生成失败: ${errMsg}`);
 
-    // 更新数据库记录为失败
     await this.financeReportRepo.update(
       { taskId: String(job.id) },
       {

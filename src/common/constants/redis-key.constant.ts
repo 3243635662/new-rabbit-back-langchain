@@ -508,8 +508,7 @@ export const RedisKeys = {
      * 商家商品列表缓存前缀（用于批量清除）
      * 格式：merchant:goods:list:{merchantId}:
      */
-    getListPrefix: (merchantId: number) =>
-      `merchant:goods:list:${merchantId}:`,
+    getListPrefix: (merchantId: number) => `merchant:goods:list:${merchantId}:`,
 
     /**
      * SKU 详情缓存
