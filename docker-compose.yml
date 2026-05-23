@@ -4,7 +4,7 @@ services:
     image: redis/redis-stack-server:latest
     container_name: redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru --loadmodule /usr/lib/redis/modules/redisbloom.so
     ports:
       - "6379:6379"
     volumes:

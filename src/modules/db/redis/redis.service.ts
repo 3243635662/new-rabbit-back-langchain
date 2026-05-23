@@ -37,20 +37,16 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       port: this.configService.get<number>('REDIS_PORT'),
       host: this.configService.get<string>('REDIS_HOST'),
       enableAutoPipelining: true,
-      // 连接稳定性配置
-      keepAlive: 30000, // TCP keepAlive，防止连接被防火墙断开
-      connectTimeout: 10000, // 连接超时 10 秒
-      commandTimeout: 5000, // 命令超时 5 秒
-      maxRetriesPerRequest: 3, // 每个命令最多重试 3 次
+      keepAlive: 30000,
+      connectTimeout: 10000,
+      maxRetriesPerRequest: null, // 关键：和 BullMQ 一样设为 null，不让 ioredis 在断连时抛异常
       retryStrategy: (times: number) => {
         if (times > 10) {
-          return null; // 超过10次放弃重连
+          return null;
         }
-        return Math.min(times * 50, 2000); //  重连间隔：50ms → 2000ms
+        return Math.min(times * 50, 2000);
       },
-      // 启用就绪检查，确保连接真正可用
       enableReadyCheck: true,
-      // 断开连接后自动重连
       autoResubscribe: true,
       autoResendUnfulfilledCommands: true,
     };
