@@ -69,11 +69,16 @@ export class ShipOrderTool {
       {
         name: 'shipOrder',
         description:
-          '商家确认订单发货。用于将待发货的订单项标记为已发货状态。需要提供订单项 ID（orderItemId），系统会验证该订单项属于当前商家且处于待发货状态、订单已支付。不需要用户指定商家 ID。',
+          '商家确认订单发货。将待发货订单项标记为已发货。\n' +
+          'orderItemId 从 getOrderList 结果中获取（不是 orderNo 也不是 skuCode）。\n' +
+          '只能发 shippingStatus=0（待发货）的订单项。\n' +
+          '操作前向用户确认订单号和商品名，避免误操作。',
         schema: z.object({
           orderItemId: z
             .string()
-            .describe('订单项 ID，必填。要确认发货的订单项 ID。'),
+            .describe(
+              '订单项 ID，必填。从 getOrderList 返回的 orderItemId 获取。',
+            ),
         }),
       },
     );

@@ -7,6 +7,30 @@ import { JwtPayloadType } from '../../types/auth.type';
 import { PaginationOptionsType } from '../../types/pagination.type';
 import { AgentRuntimeContext } from '../../types/agent.type';
 
+/** getGoodsList 返回的单条商品记录 */
+interface GoodsListItem {
+  id: number;
+  name: string;
+  specsLabel: string;
+  price: number;
+  salePrice?: number;
+  minPrice?: number;
+  stock: number;
+  skuCode: string;
+  brand: string;
+  categoryLabel: string;
+  status: boolean;
+}
+
+/** getGoodsList 返回的分页结果 */
+interface GoodsListResult {
+  list: GoodsListItem[];
+  total: number;
+  totalPage: number;
+  page: number;
+  limit: number;
+}
+
 /**
  * 获取商品列表 Tool
  *
@@ -58,13 +82,13 @@ export class ProductListTool {
           // 使用真实用户信息构造 payload
           const payload = { id: userId, roleId } as JwtPayloadType;
 
-          const result = await this.merchantService.getGoodsList(
+          const result = (await this.merchantService.getGoodsList(
             payload,
             options,
             merchantId,
-          );
+          )) as GoodsListResult | undefined;
 
-          const list = result?.list || [];
+          const list = result?.list ?? [];
 
           if (list.length === 0) {
             return JSON.stringify({
@@ -72,12 +96,12 @@ export class ProductListTool {
               message: '未找到商品。',
               page: safePage,
               limit: safeLimit,
-              total: result?.total || 0,
+              total: result?.total ?? 0,
               products: [],
             });
           }
 
-          const formattedList = list.map((item) => ({
+          const formattedList = list.map((item: GoodsListItem) => ({
             id: item.id,
             name: item.name,
             specs: item.specsLabel || null,
@@ -89,15 +113,19 @@ export class ProductListTool {
             status: item.status ? '上架' : '下架',
           }));
 
-          const total = result?.total || list.length;
+          const total = result?.total ?? list.length;
+          const totalPage = result?.totalPage ?? 1;
+          const hasMore = safePage < totalPage;
 
           return JSON.stringify({
             success: true,
             message: '查询商品列表成功。',
-            summary: `共 ${total} 个商品，第 ${safePage} 页`,
+            summary: `共 ${total} 个商品，第 ${safePage}/${totalPage} 页`,
             page: safePage,
             limit: safeLimit,
             total,
+            totalPage,
+            hasMore,
             products: formattedList,
           });
         } catch (err) {
@@ -116,32 +144,37 @@ export class ProductListTool {
       {
         name: 'getProductList',
         description:
-          '获取当前登录商家的商品列表。用于查询商家有哪些商品、商品价格、库存、SKU、品牌、分类、上下架状态等信息。支持通过关键词搜索商品名称、规格或 SKU 编码。不需要用户指定商家 ID，系统会自动从当前登录用户上下文获取。',
+          '获取当前登录商家的商品列表。用于查询商品名称、价格、库存、SKU 编码、品牌、分类、上下架状态。\n' +
+          'keyword 支持按商品名/SKU 编码/规格模糊搜索。需要查找特定商品时传入 keyword。\n' +
+          '不需要用户指定商家 ID，系统自动获取。\n' +
+          '翻页：结果含 totalPage/hasMore，"下一页" page+1。',
         schema: z.object({
           keyword: z
             .string()
             .optional()
-            .describe('搜索关键词，可选。用于过滤商品名称、规格或 SKU 编码。'),
+            .describe(
+              '搜索关键词，用于按商品名称、SKU 编码或规格模糊搜索。查"iPhone"传 "iPhone"，查 SKU 编码传具体编码。',
+            ),
           page: z
             .number()
             .int()
             .positive()
             .optional()
-            .describe('页码，可选，默认为 1。'),
+            .describe('页码，默认 1。翻页时按 totalPage 判断。'),
           limit: z
             .number()
             .int()
             .positive()
             .max(20)
             .optional()
-            .describe('每页数量，可选，默认为 5，最大为 20。'),
+            .describe('每页数量，默认 5，最大 20。要一次多查可设 20。'),
         }),
       },
     );
   }
 
-  /** 格式化商品价格字段 */
-  private formatPrice = (item: Record<string, unknown>): string | null => {
+  /** 格式化商品价格字段，支持 price / salePrice / minPrice 优先级回退 */
+  private formatPrice = (item: GoodsListItem): string | null => {
     const raw = item.price ?? item.salePrice ?? item.minPrice;
 
     if (raw === undefined || raw === null) {

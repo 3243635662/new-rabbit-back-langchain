@@ -86,7 +86,9 @@ export class MerchantCategoriesTool {
       {
         name: 'getMerchantCategories',
         description:
-          '获取当前登录商家的商品分类树。用于查询商家有哪些商品分类（包括系统公共分类和商家自定义分类），返回树形结构。不需要任何参数，系统会自动从当前登录用户上下文获取。',
+          '获取当前商家的商品分类树（含系统公共分类和自定义分类）。\n' +
+          '返回 id/name/children 树形结构。\n' +
+          '常用于："有什么分类""分几个大类"或为后续 getProductList 提供分类名。',
         schema: z.object({}),
       },
     );

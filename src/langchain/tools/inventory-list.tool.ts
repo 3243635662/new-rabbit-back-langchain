@@ -88,14 +88,18 @@ export class InventoryListTool {
           }));
 
           const total = result?.total || list.length;
+          const totalPage = result?.totalPage || 1;
+          const hasMore = safePage < totalPage;
 
           return JSON.stringify({
             success: true,
             message: '查询库存列表成功。',
-            summary: `共 ${total} 条库存记录，第 ${safePage} 页`,
+            summary: `共 ${total} 条库存记录，第 ${safePage}/${totalPage} 页`,
             page: safePage,
             limit: safeLimit,
             total,
+            totalPage,
+            hasMore,
             inventories: formattedList,
           });
         } catch (err) {
@@ -114,31 +118,34 @@ export class InventoryListTool {
       {
         name: 'getInventoryList',
         description:
-          '获取当前登录商家的库存列表。用于查询商家有哪些库存、库存数量、预警状态、锁定库存等信息。支持通过关键词搜索商品名称、SKU编码或规格，支持筛选预警库存。不需要用户指定商家 ID，系统会自动从当前登录用户上下文获取。',
+          '获取当前登录商家的库存列表。查询商品库存数量、预警状态、锁定库存。\n' +
+          'isWarning=true 只显示库存低于预警值的商品（"哪些快卖完了"）。\n' +
+          'keyword 按商品名/SKU 编码搜索。\n' +
+          '翻页：结果含 totalPage/hasMore。',
         schema: z.object({
           keyword: z
             .string()
             .optional()
-            .describe('搜索关键词，可选。用于过滤商品名称、SKU编码或规格。'),
+            .describe('搜索关键词，按商品名、SKU 编码或规格搜索。'),
           isWarning: z
             .boolean()
             .optional()
             .describe(
-              '是否只显示预警库存，可选。设为 true 时只返回库存低于预警值的记录。',
+              '是否只查预警库存。true=只返回库存低于预警值的商品（"缺货/快卖完"）。',
             ),
           page: z
             .number()
             .int()
             .positive()
             .optional()
-            .describe('页码，可选，默认为 1。'),
+            .describe('页码，默认 1。'),
           limit: z
             .number()
             .int()
             .positive()
             .max(20)
             .optional()
-            .describe('每页数量，可选，默认为 5，最大为 20。'),
+            .describe('每页数量，默认 5，最大 20。'),
         }),
       },
     );

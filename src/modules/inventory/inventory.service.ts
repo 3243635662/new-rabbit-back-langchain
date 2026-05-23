@@ -315,6 +315,29 @@ export class InventoryService {
       .where('log.skuId = :skuId', { skuId })
       .orderBy('log.createdAt', 'DESC');
 
+    // 按变动类型筛选（通过 status 字段传入，如 "ORDER" "REFUND"）
+    if (options.status) {
+      const typeList = options.status
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (typeList.length > 0) {
+        qb.andWhere('log.type IN (:...typeList)', { typeList });
+      }
+    }
+
+    // 按变动时间筛选
+    if (options.startTime) {
+      qb.andWhere('log.createdAt >= :startTime', {
+        startTime: options.startTime,
+      });
+    }
+    if (options.endTime) {
+      qb.andWhere('log.createdAt <= :endTime', {
+        endTime: options.endTime,
+      });
+    }
+
     const paginateOptions: IPaginationOptions = {
       page: options.page || 1,
       limit: options.limit || 10,

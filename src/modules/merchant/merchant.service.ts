@@ -32,6 +32,19 @@ import { createGoodsDto } from './dto/createGoods.dto';
 import { RedisKeys } from '../../common/constants/redis-key.constant';
 import { RedisTTL } from '../../common/constants/redis-TTL.constant';
 
+/**
+ * 归一化日期：纯 YYYY-MM-DD → YYYY-MM-DD 00:00:00
+ * 已含时间部分则原样返回。MySQL 将纯日期解释为 00:00:00 导致当天订单查不到。
+ */
+const normalizeDateStart = (dateStr: string): string =>
+  /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? dateStr + ' 00:00:00' : dateStr;
+
+/**
+ * 归一化日期：纯 YYYY-MM-DD → YYYY-MM-DD 23:59:59
+ */
+const normalizeDateEnd = (dateStr: string): string =>
+  /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? dateStr + ' 23:59:59' : dateStr;
+
 const DEFAULT_GOODS_PICTURE =
   'https://img2.baidu.com/it/u=1634170865,2624005952&fm=253&fmt=auto&app=138&f=JPEG?w=500&h=500';
 
@@ -883,14 +896,30 @@ export class MerchantService {
       }
     }
 
-    // 5. 时间范围筛选（基于订单创建时间）
+    // 5. 时间范围筛选（基于订单创建时间 order.createdAt）
+    // 注意：纯日期格式 "YYYY-MM-DD" 会被 MySQL 解释为 00:00:00，
+    // 因此对 endTime 自动补 23:59:59，确保当天订单能被正确筛选。
     if (options.startTime) {
-      const startTime = options.startTime;
-      qb.andWhere('order.createdAt >= :startTime', { startTime });
+      qb.andWhere('order.createdAt >= :startTime', {
+        startTime: normalizeDateStart(options.startTime),
+      });
     }
     if (options.endTime) {
-      const endTime = options.endTime;
-      qb.andWhere('order.createdAt <= :endTime', { endTime });
+      qb.andWhere('order.createdAt <= :endTime', {
+        endTime: normalizeDateEnd(options.endTime),
+      });
+    }
+
+    // 5.1 时间范围筛选（基于发货时间 oi.shippedAt，用于"今天发货了哪些"类查询）
+    if (options.shippedStartTime) {
+      qb.andWhere('oi.shippedAt >= :shippedStartTime', {
+        shippedStartTime: normalizeDateStart(options.shippedStartTime),
+      });
+    }
+    if (options.shippedEndTime) {
+      qb.andWhere('oi.shippedAt <= :shippedEndTime', {
+        shippedEndTime: normalizeDateEnd(options.shippedEndTime),
+      });
     }
 
     // 6. 排序（默认按订单创建时间倒序）

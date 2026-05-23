@@ -25,9 +25,15 @@ export interface PaginationOptionsType {
   // 资源类型筛选
   sourceType?: string;
 
-  // 时间范围 - 开始时间
+  // 时间范围 - 下单开始时间（基于 order.createdAt）
   startTime?: string;
 
-  // 时间范围 - 结束时间
+  // 时间范围 - 下单结束时间（基于 order.createdAt）
   endTime?: string;
+
+  // 时间范围 - 发货开始时间（基于 oi.shippedAt）
+  shippedStartTime?: string;
+
+  // 时间范围 - 发货结束时间（基于 oi.shippedAt）
+  shippedEndTime?: string;
 }

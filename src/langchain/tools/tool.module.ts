@@ -13,6 +13,7 @@ import { InventoryStockChangeTool } from './inventory-stock-change.tool';
 import { UserInfoTool } from './user-info.tool';
 import { ShipOrderTool } from './ship-order.tool';
 import { MerchantCategoriesTool } from './merchant-categories.tool';
+import { GenericQueryTool } from './generic-query.tool';
 
 /**
  * LangChain Tools 模块
@@ -38,6 +39,7 @@ import { MerchantCategoriesTool } from './merchant-categories.tool';
     UserInfoTool,
     ShipOrderTool,
     MerchantCategoriesTool,
+    GenericQueryTool,
   ],
   exports: [
     MerchantKbTool,
@@ -49,6 +51,7 @@ import { MerchantCategoriesTool } from './merchant-categories.tool';
     UserInfoTool,
     ShipOrderTool,
     MerchantCategoriesTool,
+    GenericQueryTool,
   ],
 })
 export class ToolModule {}

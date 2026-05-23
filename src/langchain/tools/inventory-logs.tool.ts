@@ -30,10 +30,16 @@ export class InventoryLogsTool {
     return tool(
       async ({
         skuCode,
+        type,
+        startTime,
+        endTime,
         page,
         limit,
       }: {
         skuCode: string;
+        type?: string;
+        startTime?: string;
+        endTime?: string;
         page?: number;
         limit?: number;
       }) => {
@@ -61,6 +67,9 @@ export class InventoryLogsTool {
           const options: PaginationOptionsType = {
             page: safePage,
             limit: safeLimit,
+            status: type || undefined,
+            startTime: startTime || undefined,
+            endTime: endTime || undefined,
             order: 'DESC',
           };
 
@@ -79,6 +88,8 @@ export class InventoryLogsTool {
               page: safePage,
               limit: safeLimit,
               total: result?.total || 0,
+              totalPage: 0,
+              hasMore: false,
               logs: [],
             });
           }
@@ -103,14 +114,18 @@ export class InventoryLogsTool {
           }));
 
           const total = result?.total || list.length;
+          const totalPage = result?.totalPage || 1;
+          const hasMore = safePage < totalPage;
 
           return JSON.stringify({
             success: true,
             message: `查询 SKU ${skuCode} 的库存变动记录成功。`,
-            summary: `共 ${total} 条变动记录，第 ${safePage} 页`,
+            summary: `共 ${total} 条变动记录，第 ${safePage}/${totalPage} 页`,
             page: safePage,
             limit: safeLimit,
             total,
+            totalPage,
+            hasMore,
             logs: formattedList,
           });
         } catch (err) {
@@ -129,24 +144,43 @@ export class InventoryLogsTool {
       {
         name: 'getInventoryLogs',
         description:
-          '获取指定 SKU 编码的库存变动日志。用于查询某个商品的库存增减历史，包括下单扣减、退货入库、手动入库/出库等变动记录。需要提供 SKU 编码（skuCode），不需要用户指定商家 ID。',
+          '获取指定 SKU 的库存变动日志。查询某个商品的库存增减历史：下单扣减(ORDER)、退货入库(REFUND)、手动入库(MANUAL_ADD)、手动出库(MANUAL_REDUCE)。\n' +
+          'skuCode 需要先从 getInventoryList 或 getProductList 获取。\n' +
+          '查"某商品最近卖了几个"用 type=ORDER；查"最近退货"用 type=REFUND。\n' +
+          '翻页：结果含 totalPage/hasMore。',
         schema: z.object({
           skuCode: z
             .string()
-            .describe('SKU 编码，必填。用于查询该 SKU 的库存变动记录。'),
+            .describe('SKU 编码，必填。先从 getInventoryList 获取。'),
+          type: z
+            .string()
+            .optional()
+            .describe(
+              '变动类型筛选。ORDER=下单扣减 REFUND=退货入库 MANUAL_ADD=手动入库 MANUAL_REDUCE=手动出库。不传则查全部类型。',
+            ),
+          startTime: z
+            .string()
+            .optional()
+            .describe(
+              '开始时间 YYYY-MM-DD，筛选该日期之后的变动。查"最近一周"时使用。',
+            ),
+          endTime: z
+            .string()
+            .optional()
+            .describe('结束时间 YYYY-MM-DD，筛选该日期之前的变动。'),
           page: z
             .number()
             .int()
             .positive()
             .optional()
-            .describe('页码，可选，默认为 1。'),
+            .describe('页码，默认 1。'),
           limit: z
             .number()
             .int()
             .positive()
             .max(20)
             .optional()
-            .describe('每页数量，可选，默认为 5，最大为 20。'),
+            .describe('每页数量，默认 5，最大 20。'),
         }),
       },
     );

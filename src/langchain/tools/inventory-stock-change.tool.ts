@@ -107,23 +107,27 @@ export class InventoryStockChangeTool {
       {
         name: 'manualStockChange',
         description:
-          '手动入库或出库操作。用于商家对指定 SKU 进行手动入库（增加库存）或出库（减少库存）。需要提供 SKU 编码、操作数量、操作类型。出库时库存不足会报错。不需要用户指定商家 ID。',
+          '手动入库或出库。MANUAL_ADD=入库(增加库存) MANUAL_REDUCE=出库(减少库存)。\n' +
+          '操作前建议先调 getInventoryList 确认 skuCode 存在。出库时库存不足会报错。\n' +
+          'remark 建议填写操作原因便于追溯。',
         schema: z.object({
-          skuCode: z.string().describe('SKU 编码，必填。指定要操作的 SKU。'),
+          skuCode: z
+            .string()
+            .describe('SKU 编码，必填。先从 getInventoryList 获取确保存在。'),
           count: z
             .number()
             .int()
             .positive()
-            .describe('操作数量，必填。必须大于 0。'),
+            .describe('操作数量，必填，必须大于 0。'),
           type: z
             .enum(['MANUAL_ADD', 'MANUAL_REDUCE'])
             .describe(
-              '操作类型，必填。MANUAL_ADD=手动入库（增加库存），MANUAL_REDUCE=手动出库（减少库存）。',
+              'MANUAL_ADD=入库（增加库存）MANUAL_REDUCE=出库（减少库存）。用户说"入库"用 MANUAL_ADD，"出库"用 MANUAL_REDUCE。',
             ),
           remark: z
             .string()
             .optional()
-            .describe('备注说明，可选。记录本次操作的原因。'),
+            .describe('备注，记录操作原因（如"盘点调整""退货入库"）。'),
         }),
       },
     );

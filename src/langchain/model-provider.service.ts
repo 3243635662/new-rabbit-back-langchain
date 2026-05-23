@@ -14,7 +14,6 @@ export class ModelProviderService {
       apiKey: this.configService.get<string>('GLM_DASHSCOPE_API_KEY'),
       configuration: {
         baseURL: this.configService.get<string>('GLM_DASHSCOPE_BASE_URL'),
-        timeout: 60_000,
       },
       modelName: this.configService.get<string>('MODEL_NAME') || 'glm-4.5-air',
       streaming: true,

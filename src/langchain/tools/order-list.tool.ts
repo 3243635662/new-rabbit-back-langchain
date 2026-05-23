@@ -32,6 +32,8 @@ export class OrderListTool {
         shippingStatus,
         startTime,
         endTime,
+        shippedStartTime,
+        shippedEndTime,
         page,
         limit,
       }: {
@@ -39,6 +41,8 @@ export class OrderListTool {
         shippingStatus?: string;
         startTime?: string;
         endTime?: string;
+        shippedStartTime?: string;
+        shippedEndTime?: string;
         page?: number;
         limit?: number;
       }) => {
@@ -61,6 +65,8 @@ export class OrderListTool {
             status: shippingStatus || undefined,
             startTime: startTime || undefined,
             endTime: endTime || undefined,
+            shippedStartTime: shippedStartTime || undefined,
+            shippedEndTime: shippedEndTime || undefined,
             sort: 'createdAt',
             order: 'DESC',
           };
@@ -104,6 +110,7 @@ export class OrderListTool {
             // 订单金额信息
             payAmount: item.payAmount != null ? '¥' + item.payAmount : null,
             paidAt: item.paidAt || null,
+            shippedAt: item.shippedAt || null,
             createdAt: item.createdAt || null,
           }));
 
@@ -141,7 +148,8 @@ export class OrderListTool {
           '获取当前登录商家的订单列表。用于查询商家的订单、发货状态、支付状态、订单金额等信息。\n' +
           '支持按订单号搜索、按发货/售后状态筛选、按时间范围筛选、分页查询。\n' +
           '不需要用户指定商家 ID，系统会自动从当前登录用户上下文获取。\n' +
-          '翻页方式：查看返回结果中的 totalPage 和 hasMore，用户要"下一页"时将 page 设为当前页+1，要"上一页"时设为当前页-1。',
+          '翻页方式：查看返回结果中的 totalPage 和 hasMore，用户要"下一页"时将 page 设为当前页+1，要"上一页"时设为当前页-1。\n' +
+          '时间筛选注意：startTime/endTime 按订单创建时间筛选；shippedStartTime/shippedEndTime 按实际发货时间筛选，两者可以同时使用。',
         schema: z.object({
           keyword: z
             .string()
@@ -160,13 +168,29 @@ export class OrderListTool {
             .string()
             .optional()
             .describe(
-              '开始时间，格式 YYYY-MM-DD（如 2026-05-01）。筛选该日期及之后的订单。与 endTime 配合可用于"最近一周""本月"等时间范围查询。',
+              '按下单时间筛选的开始日期，格式 YYYY-MM-DD。筛选该日期及之后创建的订单。\n' +
+                '适用场景："最近一周的订单""本月订单"。\n' +
+                '注意：问"今天发货了几个"时不要用此参数，应使用 shippedStartTime。',
             ),
           endTime: z
             .string()
             .optional()
             .describe(
-              '结束时间，格式 YYYY-MM-DD（如 2026-05-23）。筛选该日期及之前的订单。',
+              '按下单时间筛选的结束日期，格式 YYYY-MM-DD。筛选该日期及之前创建的订单。',
+            ),
+          shippedStartTime: z
+            .string()
+            .optional()
+            .describe(
+              '按实际发货时间筛选的开始日期，格式 YYYY-MM-DD。筛选该日期及之后发货的订单。\n' +
+                '适用场景："今天发货了哪些""最近一周发货量"。\n' +
+                '通常与 shippingStatus=1 或 shippingStatus=3 配合使用。',
+            ),
+          shippedEndTime: z
+            .string()
+            .optional()
+            .describe(
+              '按实际发货时间筛选的结束日期，格式 YYYY-MM-DD。筛选该日期及之前发货的订单。',
             ),
           page: z
             .number()

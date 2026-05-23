@@ -78,7 +78,7 @@ export class UserInfoTool {
       {
         name: 'getUserInfo',
         description:
-          '获取当前登录用户的个人信息。用于查询用户名、邮箱、角色、关联商户ID等。不需要任何参数，系统会自动从当前登录用户上下文获取。',
+          '获取当前登录用户的个人信息：用户名、邮箱、角色（超级管理员/商家/普通用户）、关联商户ID。无需参数。',
         schema: z.object({}),
       },
     );

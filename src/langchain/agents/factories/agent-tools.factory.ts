@@ -15,6 +15,7 @@ import { InventoryStockChangeTool } from '../../tools/inventory-stock-change.too
 import { UserInfoTool } from '../../tools/user-info.tool';
 import { ShipOrderTool } from '../../tools/ship-order.tool';
 import { MerchantCategoriesTool } from '../../tools/merchant-categories.tool';
+import { GenericQueryTool } from '../../tools/generic-query.tool';
 import { AgentRuntimeContext } from '../../../types/agent.type';
 
 @Injectable()
@@ -29,6 +30,7 @@ export class AgentToolsFactory {
     private readonly userInfoTool: UserInfoTool,
     private readonly shipOrderTool: ShipOrderTool,
     private readonly merchantCategoriesTool: MerchantCategoriesTool,
+    private readonly genericQueryTool: GenericQueryTool,
   ) {}
 
   /** 组装当前 Agent 可用的 Tool 列表 */
@@ -43,6 +45,7 @@ export class AgentToolsFactory {
       this.userInfoTool.create(context),
       this.shipOrderTool.create(context),
       this.merchantCategoriesTool.create(context),
+      this.genericQueryTool.create(context),
     ];
   };
 }
