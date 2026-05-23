@@ -48,10 +48,13 @@ export class LangGraphAgentRunner {
     const sessionId = context.sessionId;
 
     // 只传新消息，Checkpointer 自动从 PG 恢复历史状态
+    // 重置 step 计数器：每次新 invoke 时 step 应重新从 0 开始计数，
+    // 否则 Checkpointer 持久化的旧 step 值会累积导致 shouldContinue 提前拦截工具调用
     const input = {
       messages: [new HumanMessage(prompt)],
       availableTools: tools,
       toolTraces: [],
+      step: 0,
     };
 
     const config = {
@@ -169,10 +172,12 @@ export class LangGraphAgentRunner {
     const tools = this.toolsFactory.createTools(context);
 
     // 只传新消息，Checkpointer 自动从 PG 恢复历史状态
+    // 重置 step 计数器：每次新 invoke 时 step 应重新从 0 开始计数
     const input = {
       messages: [new HumanMessage(prompt)],
       availableTools: tools,
       toolTraces: [],
+      step: 0,
     };
 
     const config = {
