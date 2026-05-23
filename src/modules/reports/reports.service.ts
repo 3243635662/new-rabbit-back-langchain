@@ -60,7 +60,11 @@ export class ReportsService {
   /**
    * 按商户分页查询报表列表
    */
-  listReports = (merchantId: number, page: number = 1, limit: number = 10) => {
+  listReports = (
+    merchantId: number,
+    options: { page: number; limit: number },
+  ) => {
+    const { page = 1, limit = 10 } = options;
     return this.financeReportRepo.findAndCount({
       where: { merchantId },
       order: { createdAt: 'DESC' },
@@ -106,18 +110,25 @@ export class ReportsService {
   };
 
   /**
-   * SSE 实时推送报表生成处理进度
-   *
-   * 修复说明：
-   * - 原实现先读缓存再订阅，存在竞态条件：读缓存为空 → publish 消息 → 订阅才确认 → 消息丢失
-   * - 修正为先订阅（await 确认）、再读缓存，确保不丢消息
+   * SSE 实时推送报表生成处理进度（与 finance progress 同模式，使用 TaskProgressKeys.FINANCE_REPORT）
    */
   progressSse = (taskId: string): Observable<SseEvent> => {
     return new Observable((observer) => {
       const keySet = TaskProgressKeys.FINANCE_REPORT;
       const channel = keySet.getProgressChannel(taskId);
+      const cacheKey = keySet.getProgressDataKey(taskId);
       let subClient: Redis | null = null;
       let isClosed = false;
+
+      this.logger.log(
+        `报表 SSE 连接请求 [${taskId}] → channel: ${channel}, cache: ${cacheKey}`,
+      );
+
+      // 心跳定时器：每 30 秒发送 SSE comment 保持连接，防止 proxy 超时关闭
+      const heartbeat = setInterval(() => {
+        if (isClosed) return;
+        observer.next({ data: '' } as SseEvent);
+      }, 30_000);
 
       const init = async () => {
         try {
@@ -126,53 +137,61 @@ export class ReportsService {
           await subClient.subscribe(channel);
           this.logger.log(`报表 SSE 已订阅 [${taskId}] → ${channel}`);
 
-          // 如果订阅完成后连接已关闭，清理退出
           if (isClosed) {
+            clearInterval(heartbeat);
             subClient.unsubscribe(channel).catch(() => {});
             subClient.quit().catch(() => {});
             return;
           }
 
-          // 2. 注册消息监听（此时订阅已确认，不会丢消息）
+          // 2. 注册消息监听（此时订阅已确认）
           subClient.on('message', (_: string, message: string) => {
             if (isClosed) return;
             try {
               const data = JSON.parse(message) as TaskProgressPayload;
+              this.logger.log(
+                `报表 SSE 收到 Pub/Sub [${taskId}]: progress=${data.progress}, status=${data.status}`,
+              );
               observer.next({ data });
               if (
                 data.status === FinanceReportProgressPhase.COMPLETED ||
                 data.status === FinanceReportProgressPhase.FAILED
               ) {
-                observer.complete();
-                if (subClient) {
-                  subClient.unsubscribe(channel).catch(() => {});
-                }
+                clearInterval(heartbeat);
+                setTimeout(() => {
+                  observer.complete();
+                  if (subClient) subClient.unsubscribe(channel).catch(() => {});
+                }, 100);
               }
             } catch {
               observer.next({ data: message });
             }
           });
 
-          // 3. 订阅确认后再读缓存，补发历史进度（不会与 Pub/Sub 消息冲突）
+          // 3. 订阅确认后再读缓存
           const cached = (await this.redisService.getTaskProgressCache(
             keySet,
             taskId,
           )) as TaskProgressPayload | null;
 
           if (cached) {
+            this.logger.log(
+              `报表 SSE 缓存命中 [${taskId}]: progress=${cached.progress}, status=${cached.status}`,
+            );
             observer.next({ data: cached });
             if (
               cached.status === FinanceReportProgressPhase.COMPLETED ||
               cached.status === FinanceReportProgressPhase.FAILED
             ) {
-              observer.complete();
-              if (subClient) {
-                subClient.unsubscribe(channel).catch(() => {});
-              }
+              clearInterval(heartbeat);
+              setTimeout(() => {
+                observer.complete();
+                if (subClient) subClient.unsubscribe(channel).catch(() => {});
+              }, 100);
               return;
             }
           } else {
-            // 无缓存时先发一条心跳，告知前端连接已建立
+            this.logger.log(`报表 SSE 缓存未命中 [${taskId}]，发送心跳`);
             observer.next({
               data: {
                 progress: 0,
@@ -182,6 +201,7 @@ export class ReportsService {
             });
           }
         } catch (err) {
+          clearInterval(heartbeat);
           this.logger.error(
             `报表 SSE 初始化失败 [${taskId}]: ${err instanceof Error ? err.message : String(err)}`,
           );
@@ -193,6 +213,7 @@ export class ReportsService {
 
       return () => {
         isClosed = true;
+        clearInterval(heartbeat);
         if (subClient) {
           subClient.unsubscribe(channel).catch(() => {});
           subClient.quit().catch(() => {});

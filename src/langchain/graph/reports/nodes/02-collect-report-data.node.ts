@@ -3,7 +3,6 @@ import { Order } from '../../../../modules/order/entities/orders.entity';
 import { Inventory } from '../../../../modules/inventory/entities/inventory.entity';
 import { InventoryLog } from '../../../../modules/inventory/entities/inventory_logs.entity';
 import { FinanceExtractedRecord } from '../../../../modules/finance/entities/finance-extracted-record.entity';
-import { Merchant } from '../../../../modules/merchant/entities/merchant.entity';
 import type { RunnableConfig } from '@langchain/core/runnables';
 import type { FinanceReportGraphState } from '../finance-report.annotation';
 import type {
@@ -69,20 +68,6 @@ export const buildCollectReportDataNode = (deps: FinanceReportNodeDeps) => {
     const dataScopes = state.request.dataScopes || [];
     const logs: string[] = [];
 
-    // 获取 userId（用于订单过滤）
-    let merchantUserId = '';
-    try {
-      const merchantRepository = getRepo(Merchant);
-      const merchant = await merchantRepository.findOne({
-        where: { id: merchantId },
-      });
-      if (merchant) {
-        merchantUserId = merchant.userId || '';
-      }
-    } catch (err) {
-      logs.push(`获取商户信息失败: ${getErrorMessage(err)}`);
-    }
-
     // 封装统一的原始数据抓取逻辑
     const fetchReportRawData = async (
       start: Date,
@@ -97,26 +82,23 @@ export const buildCollectReportDataNode = (deps: FinanceReportNodeDeps) => {
         financeRecords: [],
       };
 
-      // 1. 查询订单数据
-      // 修复：不再使用 user.merchant.id 嵌套 where（与 Between 组合时 TypeORM 生成错误 SQL），
-      // 改为直接用 merchantUserId 过滤
-      if (dataScopes.includes('order') && merchantUserId) {
+      // 1. 查询订单数据（商家收到的订单 = 订单项中 goods.merchantId 匹配的订单）
+      // 订单是客户下的，不能按 userId 过滤；应走 items → sku → goods 链找商家的商品
+      if (dataScopes.includes('order') && merchantId) {
         try {
           const orderRepository = getRepo(Order);
-          const orders = await orderRepository.find({
-            where: {
-              createdAt: Between(start, end),
-              userId: merchantUserId,
-            },
-            relations: [
-              'user',
-              'user.merchant',
-              'items',
-              'items.sku',
-              'items.sku.goods',
-              'items.sku.goods.category',
-            ],
-          });
+          const orders = await orderRepository
+            .createQueryBuilder('order')
+            .leftJoinAndSelect('order.user', 'user')
+            .leftJoinAndSelect('user.merchant', 'userMerchant')
+            .innerJoin('order.items', 'items')
+            .leftJoinAndSelect('items.sku', 'sku')
+            .leftJoinAndSelect('sku.goods', 'goods')
+            .leftJoinAndSelect('goods.category', 'category')
+            .where('order.createdAt BETWEEN :start AND :end', { start, end })
+            .andWhere('goods.merchantId = :merchantId', { merchantId })
+            .distinct(true)
+            .getMany();
 
           rawData.orders = orders.map((order): OrderReportRecord => {
             return {

@@ -9,8 +9,8 @@ export const ReportNarrativeRiskSchema = z.object({
 export const LLMReportNarrativeSchema = z.object({
   summary: z.string().min(1).max(800),
   keyFindings: z.array(z.string().min(1).max(300)).min(1).max(8),
-  comparison: z.string().max(600).optional(),
-  forecast: z.string().max(600).optional(),
+  comparison: z.string().max(600).nullable().optional(),
+  forecast: z.string().max(600).nullable().optional(),
   risks: z.array(ReportNarrativeRiskSchema).max(6),
   suggestions: z.array(z.string().min(1).max(300)).min(1).max(8),
 });

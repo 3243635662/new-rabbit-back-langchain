@@ -18,7 +18,6 @@ import { OrderNoGeneratorService } from '../../common/services/order-no-generato
 import { CouponService } from '../coupon/coupon.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { RedisKeys } from '../../common/constants/redis-key.constant';
-import { log } from 'console';
 
 @Injectable()
 export class OrderService {

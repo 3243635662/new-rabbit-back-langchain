@@ -70,17 +70,17 @@ export class ReportsController {
   ) {
     const userContext = await this.reportsService.getUserContext(req.user.id);
     const merchantId = userContext.merchantId || 0;
-    const [list, total] = await this.reportsService.listReports(
-      merchantId,
-      paginationOptions.page,
-      paginationOptions.limit,
-    );
+    const [list, total] = await this.reportsService.listReports(merchantId, {
+      page: paginationOptions.page,
+      limit: paginationOptions.limit,
+    });
     return resFormatMethod(0, '查询成功', {
       list: list.map((r) => ({
         id: r.id,
         title: r.title,
         status: r.status,
         url: r.url,
+        taskId: r.taskId,
         createdAt: r.createdAt,
         updatedAt: r.updatedAt,
       })),

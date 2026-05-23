@@ -89,6 +89,9 @@ export class FinanceReportProcessor extends WorkerHost {
   }
 
   override process = async (job: Job<ReportJobData>): Promise<void> => {
+    this.logger.log(
+      `[taskId:${String(job.id)}] 🔔 processor 收到任务，开始处理...`,
+    );
     const { userId, request } = job.data;
 
     if (!userId) throw new Error('报表任务处理失败：未提供用户 ID');
@@ -96,6 +99,9 @@ export class FinanceReportProcessor extends WorkerHost {
 
     try {
       const userContext = await this.reportsService.getUserContext(userId);
+      this.logger.log(
+        `[taskId:${String(job.id)}] 用户上下文获取成功 → merchantId: ${userContext.merchantId}`,
+      );
 
       // 写入数据库记录（pending）
       await this.financeReportRepo.save({
@@ -113,6 +119,9 @@ export class FinanceReportProcessor extends WorkerHost {
         FinanceReportProgressPhase.STARTED,
         '开始生成报表',
         TaskProgressKeys.FINANCE_REPORT,
+      );
+      this.logger.log(
+        `[taskId:${String(job.id)}] 已发布初始进度 → Redis channel: ${TaskProgressKeys.FINANCE_REPORT.getProgressChannel(String(job.id))}`,
       );
 
       // 绑定进度回调
@@ -216,6 +225,7 @@ export class FinanceReportProcessor extends WorkerHost {
       },
     );
 
+    this.logger.error(`[taskId:${String(job.id)}] 进入错误处理 → ${errMsg}`);
     await pushTaskProgress(
       job,
       this.redisService,
@@ -224,6 +234,7 @@ export class FinanceReportProcessor extends WorkerHost {
       `报表生成失败: ${errMsg}`,
       TaskProgressKeys.FINANCE_REPORT,
     );
+    this.logger.log(`[taskId:${String(job.id)}] 已发布失败进度`);
     throw error;
   }
 }
