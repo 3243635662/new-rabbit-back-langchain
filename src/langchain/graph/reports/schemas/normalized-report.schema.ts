@@ -42,7 +42,6 @@ const CashflowItemSchema = z.object({
 export const normalizedReportDataSchema = z.object({
   incomeItems: z.array(MoneyItemSchema),
   costItems: z.array(MoneyItemSchema),
-  expenseItems: z.array(MoneyItemSchema),
   salesByCategory: z.array(SalesByCategorySchema),
   salesByGoods: z.array(SalesByGoodsSchema),
   inventoryItems: z.array(InventoryItemSchema),

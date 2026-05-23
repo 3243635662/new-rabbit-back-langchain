@@ -61,10 +61,7 @@ const normalizeReportRawDataByRule = (
     })),
   );
 
-  // 3. 费用项 — 空，由 Node 4 的 LLM 从 financeRecords 计算
-  const expenseItems: typeof incomeItems = [];
-
-  // 4. 销售分类 + 商品聚合（单次遍历）
+  // 3. 销售分类 + 商品聚合（单次遍历）
   const salesCategoryMap = new Map<
     string,
     { salesAmount: number; quantity: number }
@@ -154,7 +151,6 @@ const normalizeReportRawDataByRule = (
   return {
     incomeItems,
     costItems,
-    expenseItems,
     salesByCategory,
     salesByGoods,
     inventoryItems,

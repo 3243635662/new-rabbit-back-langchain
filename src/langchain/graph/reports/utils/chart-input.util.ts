@@ -65,37 +65,8 @@ const buildCashflowDailyRows = (
 /* ---------- 压缩 metrics ---------- */
 
 export const compactMetricsForChart = (metrics: ReportMetrics) => {
-  return {
-    totalRevenue: metrics.totalRevenue,
-    orderRevenue: metrics.orderRevenue,
-    totalCost: metrics.totalCost,
-    grossProfit: metrics.grossProfit,
-    grossProfitRate: metrics.grossProfitRate,
-    totalExpense: metrics.totalExpense,
-    netProfit: metrics.netProfit,
-    netProfitRate: metrics.netProfitRate,
-
-    costToRevenueRate: metrics.costToRevenueRate,
-    expenseToRevenueRate: metrics.expenseToRevenueRate,
-    inventoryTurnover: metrics.inventoryTurnover,
-    cashflowToProfitRatio: metrics.cashflowToProfitRatio,
-
-    orderCount: metrics.orderCount,
-    averageOrderValue: metrics.averageOrderValue,
-
-    inventoryValue: metrics.inventoryValue,
-    inventoryQuantity: metrics.inventoryQuantity,
-
-    cashInflow: metrics.cashInflow,
-    cashOutflow: metrics.cashOutflow,
-    netCashflow: metrics.netCashflow,
-
-    topCategory: metrics.topCategory,
-    topGoods: metrics.topGoods,
-    costStructure: metrics.costStructure,
-    comparison: metrics.comparison,
-    warnings: metrics.warnings,
-  };
+  // 透传 LLM 计算的全部指标，不做字段筛选
+  return { ...metrics };
 };
 
 /* ---------- 压缩 normalizedData ---------- */
@@ -118,7 +89,6 @@ export const compactNormalizedDataForChart = (data: NormalizedReportData) => {
 
     incomeItemsCount: data.incomeItems?.length || 0,
     costItemsCount: data.costItems?.length || 0,
-    expenseItemsCount: data.expenseItems?.length || 0,
     cashflowItemsCount: data.cashflowItems?.length || 0,
   };
 };

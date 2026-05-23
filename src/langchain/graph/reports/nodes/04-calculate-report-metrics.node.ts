@@ -34,103 +34,39 @@ const num = (v: unknown, fallback = 0): number => {
   return fallback;
 };
 
-const round2 = (v: number): number => Number(v.toFixed(2));
-const round4 = (v: number): number => Number(v.toFixed(4));
-
 /* ---------- 解析 LLM 返回的 JSON → ReportMetrics ---------- */
 
+/**
+ * 宽松解析：只校验核心必填字段，其余字段全部透传。
+ * LLM 可以自由输出个性化指标，不做格式转换和强制覆盖。
+ */
 const parseLLMMetrics = (
   json: Record<string, unknown>,
   rawDataSummary: { orderCount: number },
 ): ReportMetrics => {
-  const totalRevenue = round2(num(json.totalRevenue));
-  const totalCost = round2(num(json.totalCost));
-  const totalExpense = round2(num(json.totalExpense));
-  const orderRevenue = round2(num(json.orderRevenue));
-  const grossProfit = round2(num(json.grossProfit));
-  const netProfit = round2(num(json.netProfit));
-
-  const cashInflow = round2(num(json.cashInflow));
-  const cashOutflow = round2(num(json.cashOutflow));
-  const netCashflow = round2(num(json.netCashflow));
-
-  const orderCount = num(json.orderCount, rawDataSummary.orderCount);
-  const inventoryValue = round2(num(json.inventoryValue));
-  const inventoryQuantity = round2(num(json.inventoryQuantity));
-
-  const topCat = json.topCategory as Record<string, unknown> | undefined;
-  const topGoods = json.topGoods as Record<string, unknown> | undefined;
-  const compRaw = json.comparison as Record<string, unknown> | null | undefined;
   const warningsRaw = Array.isArray(json.warnings)
     ? json.warnings.map(String)
     : [];
-  const costStructure = Array.isArray(json.costStructure)
-    ? (json.costStructure as Array<Record<string, unknown>>).map((c) => ({
-        // eslint-disable-next-line @typescript-eslint/no-base-to-string
-        name: String(c.name || ''),
-        value: round2(num(c.value)),
-      }))
-    : [];
 
+  // 核心必填字段（使用 num 容错，不强制 round2，信任 LLM 输出精度）
   const metrics: ReportMetrics = {
-    totalRevenue,
-    totalCost,
-    grossProfit,
-    grossProfitRate: round4(num(json.grossProfitRate)),
-    totalExpense,
-    netProfit,
-    netProfitRate: round4(num(json.netProfitRate)),
-    orderRevenue,
-    costToRevenueRate: round4(num(json.costToRevenueRate)),
-    expenseToRevenueRate: round4(num(json.expenseToRevenueRate)),
-    inventoryTurnover: round4(num(json.inventoryTurnover)),
-    cashflowToProfitRatio: round4(num(json.cashflowToProfitRatio)),
-    orderCount,
-    averageOrderValue: round2(num(json.averageOrderValue)),
-    inventoryValue,
-    inventoryQuantity,
-    cashInflow,
-    cashOutflow,
-    netCashflow,
-    topCategory: topCat?.name
-      ? {
-          // eslint-disable-next-line @typescript-eslint/no-base-to-string
-          name: String(topCat.name),
-          amount: round2(num(topCat.amount)),
-        }
-      : undefined,
-    topGoods: topGoods?.name
-      ? {
-          // eslint-disable-next-line @typescript-eslint/no-base-to-string
-          name: String(topGoods.name),
-          amount: round2(num(topGoods.amount)),
-          quantity: num(topGoods.quantity),
-        }
-      : undefined,
-    costStructure,
-    comparison: undefined,
+    totalRevenue: num(json.totalRevenue),
+    netProfit: num(json.netProfit),
+    orderCount: num(json.orderCount, rawDataSummary.orderCount),
     warnings: warningsRaw,
   };
 
-  // 对比分析
-  if (compRaw && compRaw.compareMode) {
-    metrics.comparison = {
-      compareMode: compRaw.compareMode as 'year' | 'month' | 'day',
-      totalRevenueChangeRate: num(compRaw.totalRevenueChangeRate),
-      totalRevenueChangeAmount: round2(num(compRaw.totalRevenueChangeAmount)),
-      grossProfitChangeRate: num(compRaw.grossProfitChangeRate),
-      grossProfitChangeAmount: round2(num(compRaw.grossProfitChangeAmount)),
-      grossProfitRateChange: num(compRaw.grossProfitRateChange),
-      totalExpenseChangeRate: num(compRaw.totalExpenseChangeRate),
-      totalExpenseChangeAmount: round2(num(compRaw.totalExpenseChangeAmount)),
-      netProfitChangeRate: num(compRaw.netProfitChangeRate),
-      netProfitChangeAmount: round2(num(compRaw.netProfitChangeAmount)),
-      orderCountChangeRate: num(compRaw.orderCountChangeRate),
-      orderCountChangeAmount: round2(num(compRaw.orderCountChangeAmount)),
-      cashInflowChangeRate: num(compRaw.cashInflowChangeRate),
-      cashOutflowChangeRate: num(compRaw.cashOutflowChangeRate),
-      netCashflowChangeRate: num(compRaw.netCashflowChangeRate),
-    };
+  // 其他字段全部透传（LLM 输出什么就保留什么）
+  for (const [key, val] of Object.entries(json)) {
+    if (
+      key === 'totalRevenue' ||
+      key === 'netProfit' ||
+      key === 'orderCount' ||
+      key === 'warnings'
+    ) {
+      continue;
+    }
+    metrics[key] = val;
   }
 
   return metrics;

@@ -22,44 +22,11 @@ export const buildNarrativeLLMInput = (state: FinanceReportGraphState) => {
 
     comparisonRange: state.comparisonRange,
 
-    metrics: {
-      totalRevenue: metrics.totalRevenue,
-      orderRevenue: metrics.orderRevenue,
-      totalCost: metrics.totalCost,
-      grossProfit: metrics.grossProfit,
-      grossProfitRate: metrics.grossProfitRate,
-      totalExpense: metrics.totalExpense,
-      netProfit: metrics.netProfit,
-      netProfitRate: metrics.netProfitRate,
-
-      costToRevenueRate: metrics.costToRevenueRate,
-      expenseToRevenueRate: metrics.expenseToRevenueRate,
-      inventoryTurnover: metrics.inventoryTurnover,
-      cashflowToProfitRatio: metrics.cashflowToProfitRatio,
-
-      orderCount: metrics.orderCount,
-      averageOrderValue: metrics.averageOrderValue,
-
-      inventoryValue: metrics.inventoryValue,
-      inventoryQuantity: metrics.inventoryQuantity,
-
-      cashInflow: metrics.cashInflow,
-      cashOutflow: metrics.cashOutflow,
-      netCashflow: metrics.netCashflow,
-
-      topCategory: metrics.topCategory,
-      topGoods: metrics.topGoods,
-      costStructure: metrics.costStructure,
-
-      comparison: metrics.comparison,
-      forecast: metrics.forecast,
-      warnings: metrics.warnings,
-    },
+    metrics: { ...metrics },
 
     dataSummary: {
       incomeItemsCount: normalizedData.incomeItems?.length || 0,
       costItemsCount: normalizedData.costItems?.length || 0,
-      expenseItemsCount: normalizedData.expenseItems?.length || 0,
       cashflowItemsCount: normalizedData.cashflowItems?.length || 0,
 
       topSalesByCategory: [...(normalizedData.salesByCategory || [])]
