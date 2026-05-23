@@ -45,9 +45,9 @@ export class ModelProviderService {
 
     // 财务报告专业模型（关闭 thinking，避免思考内容混入 JSON 输出导致解析失败）
     this.reportModel = new ChatOpenAI({
-      apiKey: this.configService.get<string>('BAISHAN_DASHSCOPE_API_KEY'),
+      apiKey: this.configService.get<string>('ALI_DASHSCOPE_API_KEY'),
       configuration: {
-        baseURL: this.configService.get<string>('BAISHAN_DASHSCOPE_BASE_URL'),
+        baseURL: this.configService.get<string>('ALI_DASHSCOPE_BASE_URL'),
         timeout: 1200_000,
       },
       modelName: this.configService.get<string>('REPORT_MODEL_NAME'),

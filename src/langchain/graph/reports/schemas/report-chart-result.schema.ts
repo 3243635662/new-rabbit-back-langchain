@@ -41,11 +41,11 @@ export const LLMReportChartSchema = z.object({
 
 /**
  * LLM 输出整体结构：charts 数组
- * - max(10) 匹配 rich 模式上限
- * - basic 模式 3−5、rich 模式 7−10 的校验放在节点五业务逻辑中
+ * - max(5) 匹配 rich 模式上限
+ * - basic 模式 2−3、rich 模式 4−5 的校验放在 chart-sanitize 业务逻辑中
  */
 export const LLMReportChartResultSchema = z.object({
-  charts: z.array(LLMReportChartSchema).min(1).max(10),
+  charts: z.array(LLMReportChartSchema).min(1).max(5),
 });
 
 export type LLMReportChart = z.infer<typeof LLMReportChartSchema>;

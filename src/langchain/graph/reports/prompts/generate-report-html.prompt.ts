@@ -5,6 +5,15 @@ export const TAILWIND_CDN =
 export const ECHARTS_CDN =
   'https://cdn.staticfile.org/echarts/5.5.0/echarts.min.js';
 
+/**
+ * 生成 Node 6 LLM 的 System Prompt（优化版）
+ *
+ * 优化说明：
+ * - LLM 只需生成 <div id="report-container">...</div> 和 <script> 图表代码
+ * - 不再要求 LLM 输出 <!DOCTYPE html>、<head>、CDN 引用等固定外壳
+ * - 固定外壳由 Node 6 宿主代码拼接，减少 LLM 输出 token 约 30-50%
+ * - LLM 输出不含 HTML 外壳，固定外壳由 Node 6 宿主代码拼接
+ */
 const generateReportHtmlPrompt = (input: FullReportHtmlLLMInput): string => {
   const { trendForecast = false } = input.request.options ?? {};
 
@@ -22,22 +31,18 @@ const generateReportHtmlPrompt = (input: FullReportHtmlLLMInput): string => {
     '你是一个专业的财务报表 HTML 生成助手。',
     '',
     '你的任务：',
-    '根据输入的完整财务报表数据，生成一个完整的、可直接在浏览器打开的单文件 HTML 报表。',
+    '根据输入的财务报表数据，生成报表主体 HTML 内容和图表渲染脚本。',
+    '',
+    '【重要】你只需要生成 <body> 内部的内容，系统会自动为你包裹完整 HTML 外壳（含 Tailwind CDN、ECharts CDN、meta 标签等）。',
     '',
     '你必须严格遵守以下要求：',
     '',
-    '1. 只输出 HTML，不要输出 Markdown，不要输出解释文字。',
-    '2. 必须输出完整 HTML 文档结构：',
-    '   - <!DOCTYPE html>',
-    '   - <html lang="zh-CN">',
-    '   - <head>（包含 meta charset、viewport、title）',
-    '   - <body>',
-    '3. 页面必须使用 Tailwind CSS 样式类。',
-    '4. Tailwind CDN:',
-    `   ${TAILWIND_CDN}`,
-    '5. 图表必须使用 ECharts。',
-    '6. ECharts CDN:',
-    `   ${ECHARTS_CDN}`,
+    '1. 只输出 HTML 片段，不要输出 Markdown，不要输出解释文字。',
+    '2. 不要生成 <!DOCTYPE html>、<html>、<head>、<body> 等外层标签。',
+    '3. 不要引用任何 CDN 或外部资源（Tailwind、ECharts 等已由系统注入）。',
+    '4. 输出以 <div id="report-container"> 开头，以 </div> 结尾，后跟 <script> 图表渲染代码。',
+    '5. 页面必须使用 Tailwind CSS 样式类（已在系统外壳中加载，可直接使用）。',
+    '6. 图表必须使用 ECharts（已在系统外壳中加载，可直接使用 echarts.init）。',
     '7. 不允许使用 React、Vue、Angular 或任何前端组件库。',
     '8. 不允许使用外部图片。',
     '9. 不允许使用 iframe。',
@@ -46,22 +51,21 @@ const generateReportHtmlPrompt = (input: FullReportHtmlLLMInput): string => {
     '12. 不允许重新计算财务指标。',
     '13. 不允许改写输入中的数值。',
     '14. 不允许编造输入中不存在的业务数据。',
-    '15. 图表数据必须直接从输入中的 metrics、normalizedData.salesByCategory、normalizedData.salesByGoods、normalizedData.inventoryItems、normalizedData.cashflowDaily 提取。',
+    '15. 图表数据必须直接从输入中的 metrics、normalizedData.salesByCategory、normalizedData.salesByGoods、normalizedData.inventoryItems、normalizedData.cashflowItems 提取。',
     '16. 图表配置必须直接在 JS 脚本里定义为对象数组，不要从字符串 parse。',
     '17. 数据为空的指标不要生成对应图表。',
-    '18. 必须在 HTML 中包含图表渲染脚本。',
-    '19. 图表渲染完成后，必须在页面上设置：',
+    '18. 图表渲染完成后，必须在页面上设置：',
     '    window.__REPORT_CHARTS_RENDERED__ = true',
-    '20. 必须设置渲染图表计数：',
+    '19. 必须设置渲染图表计数：',
     '    window.__REPORT_CHARTS_RENDERED_COUNT__',
-    '21. 页面必须适合 PDF 导出和浏览器打印。',
-    '22. 图表区域必须有固定高度（建议 400px）。',
-    '23. 页面必须是中文报表。',
-    '24. 页面风格要专业、现代、简洁，适合财务分析场景。',
-    '25. 报告内容必须详细完整，每个分析区块都要充分展开，不得简短略过。',
-    '26. 经营概览、关键发现、风险提示、经营建议等文字内容要使用完整段落，不少于5-7句话。',
-    '27. 报告总长度要充足，整体看起来是一份完整、专业的财务分析报告，而不是简要摘要。',
-    '28. 在页脚必须显示报告生成时间，格式为：YYYY年MM月DD日 HH:mm。',
+    '20. 页面必须适合 PDF 导出和浏览器打印。',
+    '21. 图表区域必须有固定高度（建议 400px）。',
+    '22. 页面必须是中文报表。',
+    '23. 页面风格要专业、现代、简洁，适合财务分析场景。',
+    '24. 报告内容必须详细完整，每个分析区块都要充分展开，不得简短略过。',
+    '25. 经营概览、关键发现、风险提示、经营建议等文字内容要使用完整段落，不少于5-7句话。',
+    '26. 报告总长度要充足，整体看起来是一份完整、专业的财务分析报告，而不是简要摘要。',
+    '27. 在页脚必须显示报告生成时间，格式为：YYYY年MM月DD日 HH:mm。',
     '',
     '页面结构必须包含以下区块：',
     '',
@@ -99,7 +103,7 @@ const generateReportHtmlPrompt = (input: FullReportHtmlLLMInput): string => {
     '   - 展示 narrative.suggestions',
     '',
     `${trendSection ? '9' : '8'}. 图表分析`,
-    '   - 图表数量：basic 模式 2~3 个，rich 模式 3~5 个',
+    '   - 图表数量：basic 模式 2~3 个，rich 模式 4~5 个',
     '   - 根据 reportTypes 和可用数据，生成对应数量的图表',
     '   - 每个图表生成一个图表卡片，包含标题、说明、图表容器 div（id 自定，如 chart-1）',
     '   - 图表数据直接来自输入中的 metrics 和 normalizedData',
@@ -108,7 +112,7 @@ const generateReportHtmlPrompt = (input: FullReportHtmlLLMInput): string => {
     '   - 如果所有数据都为空，跳过图表分析区块',
     '',
     `${trendSection ? '10' : '9'}. 页脚`,
-    `   - 展示数据说明${input.metrics.warnings.includes('当前成本数据使用系统估算成本价') ? '（含成本估算提示）' : ''}`,
+    `   - 展示数据说明（若 metrics.warnings 中包含成本估算提示，需在页脚标注）`,
     '   - 展示生成时间',
     '',
     '图表渲染脚本要求：',
@@ -134,12 +138,21 @@ const generateReportHtmlPrompt = (input: FullReportHtmlLLMInput): string => {
     '5. 不要使用懒加载。',
     '6. 不要使用需要用户交互后才显示的内容。',
     '',
-    '输出要求：',
+    '输出格式要求：',
     '',
-    '只输出完整 HTML。',
+    '<div id="report-container">',
+    '  <!-- 所有报表 HTML 内容 -->',
+    '</div>',
+    '<script>',
+    '  (function() {',
+    '    // 图表数据定义和渲染逻辑',
+    '    // 必须在渲染完成后设置 window.__REPORT_CHARTS_RENDERED__ = true',
+    '  })();',
+    '</script>',
+    '',
+    '只输出以上格式的 HTML 片段。',
     '不要输出任何解释文字。',
-    '不要使用 Markdown 代码块（不要用三个反引号包裹 HTML）。',
-    '第一行必须是 <!DOCTYPE html>。',
+    '不要使用 Markdown 代码块（不要用三个反引号包裹）。',
   ]
     .filter((line) => line !== '')
     .join('\n');
@@ -155,6 +168,6 @@ export const buildGenerateReportHtmlPrompt = (
     '',
     JSON.stringify(input, null, 2),
     '',
-    '请根据以上数据生成完整 HTML 报表，只输出 HTML，不要解释。',
+    '请根据以上数据生成报表主体 HTML 和图表脚本，只输出 HTML 片段，不要解释。',
   ].join('\n');
 };

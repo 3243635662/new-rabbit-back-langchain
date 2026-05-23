@@ -114,7 +114,7 @@ export class FinanceController {
   }
 
   /**
-   * GET /finance/progress/:taskId (SSE)
+   *  /finance/progress/:taskId (SSE)
    * 实时订阅财务文件处理进度（EventSource）
    */
   @Sse('progress/:taskId')

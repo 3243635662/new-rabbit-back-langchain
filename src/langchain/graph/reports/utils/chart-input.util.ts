@@ -20,7 +20,7 @@ export const getChartMode = (state: FinanceReportGraphState): ChartMode => {
 export const getChartCountRange = (
   chartMode: ChartMode,
 ): { min: number; max: number } => {
-  return chartMode === 'rich' ? { min: 7, max: 10 } : { min: 3, max: 5 };
+  return chartMode === 'rich' ? { min: 4, max: 5 } : { min: 2, max: 3 };
 };
 
 /* ---------- 现金流日聚合 ---------- */

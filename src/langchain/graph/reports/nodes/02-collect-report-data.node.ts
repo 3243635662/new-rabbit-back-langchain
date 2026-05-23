@@ -9,8 +9,7 @@ import type { FinanceReportGraphState } from '../finance-report.annotation';
 import type {
   ReportRawData,
   OrderReportRecord,
-  InvoiceReportRecord,
-  FinanceResourceRecord,
+  FinanceExtractedRecordReport,
   InventoryReportRecord,
   InventoryLogReportItem,
 } from '../../../../types/reports/report-raw-data.type';
@@ -18,18 +17,6 @@ import { getComparisonRange } from '../../../../utils/timeFormat.util';
 import type { ComparisonRange } from '../../../../types/reports/comparison-range.type';
 import type { FinanceReportNodeDeps } from '../../../../types/reports/finance-report-node-deps.type';
 import { FinanceReportProgressPhase } from '../../../../types/reports/report-status.type';
-
-interface OcrRawField {
-  name: string;
-  desc?: string;
-  value?: any;
-}
-
-interface OcrRawStructure {
-  document_type?: string;
-  summary?: string;
-  structured_fields?: OcrRawField[];
-}
 
 const getErrorMessage = (err: unknown): string => {
   return err instanceof Error ? err.message : String(err);
@@ -73,8 +60,7 @@ export const buildCollectReportDataNode = (deps: FinanceReportNodeDeps) => {
           orders: [],
           inventory: [],
           inventoryLogs: [],
-          invoices: [],
-          financeResources: [],
+          financeRecords: [],
         },
         logs: ['商户ID缺失，跳过财务原始数据收集'],
       };
@@ -83,20 +69,18 @@ export const buildCollectReportDataNode = (deps: FinanceReportNodeDeps) => {
     const dataScopes = state.request.dataScopes || [];
     const logs: string[] = [];
 
-    // 获取商户名称（用于匹配发票的收支类型）
-    let merchantName = '';
+    // 获取 userId（用于订单过滤）
+    let merchantUserId = '';
     try {
       const merchantRepository = getRepo(Merchant);
       const merchant = await merchantRepository.findOne({
         where: { id: merchantId },
       });
       if (merchant) {
-        merchantName = merchant.name;
+        merchantUserId = merchant.userId || '';
       }
     } catch (err) {
-      logs.push(
-        `获取商户名称失败，将使用默认规则判定发票类型: ${getErrorMessage(err)}`,
-      );
+      logs.push(`获取商户信息失败: ${getErrorMessage(err)}`);
     }
 
     // 封装统一的原始数据抓取逻辑
@@ -110,22 +94,19 @@ export const buildCollectReportDataNode = (deps: FinanceReportNodeDeps) => {
         orders: [],
         inventory: [],
         inventoryLogs: [],
-        invoices: [],
-        financeResources: [],
+        financeRecords: [],
       };
 
       // 1. 查询订单数据
-      if (dataScopes.includes('order')) {
+      // 修复：不再使用 user.merchant.id 嵌套 where（与 Between 组合时 TypeORM 生成错误 SQL），
+      // 改为直接用 merchantUserId 过滤
+      if (dataScopes.includes('order') && merchantUserId) {
         try {
           const orderRepository = getRepo(Order);
           const orders = await orderRepository.find({
             where: {
               createdAt: Between(start, end),
-              user: {
-                merchant: {
-                  id: merchantId,
-                },
-              },
+              userId: merchantUserId,
             },
             relations: [
               'user',
@@ -251,7 +232,7 @@ export const buildCollectReportDataNode = (deps: FinanceReportNodeDeps) => {
         }
       }
 
-      // 3. 查询财务提取记录（包含发票和财务资源），在内存中过滤和归类
+      // 3. 查询财务提取记录（发票 + 合同 + 通用图片等，统一归类）
       const queryInvoice = dataScopes.includes('invoice');
       const queryResource = dataScopes.includes('finance_resource');
 
@@ -276,151 +257,36 @@ export const buildCollectReportDataNode = (deps: FinanceReportNodeDeps) => {
             relations: ['sourceFile'],
           });
 
-          const getFieldValue = (
-            fields: OcrRawField[],
-            name: string,
-          ): string => {
-            const f = fields?.find((field) => field.name === name);
-            return f && f.value !== undefined && f.value !== null
-              ? String(f.value)
-              : '';
-          };
+          logs.push(`[${periodLabel}] 查询到 ${records.length} 条财务提取记录`);
 
-          // 提取发票数据
-          if (queryInvoice) {
-            const invoices = records.filter((r) => r.recordType === 'invoice');
-            rawData.invoices = invoices.map((record): InvoiceReportRecord => {
-              const rawDataObj =
-                (record.raw as unknown as OcrRawStructure) || {};
-              const structuredFields = rawDataObj.structured_fields || [];
-              const buyer = getFieldValue(structuredFields, 'buyer');
-              const seller = getFieldValue(structuredFields, 'seller');
-
-              // 判断收支类型
-              let type: 'income' | 'expense' = 'expense';
-              if (merchantName) {
-                if (
-                  buyer.includes(merchantName) ||
-                  merchantName.includes(buyer)
-                ) {
-                  type = 'expense';
-                } else if (
-                  seller.includes(merchantName) ||
-                  merchantName.includes(seller)
-                ) {
-                  type = 'income';
-                }
-              } else if (buyer) {
-                type = 'expense';
-              }
-
-              const invoiceNo =
-                getFieldValue(structuredFields, 'invoiceNo') ||
-                getFieldValue(structuredFields, 'invoiceCode') ||
-                '';
-
-              const invoiceDate = record.extractedDate
-                ? new Date(record.extractedDate + 'T00:00:00').toISOString()
-                : getFieldValue(structuredFields, 'date') ||
-                  record.createdAt.toISOString();
-
-              const totalAmount = Number(
-                getFieldValue(structuredFields, 'totalAmount') ||
-                  getFieldValue(structuredFields, 'amount') ||
-                  0,
-              );
-
-              const title =
-                seller ||
-                buyer ||
-                String(rawDataObj.summary || '') ||
-                `发票_${invoiceNo}`;
-
-              const category =
-                getFieldValue(structuredFields, 'category') ||
-                getFieldValue(structuredFields, 'serviceType') ||
-                undefined;
-
-              return {
-                id: record.id,
-                invoiceNo,
-                invoiceDate,
-                amount: totalAmount,
-                type,
-                title,
-                category,
-              };
-            });
-
-            logs.push(
-              `[${periodLabel}] 成功收集到 ${rawData.invoices.length} 条发票数据`,
-            );
+          // 按 dataScopes 过滤 recordType
+          const filtered: typeof records = [];
+          for (const r of records) {
+            const rt = r.recordType || '';
+            if (queryInvoice && rt === 'invoice') {
+              filtered.push(r);
+            } else if (queryResource && rt !== 'invoice') {
+              filtered.push(r);
+            }
           }
 
-          // 提取其他财务资源数据
-          if (queryResource) {
-            const resources = records.filter((r) => r.recordType !== 'invoice');
-            rawData.financeResources = resources.map(
-              (record): FinanceResourceRecord => {
-                const rawDataObj =
-                  (record.raw as unknown as OcrRawStructure) || {};
-                const structuredFields = rawDataObj.structured_fields || [];
+          rawData.financeRecords = filtered.map(
+            (record): FinanceExtractedRecordReport => ({
+              id: record.id,
+              recordType: record.recordType || 'general_image',
+              extractedDate: record.extractedDate || null,
+              raw: record.raw || {},
+            }),
+          );
 
-                // 提取金额
-                let amount: number | undefined = undefined;
-                const amountField = structuredFields.find(
-                  (f) =>
-                    f.name === 'amount' ||
-                    f.name === 'totalAmount' ||
-                    f.name === 'money' ||
-                    f.desc?.includes('金额') ||
-                    f.desc?.includes('总额'),
-                );
-                if (
-                  amountField &&
-                  amountField.value !== undefined &&
-                  amountField.value !== null
-                ) {
-                  const val = Number(amountField.value);
-                  if (!Number.isNaN(val)) {
-                    amount = val;
-                  }
-                }
-
-                // 提取标题
-                let title = String(rawDataObj.summary || '');
-                const titleField = structuredFields.find(
-                  (f) =>
-                    f.name === 'title' ||
-                    f.name === 'name' ||
-                    f.desc?.includes('标题') ||
-                    f.desc?.includes('名称') ||
-                    f.desc?.includes('合同名称'),
-                );
-                if (titleField && titleField.value) {
-                  title = String(titleField.value);
-                }
-
-                return {
-                  id: record.id,
-                  recordType: record.recordType || 'general_image',
-                  createdAt: record.extractedDate
-                    ? new Date(record.extractedDate + 'T00:00:00').toISOString()
-                    : record.createdAt.toISOString(),
-                  amount,
-                  title,
-                  structuredFields,
-                };
-              },
-            );
-
+          if (rawData.financeRecords.length > 0) {
             logs.push(
-              `[${periodLabel}] 成功收集到 ${rawData.financeResources.length} 条其他财务资源数据`,
+              `[${periodLabel}] 归类结果：${rawData.financeRecords.filter((r) => r.recordType === 'invoice').length} 条发票，${rawData.financeRecords.filter((r) => r.recordType !== 'invoice').length} 条其他资源`,
             );
           }
         } catch (err) {
           logs.push(
-            `[${periodLabel}] 查询财务资源/发票数据失败: ${getErrorMessage(err)}`,
+            `[${periodLabel}] 查询财务提取记录失败: ${getErrorMessage(err)}`,
           );
         }
       }

@@ -1,8 +1,3 @@
-import {
-  TAILWIND_CDN,
-  ECHARTS_CDN,
-} from '../prompts/generate-report-html.prompt';
-
 const extractHtmlFromModelResponse = (response: unknown): string => {
   if (typeof response === 'string') return response;
 
@@ -12,6 +7,14 @@ const extractHtmlFromModelResponse = (response: unknown): string => {
   return JSON.stringify(response);
 };
 
+/**
+ * 校验 LLM 输出的 HTML 片段（优化版）
+ *
+ * 优化说明：
+ * - LLM 只输出 body 内容片段（<div id="report-container">...</div> + <script>）
+ * - 不再校验 DOCTYPE、<html>、<head>、CDN 引用（由宿主代码注入）
+ * - 仅校验核心内容完整性
+ */
 const validateGeneratedHtml = (html: string): string => {
   if (!html || typeof html !== 'string') {
     throw new Error('LLM 输出为空');
@@ -26,13 +29,9 @@ const validateGeneratedHtml = (html: string): string => {
     throw new Error('LLM 生成的 HTML 过短，可能不是完整页面');
   }
 
+  // 核心内容校验（适配 body-content-only 格式）
   const requiredFragments = [
-    '<!DOCTYPE html',
-    '<html',
-    '<head',
-    '<body',
-    TAILWIND_CDN,
-    ECHARTS_CDN,
+    'report-container',
     'echarts.init',
     'setOption',
     '__REPORT_CHARTS_RENDERED__',

@@ -8,10 +8,10 @@ export interface FullReportHtmlLLMInput {
   request: GenerateFinanceReportDto;
   title: string;
   generatedAt: string;
-  normalizedData?: unknown;
   metrics: ReportMetrics;
   chartResult?: ReportChartResult;
   narrative: ReportNarrative;
+  normalizedData: unknown;
 }
 
 const REPORT_TYPE_LABELS: Record<string, string> = {
@@ -40,22 +40,23 @@ export const buildFullReportHtmlInput = (
   if (!state.request) {
     throw new Error('缺少 request，无法生成 HTML 报表');
   }
-
   if (!state.metrics) {
     throw new Error('缺少 metrics，无法生成 HTML 报表');
   }
-
   if (!state.narrative) {
     throw new Error('缺少 narrative，无法生成 HTML 报表');
+  }
+  if (!state.normalizedData) {
+    throw new Error('缺少 normalizedData，无法生成 HTML 报表');
   }
 
   return {
     request: state.request,
     title: buildReportTitle(state.request),
     generatedAt: new Date().toISOString(),
-    normalizedData: state.normalizedData,
     metrics: state.metrics,
     chartResult: state.chartResult,
     narrative: state.narrative,
+    normalizedData: state.normalizedData,
   };
 };

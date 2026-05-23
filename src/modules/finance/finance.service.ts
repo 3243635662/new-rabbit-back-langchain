@@ -589,15 +589,48 @@ export class FinanceService {
 
   /**
    * SSE 实时推送财务文件处理进度（与知识库 progress 同理，使用 TaskProgressKeys.FINANCE_SOURCE）
+   *
+   * 修复：先订阅（await 确认）再读缓存，避免竞态丢消息
    */
   progressSse = (taskId: string): Observable<SseEvent> => {
     return new Observable((observer) => {
       const keySet = TaskProgressKeys.FINANCE_SOURCE;
       const channel = keySet.getProgressChannel(taskId);
       let subClient: Redis | null = null;
+      let isClosed = false;
 
       const init = async () => {
         try {
+          // 1. 先创建订阅客户端并订阅频道（await 确认）
+          subClient = this.redisService.createSubscriber();
+          await subClient.subscribe(channel);
+          this.logger.log(`财务 SSE 已订阅 [${taskId}] → ${channel}`);
+
+          if (isClosed) {
+            subClient.unsubscribe(channel).catch(() => {});
+            subClient.quit().catch(() => {});
+            return;
+          }
+
+          // 2. 注册消息监听（此时订阅已确认）
+          subClient.on('message', (_: string, message: string) => {
+            if (isClosed) return;
+            try {
+              const data = JSON.parse(message) as TaskProgressPayload;
+              observer.next({ data });
+              if (
+                data.status === FinanceSourceProgressPhase.COMPLETED ||
+                data.status === FinanceSourceProgressPhase.FAILED
+              ) {
+                observer.complete();
+                if (subClient) subClient.unsubscribe(channel).catch(() => {});
+              }
+            } catch {
+              observer.next({ data: message });
+            }
+          });
+
+          // 3. 订阅确认后再读缓存，补发历史进度
           const cached = (await this.redisService.getTaskProgressCache(
             keySet,
             taskId,
@@ -609,38 +642,22 @@ export class FinanceService {
               cached.status === FinanceSourceProgressPhase.FAILED
             ) {
               observer.complete();
+              if (subClient) subClient.unsubscribe(channel).catch(() => {});
               return;
             }
+          } else {
+            observer.next({
+              data: {
+                progress: 0,
+                status: 'connected',
+                message: 'SSE 连接已建立，等待任务开始...',
+              },
+            });
           }
-
-          subClient = this.redisService.createSubscriber();
-          void subClient.subscribe(channel, (err: Error | null) => {
-            if (err) {
-              this.logger.error(
-                `财务 SSE 订阅失败 [${taskId}]: ${err.message}`,
-              );
-              observer.error(err);
-            }
-          });
-
-          subClient.on('message', (_: string, message: string) => {
-            try {
-              const data = JSON.parse(message) as TaskProgressPayload;
-              observer.next({ data });
-              if (
-                data.status === FinanceSourceProgressPhase.COMPLETED ||
-                data.status === FinanceSourceProgressPhase.FAILED
-              ) {
-                observer.complete();
-                if (subClient) {
-                  subClient.unsubscribe(channel).catch(() => {});
-                }
-              }
-            } catch {
-              observer.next({ data: message });
-            }
-          });
         } catch (err) {
+          this.logger.error(
+            `财务 SSE 初始化失败 [${taskId}]: ${err instanceof Error ? err.message : String(err)}`,
+          );
           observer.error(err);
         }
       };
@@ -648,6 +665,7 @@ export class FinanceService {
       void init();
 
       return () => {
+        isClosed = true;
         if (subClient) {
           subClient.unsubscribe(channel).catch(() => {});
           subClient.quit().catch(() => {});

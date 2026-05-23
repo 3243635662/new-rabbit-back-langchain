@@ -18,6 +18,7 @@ import { OrderNoGeneratorService } from '../../common/services/order-no-generato
 import { CouponService } from '../coupon/coupon.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { RedisKeys } from '../../common/constants/redis-key.constant';
+import { log } from 'console';
 
 @Injectable()
 export class OrderService {
@@ -48,7 +49,8 @@ export class OrderService {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction(); // 开启事务
-
+    console.log(createOrderDto.addressId);
+    console.log(userId);
     try {
       // 生成订单ID
       const orderId = this.snowflakeIdService.generateOrderId();
@@ -65,7 +67,6 @@ export class OrderService {
       if (!address) {
         throw new NotFoundException('地址不存在');
       }
-
       // 验证商品和库存
 
       let totalAmount = 0; // 原价

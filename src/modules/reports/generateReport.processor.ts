@@ -1,8 +1,9 @@
 import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import * as path from 'path';
 import { TaskProgressKeys } from '../../common/constants/redis-key.constant';
 import { pushTaskProgress } from '../../utils/task-progress.util';
 import { RedisService } from '../db/redis/redis.service';
@@ -17,6 +18,7 @@ import { FinanceReport } from './entities/finance-report.entity';
 import { GenerateFinanceReportDto } from './dto/generate-finance-report.dto';
 import { buildFinanceReportGraph } from '../../langchain/graph/reports/finance-report.graph';
 import type { FinanceReportGraphState } from '../../langchain/graph/reports/finance-report.annotation';
+import { dumpStateToMarkdown } from '../../langchain/graph/reports/utils/debug-dump.util';
 import {
   FinanceReportStatus,
   FinanceReportProgressPhase,
@@ -54,7 +56,7 @@ const buildReportTitle = (request: GenerateFinanceReportDto): string => {
   // 每 30 秒检测一次 stalled，尽早续期
   stalledInterval: 30_000,
 })
-export class FinanceReportProcessor extends WorkerHost implements OnModuleInit {
+export class FinanceReportProcessor extends WorkerHost {
   private readonly logger = new Logger(FinanceReportProcessor.name);
   private readonly compiledGraph: ReturnType<typeof buildFinanceReportGraph>;
 
@@ -84,20 +86,6 @@ export class FinanceReportProcessor extends WorkerHost implements OnModuleInit {
       qiniuService: this.qiniuService,
       reportRenderService: this.reportRenderService,
     });
-  }
-
-  /** 启动时清空并重置队列 */
-  async onModuleInit() {
-    try {
-      await this.financeQueue.obliterate({ force: true });
-      this.logger.log('✅ 启动时已清空并重置报表生成队列');
-    } catch (err) {
-      this.logger.warn(
-        `⚠️ 启动时清空队列失败（可能队列尚不存在）：${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-    }
   }
 
   override process = async (job: Job<ReportJobData>): Promise<void> => {
@@ -202,6 +190,17 @@ export class FinanceReportProcessor extends WorkerHost implements OnModuleInit {
     this.logger.log(
       `[taskId:${job.id}] 报表生成完成 → ${reportUrl || exportResult.fileName}`,
     );
+
+    // 将全流程数据写入 docs/ 目录的调试 markdown 文件
+    try {
+      const docsDir = path.join(process.cwd(), 'docs');
+      const dumpPath = await dumpStateToMarkdown(state, docsDir);
+      this.logger.log(`[taskId:${job.id}] 调试数据已写入 → ${dumpPath}`);
+    } catch (err) {
+      this.logger.warn(
+        `[taskId:${job.id}] 调试数据写入失败: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   /** 统一错误处理 */

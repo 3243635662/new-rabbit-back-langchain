@@ -107,47 +107,38 @@ export class ReportsService {
 
   /**
    * SSE 实时推送报表生成处理进度
+   *
+   * 修复说明：
+   * - 原实现先读缓存再订阅，存在竞态条件：读缓存为空 → publish 消息 → 订阅才确认 → 消息丢失
+   * - 修正为先订阅（await 确认）、再读缓存，确保不丢消息
    */
   progressSse = (taskId: string): Observable<SseEvent> => {
     return new Observable((observer) => {
       const keySet = TaskProgressKeys.FINANCE_REPORT;
       const channel = keySet.getProgressChannel(taskId);
       let subClient: Redis | null = null;
+      let isClosed = false;
 
       const init = async () => {
         try {
-          const cached = (await this.redisService.getTaskProgressCache(
-            keySet,
-            taskId,
-          )) as TaskProgressPayload | null;
+          // 1. 先创建订阅客户端并订阅频道（await 确认）
+          subClient = this.redisService.createSubscriber();
+          await subClient.subscribe(channel);
+          this.logger.log(`报表 SSE 已订阅 [${taskId}] → ${channel}`);
 
-          if (cached) {
-            observer.next({ data: cached });
-            // 使用常量值判断完成状态
-            if (
-              cached.status === FinanceReportProgressPhase.COMPLETED ||
-              cached.status === FinanceReportProgressPhase.FAILED
-            ) {
-              observer.complete();
-              return;
-            }
+          // 如果订阅完成后连接已关闭，清理退出
+          if (isClosed) {
+            subClient.unsubscribe(channel).catch(() => {});
+            subClient.quit().catch(() => {});
+            return;
           }
 
-          subClient = this.redisService.createSubscriber();
-          void subClient.subscribe(channel, (err: Error | null) => {
-            if (err) {
-              this.logger.error(
-                `报表 SSE 订阅失败 [${taskId}]: ${err.message}`,
-              );
-              observer.error(err);
-            }
-          });
-
+          // 2. 注册消息监听（此时订阅已确认，不会丢消息）
           subClient.on('message', (_: string, message: string) => {
+            if (isClosed) return;
             try {
               const data = JSON.parse(message) as TaskProgressPayload;
               observer.next({ data });
-              // 使用常量值判断完成状态
               if (
                 data.status === FinanceReportProgressPhase.COMPLETED ||
                 data.status === FinanceReportProgressPhase.FAILED
@@ -161,7 +152,39 @@ export class ReportsService {
               observer.next({ data: message });
             }
           });
+
+          // 3. 订阅确认后再读缓存，补发历史进度（不会与 Pub/Sub 消息冲突）
+          const cached = (await this.redisService.getTaskProgressCache(
+            keySet,
+            taskId,
+          )) as TaskProgressPayload | null;
+
+          if (cached) {
+            observer.next({ data: cached });
+            if (
+              cached.status === FinanceReportProgressPhase.COMPLETED ||
+              cached.status === FinanceReportProgressPhase.FAILED
+            ) {
+              observer.complete();
+              if (subClient) {
+                subClient.unsubscribe(channel).catch(() => {});
+              }
+              return;
+            }
+          } else {
+            // 无缓存时先发一条心跳，告知前端连接已建立
+            observer.next({
+              data: {
+                progress: 0,
+                status: 'connected',
+                message: 'SSE 连接已建立，等待任务开始...',
+              },
+            });
+          }
         } catch (err) {
+          this.logger.error(
+            `报表 SSE 初始化失败 [${taskId}]: ${err instanceof Error ? err.message : String(err)}`,
+          );
           observer.error(err);
         }
       };
@@ -169,6 +192,7 @@ export class ReportsService {
       void init();
 
       return () => {
+        isClosed = true;
         if (subClient) {
           subClient.unsubscribe(channel).catch(() => {});
           subClient.quit().catch(() => {});

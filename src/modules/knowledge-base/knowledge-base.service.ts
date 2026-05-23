@@ -228,16 +228,48 @@ export class KnowledgeBaseService {
   /**
    * SSE 实时推送 RAG 解析进度（EventSource）
    * 返回 Observable，由 Controller 的 @Sse() 装饰器自动转换为 SSE 流
+   *
+   * 修复：先订阅（await 确认）再读缓存，避免竞态丢消息
    */
   progressSse = (taskId: string): Observable<SseEvent> => {
     return new Observable((observer) => {
       const keySet = TaskProgressKeys.RAG;
       const channel = keySet.getProgressChannel(taskId);
       let subClient: Redis | null = null;
+      let isClosed = false;
 
       const init = async () => {
         try {
-          // 先推缓存的最新状态
+          // 1. 先创建订阅客户端并订阅频道（await 确认）
+          subClient = this.redisService.createSubscriber();
+          await subClient.subscribe(channel);
+          this.logger.log(`RAG SSE 已订阅 [${taskId}] → ${channel}`);
+
+          if (isClosed) {
+            subClient.unsubscribe(channel).catch(() => {});
+            subClient.quit().catch(() => {});
+            return;
+          }
+
+          // 2. 注册消息监听（此时订阅已确认）
+          subClient.on('message', (_: string, message: string) => {
+            if (isClosed) return;
+            try {
+              const data = JSON.parse(message) as TaskProgressPayload;
+              observer.next({ data });
+              if (
+                data.status === RagIngestProgressPhase.COMPLETED ||
+                data.status === RagIngestProgressPhase.FAILED
+              ) {
+                observer.complete();
+                if (subClient) subClient.unsubscribe(channel).catch(() => {});
+              }
+            } catch {
+              observer.next({ data: message });
+            }
+          });
+
+          // 3. 订阅确认后再读缓存，补发历史进度
           const cached = (await this.redisService.getTaskProgressCache(
             keySet,
             taskId,
@@ -249,45 +281,29 @@ export class KnowledgeBaseService {
               cached.status === RagIngestProgressPhase.FAILED
             ) {
               observer.complete();
+              if (subClient) subClient.unsubscribe(channel).catch(() => {});
               return;
             }
+          } else {
+            observer.next({
+              data: {
+                progress: 0,
+                status: 'connected',
+                message: 'SSE 连接已建立，等待任务开始...',
+              },
+            });
           }
-
-          // Redis 订阅
-          subClient = this.redisService.createSubscriber();
-          void subClient.subscribe(channel, (err: Error | null) => {
-            if (err) {
-              this.logger.error(`SSE 订阅失败 [${taskId}]: ${err.message}`);
-              observer.error(err);
-            }
-          });
-
-          subClient.on('message', (_: string, message: string) => {
-            try {
-              const data = JSON.parse(message) as TaskProgressPayload;
-              observer.next({ data });
-              if (
-                data.status === RagIngestProgressPhase.COMPLETED ||
-                data.status === RagIngestProgressPhase.FAILED
-              ) {
-                observer.complete();
-                if (subClient) {
-                  subClient.unsubscribe(channel).catch(() => {});
-                }
-              }
-            } catch {
-              observer.next({ data: message });
-            }
-          });
         } catch (err) {
+          this.logger.error(
+            `SSE 初始化失败 [${taskId}]: ${err instanceof Error ? err.message : String(err)}`,
+          );
           observer.error(err);
         }
       };
-      // 不等待它执行完，让 Observable 立即返回
       void init();
 
-      // 清理防内存泄露
       return () => {
+        isClosed = true;
         if (subClient) {
           subClient.unsubscribe(channel).catch(() => {});
           subClient.quit().catch(() => {});
