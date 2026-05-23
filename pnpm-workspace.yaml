@@ -3,7 +3,7 @@ allowBuilds:
   bcrypt: true
   canvas: true
   msgpackr-extract: true
-  onnxruntime-node: true
-  protobufjs: true
+  onnxruntime-node: set this to true or false
+  protobufjs: set this to true or false
   sharp: true
   unrs-resolver: true
