@@ -19,7 +19,7 @@
  */
 
 /** Agent System Prompt：约束模型行为，定义何时调用工具、何时直接回答 */
-export const buildAgentSystemPrompt = (): string =>
+export const buildAgentSystemPrompt = (currentTime?: string): string =>
   [
     '你是一个电商商家后台 AI 助手。',
     '你可以根据用户问题决定是否调用工具。',
@@ -29,6 +29,20 @@ export const buildAgentSystemPrompt = (): string =>
     '最终回答必须基于工具返回内容和已有对话上下文。',
     '不要暴露工具调用的原始 JSON，除非用户明确要求调试信息。',
     '回答要简洁、准确、适合商家后台使用。',
+    '',
+    '【订单查询与统计指南】',
+    '1. 分页翻页：每次 getOrderList 返回 totalPage 和 hasMore。用户要"下一页"时 page 设为当前页+1；要"上一页"时 page-1；要"最后一页"时 page=totalPage。',
+    '2. 发货状态对应关系：0=待发货（未发货），1=已发货，2=已收货，3=售后中。',
+    '3. 退款/售后查询：用户问"退款""售后""退货"时，用 shippingStatus=3 筛选售后中的订单。统计退款金额时直接累加这些订单的 payAmount。',
+    '4. 待发货/已发货统计：用 shippingStatus 参数分别查询不同状态，然后汇总统计数量和金额。',
+    '5. 查询全部：不设 shippingStatus 参数，分页拉取所有订单，自己累加统计。',
+    '6. 避免重复调用：如果同一个工具连续两次返回相同或空结果，不要再调第三次，直接告诉用户当前数据情况。',
+    ...(currentTime
+      ? [
+          '',
+          `【当前时间】${currentTime}。当用户使用"今天""昨天""本周""本月""最近"等相对时间表述时，请基于此当前时间计算具体日期。例如用户说"今天的订单"，startTime 应为当前日期。`,
+        ]
+      : []),
   ].join('\n');
 
 /** 强制生成最终回答的 HumanMessage 提示（避免模型继续调用工具） */

@@ -50,7 +50,8 @@ export const createCallModelNode = (
 
     try {
       // 临时拼接 SystemMessage，不污染 state.messages
-      const systemPrompt = buildAgentSystemPrompt();
+      const currentTime = (config?.configurable?.currentTime as string) || '';
+      const systemPrompt = buildAgentSystemPrompt(currentTime);
       const messagesWithSystem = [
         new SystemMessage(systemPrompt),
         ...state.messages,

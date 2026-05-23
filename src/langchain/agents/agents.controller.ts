@@ -35,6 +35,14 @@ export class AgentsController {
       ...req.user,
       sessionId: dto.sessionId || 'default-session',
       merchantId,
+      currentTime: (() => {
+        const now = new Date();
+        return (
+          `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ` +
+          `(${now.toLocaleDateString('zh-CN', { weekday: 'long' })}) ` +
+          `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`
+        );
+      })(),
     };
 
     const result = await this.agentsService.runAgent(dto.message, context);

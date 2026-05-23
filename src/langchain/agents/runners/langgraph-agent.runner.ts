@@ -59,6 +59,7 @@ export class LangGraphAgentRunner {
         thread_id: sessionId,
         user_id: context.id,
         merchantId: context.merchantId,
+        currentTime: context.currentTime,
       },
       recursionLimit: this.langGraphConfig.recursionLimit,
       // 传递 abortSignal 到执行链，中断 LLM / tool 执行
@@ -179,6 +180,7 @@ export class LangGraphAgentRunner {
         thread_id: context.sessionId,
         user_id: context.id,
         merchantId: context.merchantId,
+        currentTime: context.currentTime,
       },
       recursionLimit: this.langGraphConfig.recursionLimit,
     };

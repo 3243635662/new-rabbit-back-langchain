@@ -876,7 +876,7 @@ export class MerchantService {
       const statusList: number[] = options.status
         .split(',')
         .map((s) => Number(s.trim()))
-        .filter((n) => !isNaN(n) && n >= 0 && n <= 2);
+        .filter((n) => !isNaN(n) && n >= 0 && n <= 3);
 
       if (statusList.length > 0) {
         qb.andWhere('oi.shippingStatus IN (:...statusList)', { statusList });

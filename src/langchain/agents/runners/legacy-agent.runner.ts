@@ -61,7 +61,7 @@ export class LegacyAgentRunner {
     const modelWithTools = model.bindTools(tools);
 
     const messages: BaseMessage[] = [
-      new SystemMessage(buildAgentSystemPrompt()),
+      new SystemMessage(buildAgentSystemPrompt(context.currentTime)),
       ...history,
       new HumanMessage(prompt),
     ];
@@ -228,7 +228,7 @@ export class LegacyAgentRunner {
     const toolTraces: AgentToolTrace[] = [];
 
     const messages: BaseMessage[] = [
-      new SystemMessage(buildAgentSystemPrompt()),
+      new SystemMessage(buildAgentSystemPrompt(context.currentTime)),
       ...history,
       new HumanMessage(prompt),
     ];

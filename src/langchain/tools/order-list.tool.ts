@@ -95,21 +95,31 @@ export class OrderListTool {
             count: item.count,
             price: item.price != null ? '¥' + item.price : null,
             totalPrice: item.totalPrice != null ? '¥' + item.totalPrice : null,
-            shippingStatus: item.shippingStatusLabel,
-            orderStatus: item.orderStatusLabel,
+            // 发货/售后状态（同时提供数值和中文标签，方便 LLM 统计和筛选）
+            shippingStatus: item.shippingStatus,
+            shippingStatusLabel: item.shippingStatusLabel,
+            // 订单级别状态
+            orderStatus: item.orderStatus,
+            orderStatusLabel: item.orderStatusLabel,
+            // 订单金额信息
+            payAmount: item.payAmount != null ? '¥' + item.payAmount : null,
             paidAt: item.paidAt || null,
             createdAt: item.createdAt || null,
           }));
 
           const total = result?.total || list.length;
+          const totalPage = result?.totalPage || 1;
+          const hasMore = safePage < totalPage;
 
           return JSON.stringify({
             success: true,
             message: '查询订单列表成功。',
-            summary: `共 ${total} 个订单，第 ${safePage} 页`,
+            summary: `共 ${total} 个订单，第 ${safePage}/${totalPage} 页`,
             page: safePage,
             limit: safeLimit,
             total,
+            totalPage,
+            hasMore,
             orders: formattedList,
           });
         } catch (err) {
@@ -128,43 +138,53 @@ export class OrderListTool {
       {
         name: 'getOrderList',
         description:
-          '获取当前登录商家的订单列表。用于查询商家的订单、发货状态、支付状态、订单金额等信息。支持按订单号搜索、按发货状态筛选、按时间范围筛选。不需要用户指定商家 ID，系统会自动从当前登录用户上下文获取。',
+          '获取当前登录商家的订单列表。用于查询商家的订单、发货状态、支付状态、订单金额等信息。\n' +
+          '支持按订单号搜索、按发货/售后状态筛选、按时间范围筛选、分页查询。\n' +
+          '不需要用户指定商家 ID，系统会自动从当前登录用户上下文获取。\n' +
+          '翻页方式：查看返回结果中的 totalPage 和 hasMore，用户要"下一页"时将 page 设为当前页+1，要"上一页"时设为当前页-1。',
         schema: z.object({
           keyword: z
             .string()
             .optional()
-            .describe('搜索关键词，可选。用于按订单号模糊搜索。'),
+            .describe('搜索关键词，用于按订单号模糊搜索。'),
           shippingStatus: z
             .string()
             .optional()
             .describe(
-              '发货状态筛选，可选。多个状态用逗号分隔：0=待发货，1=已发货，2=已收货，3=售后中。例如 "0,1" 表示查待发货和已发货。',
+              '发货/售后状态筛选，多个用逗号分隔。\n' +
+                '0=待发货（未发货），1=已发货，2=已收货，3=售后中（含退款/退货/换货）。\n' +
+                '查退款订单用 "3"，查待发货用 "0"，查全部不传此参数。\n' +
+                '例如 "0,1" 表示查待发货和已发货。',
             ),
           startTime: z
             .string()
             .optional()
             .describe(
-              '开始时间，可选。格式如 2025-01-01，筛选该时间之后的订单。',
+              '开始时间，格式 YYYY-MM-DD（如 2026-05-01）。筛选该日期及之后的订单。与 endTime 配合可用于"最近一周""本月"等时间范围查询。',
             ),
           endTime: z
             .string()
             .optional()
             .describe(
-              '结束时间，可选。格式如 2025-12-31，筛选该时间之前的订单。',
+              '结束时间，格式 YYYY-MM-DD（如 2026-05-23）。筛选该日期及之前的订单。',
             ),
           page: z
             .number()
             .int()
             .positive()
             .optional()
-            .describe('页码，可选，默认为 1。'),
+            .describe(
+              '页码，默认为 1。翻页时根据上一轮结果中的 totalPage 判断是否还有下一页。',
+            ),
           limit: z
             .number()
             .int()
             .positive()
             .max(20)
             .optional()
-            .describe('每页数量，可选，默认为 5，最大为 20。'),
+            .describe(
+              '每页数量，默认为 5，最大 20。查询全部数据时可设为 20 以减少翻页次数。',
+            ),
         }),
       },
     );

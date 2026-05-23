@@ -50,6 +50,7 @@ export class LangChainService {
     return false;
   }
 
+  // 构建 Agent 运行上下文
   private buildAgentContext = async (
     req: { user: JwtPayloadType },
     sessionId?: string,
@@ -66,10 +67,18 @@ export class LangChainService {
       }
     }
 
+    // 构建当前时间字符串，供 LLM 理解时间上下文
+    const now = new Date();
+    const currentTime =
+      `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ` +
+      `(${now.toLocaleDateString('zh-CN', { weekday: 'long' })}) ` +
+      `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+
     return {
       ...req.user,
       sessionId: sessionId || 'default-session',
       merchantId,
+      currentTime,
     };
   };
 
@@ -147,10 +156,17 @@ export class LangChainService {
           subscriber.complete();
         } catch (e) {
           const err = e instanceof Error ? e : new Error(String(e));
-          this.logger.error(
-            `[SSE] session=${sessionId} error=${err.message}`,
-            err.stack,
-          );
+          // AbortError 是客户端主动断开 SSE 连接触发的正常取消，不属于异常
+          if (err.name === 'AbortError') {
+            this.logger.log(
+              `[SSE] session=${sessionId} 连接已中断，流式输出取消`,
+            );
+          } else {
+            this.logger.error(
+              `[SSE] session=${sessionId} error=${err.message}`,
+              err.stack,
+            );
+          }
           subscriber.error(e);
         } finally {
           this.activeStreams.delete(sessionId);
