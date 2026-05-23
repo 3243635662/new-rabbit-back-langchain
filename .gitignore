@@ -1,5 +1,7 @@
 # compiled output
 /dist
+dist.rar
+*.rar
 /node_modules
 /build
 /docs
