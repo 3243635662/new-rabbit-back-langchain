@@ -1,141 +1,339 @@
-# 生产环境部署指南
+# 宝塔面板部署指南
 
-## 一、服务器要求
+## 一、代码上传服务器（选一种）
 
-| 项目 | 最低 | 推荐 |
-|------|------|------|
-| OS | Ubuntu 22.04 / CentOS 8 | Ubuntu 24.04 |
-| CPU | 2 核 | 4 核+ |
-| 内存 | 4 GB | 8 GB+ |
-| 磁盘 | 20 GB | 50 GB SSD |
+### 方式 A：Git 拉取（推荐，后续更新方便）
 
-## 二、安装 Docker
+先在 GitHub / Gitee 建一个私有仓库，把代码推上去，服务器拉下来。
 
 ```bash
-# Ubuntu
+# 本地（你的 Windows 开发机）
+git remote add origin https://github.com/你的用户名/new-rabbit-back.git
+# 注意：.env 不要提交！.env.production 改为 .env.production.example 提交，真密码留在本地
+git add .
+git commit -m "init"
+git push -u origin main
+```
+
+```bash
+# 服务器上
+cd /www/wwwroot
+git clone https://github.com/你的用户名/new-rabbit-back.git
+cd new-rabbit-back
+```
+
+### 方式 B：直接上传（简单粗暴）
+
+1. 本地把项目打包成 zip（去掉 `node_modules` 和 `dist`）
+2. 宝塔 → 文件 → `/www/wwwroot/` → 上传 zip → 解压
+
+---
+
+## 二、服务器环境搭建
+
+### 2.1 宝塔软件商店装这些
+
+| 软件 | 版本 |
+|------|------|
+| MySQL | 8.0 |
+| Redis | 7.x |
+| Nginx | 1.24+ |
+| PM2 管理器 | 最新 |
+| Node.js 版本管理器 | 装 Node 22 |
+
+### 2.2 Docker（跑 PostgreSQL + ChromaDB）
+
+```bash
+# 宝塔软件商店搜 Docker 管理器安装
+# 或者：
 curl -fsSL https://get.docker.com | bash
-sudo usermod -aG docker $USER
-newgrp docker
-
-# 安装 docker-compose-plugin
-sudo apt install docker-compose-v2 -y
+systemctl enable docker --now
 ```
 
-## 三、项目文件准备
+### 2.3 启动 PostgreSQL + ChromaDB
 
 ```bash
-# 1. 克隆项目到服务器
-git clone <仓库地址> /opt/new-rabbit-back
-cd /opt/new-rabbit-back
+# 创建数据目录
+mkdir -p /data/postgres /data/chroma
 
-# 2. 复制并修改生产环境变量
-cp .env.production.example .env.production
-vim .env.production   # 修改所有"替换为..."的占位值
+# 写入 docker-compose.yml
+cd /www/wwwroot/new-rabbit-back
+cat > docker-compose.yml << 'EOF'
+version: "3.8"
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 设个强密码
+      POSTGRES_DB: langgraph
+    ports:
+      - "5432:5432"
+    volumes:
+      - /data/postgres:/var/lib/postgresql/data
 
-# 3. 创建 nginx SSL 目录（有证书时）
-mkdir -p nginx/ssl
-# 将 fullchain.pem 和 privkey.pem 放入 nginx/ssl/
+  chroma:
+    image: chromadb/chroma:latest
+    container_name: chroma
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - /data/chroma:/chroma/chroma
+EOF
+
+docker compose up -d
+docker compose ps   # 确认两个都在 running
 ```
 
-## 四、启动服务
+### 2.4 MySQL 建库
+
+宝塔 → 数据库 → 添加数据库：
+- 数据库名：`new-rabbit-back`
+- 用户名：`newrabbit`（或直接用 root）
+- 密码：自己设一个
+- 字符集：`utf8mb4`
+
+把本地的 MySQL 数据导出导入：
+```bash
+# 本地导出
+mysqldump -u root -p123456 new-rabbit-back > backup.sql
+
+# 上传到服务器后导入
+mysql -u newrabbit -p新的密码 new-rabbit-back < backup.sql
+```
+
+### 2.5 配置环境变量 `.env`
 
 ```bash
-# 构建并启动所有服务（首次运行可能需要 5-10 分钟）
-docker compose up -d --build
-
-# 查看运行状态
-docker compose ps
-
-# 查看应用日志
-docker compose logs -f app
-
-# 只在代码更新时重新构建 app
-docker compose up -d --build app
+cd /www/wwwroot/new-rabbit-back
+vim .env
 ```
 
-## 五、验证部署
+内容（修改所有密码为实际值）：
+
+```env
+PORT=3003
+
+# MySQL
+MYSQL_USER=root（或上面的 newrabbit）
+MYSQL_PASSWORD=你设的密码
+MYSQL_HOST=127.0.0.1
+MYSQL_PORT=3306
+MYSQL_DATABASE=new-rabbit-back
+
+# Redis
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+
+# JWT
+TOKEN_SECRET_KEY=随便32位随机字符串
+APIKEY=随便32位随机字符串
+SALTROUNDS=10
+
+# Snowflake
+SNOWFLAKE_WORKER_ID=1
+SNOWFLAKE_CENTER_ID=1
+SNOWFLAKE_EPOCH=1704067200000
+SNOWFLAKE_STRING_MODE=true
+
+# LangGraph
+USE_LANGGRAPH=true
+LANGGRAPH_RECURSION_LIMIT=8
+AGENT_MAX_STEPS=3
+LANGGRAPH_POSTGRES_URL=postgresql://postgres:设的PG密码@127.0.0.1:5432/langgraph
+
+# ChromaDB
+CHROMA_URL=http://127.0.0.1:8000
+CHROMA_COLLECTION=ecommerce_knowledge_base
+
+# LLM API Key（替换成你自己的）
+GLM_DASHSCOPE_API_KEY=你的智谱Key
+GLM_DASHSCOPE_BASE_URL=https://open.bigmodel.cn/api/paas/v4/
+MODEL_NAME=glm-4.5-air
+
+QINIU_DASHSCOPE_API_KEY=你的七牛Key
+QINIU_DASHSCOPE_BASE_URL=https://api.qnaigc.com/v1
+
+ALI_DASHSCOPE_API_KEY=你的阿里Key
+ALI_DASHSCOPE_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+REPORT_MODEL_NAME=deepseek-v4-pro
+
+BAISHAN_DASHSCOPE_API_KEY=你的白山Key
+BAISHAN_DASHSCOPE_BASE_URL=https://api.edgefn.net/v1
+
+HUGGINGFACE_DASHSCOPE_API_KEY=你的HF Key
+HUGGINGFACE_DASHSCOPE_BASE_URL=https://router.huggingface.co/v1
+VISION_MODEL_NAME=qwen/qwen3.5-35b-a3b
+
+RERANK_SCORE_THRESHOLD=0.5
+
+# 七牛云
+QINIU_ACCESS_KEY=你的七牛AK
+QINIU_SECRET_KEY=你的七牛SK
+QINIU_BUCKET=new-rabbit-back
+QINIU_DOMAIN=http://rabbit.fanblog.top
+
+# 邮箱
+SMTP_HOST=smtp.yeah.net
+SMTP_PORT=465
+EMAIL_ACCOUNT=fanfan0521@yeah.net
+EMAIL_key=你的邮箱授权码
+EMAIL_SECURE=true
+```
+
+---
+
+## 三、安装依赖 & 编译启动
 
 ```bash
-# 健康检查 — 通过 nginx 访问
-curl http://localhost/api/health
+cd /www/wwwroot/new-rabbit-back
 
-# 或直连 NestJS 端口
-curl http://localhost:3003/
+# 装 pnpm
+npm i -g pnpm
+
+# 安装依赖
+pnpm install
+
+# 编译
+pnpm build
 ```
 
-## 六、启用 HTTPS（Let's Encrypt 免费证书）
+---
+
+## 四、PM2 启动
+
+### 方式 A：宝塔 PM2 管理器界面操作
+
+1. 宝塔 → 软件商店 → PM2 管理器 → 设置 → 添加项目
+2. 填写：
+
+| 字段 | 值 |
+|------|-----|
+| 启动文件 | `/www/wwwroot/new-rabbit-back/dist/main.js` |
+| 项目名称 | `new-rabbit-back` |
+| 运行目录 | `/www/wwwroot/new-rabbit-back` |
+
+3. 保存 → 映射（端口 3003）→ 启动
+
+### 方式 B：命令行
 
 ```bash
-# 安装 certbot
-sudo apt install certbot -y
-
-# 生成证书
-sudo certbot certonly --standalone -d your-domain.com
-
-# 复制到项目
-sudo cp /etc/letsencrypt/live/your-domain.com/fullchain.pem nginx/ssl/
-sudo cp /etc/letsencrypt/live/your-domain.com/privkey.pem nginx/ssl/
-
-# 编辑 nginx/conf.d/default.conf，取消注释 HTTPS server 块
-# 重启 nginx
-docker compose restart nginx
-
-# 设置自动续期 cron
-echo "0 3 * * * certbot renew --quiet && docker compose restart nginx" | sudo crontab -
+pm2 start dist/main.js --name new-rabbit-back
+pm2 save
+pm2 startup   # 设置开机自启，复制输出的命令执行
 ```
 
-## 七、常用运维命令
+---
+
+## 五、Nginx 反向代理
+
+宝塔 → 网站 → 添加站点 → 域名填你的域名 → 确定。
+
+然后点"设置" → "配置文件"，替换为：
+
+```nginx
+server {
+    listen 80;
+    server_name 你的域名.com;
+
+    # SSE 流式对话 — 必须关缓冲！
+    location /agents/ {
+        proxy_pass http://127.0.0.1:3003;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+
+    # 普通接口
+    location / {
+        proxy_pass http://127.0.0.1:3003;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 120s;
+    }
+}
+```
+
+之后在宝塔面板点 SSL → Let's Encrypt → 申请证书 → 勾选强制 HTTPS。
+
+---
+
+## 六、验证
 
 ```bash
-# 查看所有容器状态
-docker compose ps
+# 直连测试
+curl http://127.0.0.1:3003/
 
-# 查看某个服务日志
-docker compose logs -f --tail=100 app
-docker compose logs -f --tail=100 nginx
+# 通过 nginx 测试
+curl http://你的域名.com/
 
-# 重启单个服务
-docker compose restart app
-docker compose restart nginx
+# 看进程
+pm2 list
 
-# 进入容器调试
-docker compose exec app sh
-docker compose exec mysql mysql -u root -p
-
-# 清理旧镜像释放空间
-docker system prune -af
-
-# 备份 MySQL 数据
-docker compose exec mysql mysqldump -u root -p新密码 new-rabbit-back > backup.sql
-
-# 恢复 MySQL 数据
-docker compose exec -T mysql mysql -u root -p新密码 new-rabbit-back < backup.sql
+# 看日志
+pm2 logs new-rabbit-back
 ```
 
-## 八、目录结构
+---
 
+## 七、后续更新代码
+
+```bash
+cd /www/wwwroot/new-rabbit-back
+
+# Git 拉取
+git pull
+
+# 如果有新依赖
+pnpm install
+
+# 重新编译
+pnpm build
+
+# 重启
+pm2 restart new-rabbit-back
 ```
-/opt/new-rabbit-back/
-├── Dockerfile              # 应用镜像构建文件
-├── .dockerignore           # 构建时排除的文件
-├── docker-compose.yml      # 编排所有服务
-├── .env.production         # 生产环境变量（不提交 Git）
-├── nginx/
-│   ├── nginx.conf          # nginx 主配置
-│   ├── conf.d/
-│   │   └── default.conf    # 站点配置（代理、SSL）
-│   └── ssl/                # 证书目录（不提交 Git）
-│       ├── fullchain.pem
-│       └── privkey.pem
-├── src/                    # 源码
-├── package.json
-└── ...
+
+---
+
+## 八、防火墙 & 安全组
+
+确保这些端口开放：
+
+| 端口 | 用途 | 公开？ |
+|------|------|--------|
+| 80/443 | HTTP/HTTPS | 是（云服务器安全组放开） |
+| 3003 | PM2 直接端口 | 否（仅 127.0.0.1） |
+| 3306 | MySQL | 否 |
+| 6379 | Redis | 否 |
+| 5432 | PostgreSQL | 否 |
+| 8000 | ChromaDB | 否 |
+
+宝塔 → 安全 → 防火墙，确认 80 和 443 放行。其余端口不需要放行。
+
+---
+
+## 九、常见问题
+
+**Q: PM2 启动报错 connect ECONNREFUSED**
+A: 检查 MySQL/Redis/Docker 是否全在运行：`docker compose ps` + `systemctl status redis`
+
+**Q: Agent 对话卡住不动**
+A: nginx `/agents/` 路径的 `proxy_buffering off` 是否配了？没配的话流式输出会被缓冲。
+
+**Q: 端口冲突**
+A: `lsof -i:3003` 看谁占了，`kill` 掉或换端口。
+
+**Q: Playwright 报错找不到浏览器**
+A: 服务器上装依赖：
+```bash
+npx playwright install-deps chromium
+npx playwright install chromium
 ```
-
-## 九、重要注意事项
-
-1. **SSE 长连接**：Agent 对话使用 SSE 流式输出，nginx 配置中 `/agents/` 路径已关闭 proxy_buffering，不可删除
-2. **Playwright**：Dockerfile 已安装 Chromium 依赖，用于 PDF 生成功能
-3. **数据库密码**：第一次启动后 MySQL 密码固定，修改 `.env.production` 需要同步删除 mysql-data volume
-4. **API Key 安全**：所有 LLM API Key 在 `.env.production` 中，不要提交到 Git
-5. **内存占用**：6 个容器（app + mysql + redis + postgres + chroma + nginx），总占用约 2-3GB，建议服务器 4GB+

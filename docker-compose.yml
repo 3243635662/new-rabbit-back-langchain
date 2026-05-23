@@ -1,26 +1,4 @@
 services:
-  # ────────── 应用服务 ──────────
-  app:
-    build: .
-    container_name: new-rabbit-back
-    restart: unless-stopped
-    ports:
-      - "3003:3003"
-    env_file:
-      - .env
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    networks:
-      - app-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "50m"
-        max-file: "3"
-
   # ────────── Redis Stack（含布隆过滤器） ──────────
   redis:
     image: redis/redis-stack-server:latest
