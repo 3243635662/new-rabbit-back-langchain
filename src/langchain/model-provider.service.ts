@@ -42,7 +42,7 @@ export class ModelProviderService {
       },
     });
 
-    // 财务报告专业模型（关闭 thinking，避免思考内容混入 JSON 输出导致解析失败）
+    // 财务报告专业模型
     this.reportModel = new ChatOpenAI({
       apiKey: this.configService.get<string>('ALI_DASHSCOPE_API_KEY'),
       configuration: {

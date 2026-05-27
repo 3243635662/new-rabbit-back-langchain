@@ -164,6 +164,13 @@ export class MerchantService {
       .leftJoinAndSelect('sku.inventory', 'inventory')
       .where('goods.merchantId = :merchantId', { merchantId: finalMerchantId });
 
+    // 商品状态过滤 (客户端用户只能查看上架商品)
+    if (options.goodsStatus !== undefined) {
+      qb.andWhere('goods.status = :goodsStatus', {
+        goodsStatus: options.goodsStatus,
+      });
+    }
+
     // 关键词过滤 (商品名称 或 SKU规格内容)
     if (options.keyword) {
       qb.andWhere(
@@ -1266,6 +1273,62 @@ export class MerchantService {
 
     return { skuId, price };
   };
+
+  /**
+   * 获取商品详情（SPU + 全量 SKU）
+   * 专供 Agent Tool 使用，直接传 merchantId，无需 JwtPayload。
+   */
+  async getGoodsDetail(
+    goodsId: number,
+    merchantId: string,
+  ): Promise<Record<string, unknown>> {
+    const goods = await this.goodsRepo.findOne({
+      where: { id: goodsId, merchantId: Number(merchantId) },
+      relations: ['category', 'brandRelation', 'goodsInfo'],
+    });
+
+    if (!goods) {
+      return { success: false, message: '商品不存在或不属于当前商户' };
+    }
+
+    const skus = await this.skuRepo.find({
+      where: { goodsId: goods.id },
+      relations: ['inventory'],
+      order: { createdAt: 'DESC' },
+    });
+
+    const formattedSkus = skus.map((sku) => ({
+      skuId: sku.id,
+      skuCode: sku.skuCode,
+      specs: sku.specs,
+      specsLabel:
+        sku.specs?.map((s) => `${s.name}: ${s.value}`).join(' / ') || '',
+      price: sku.price,
+      stock: sku.inventory?.stock ?? 0,
+      isLaunching: sku.isLaunching,
+      picture: sku.picture || goods.mainPicture || null,
+    }));
+
+    return {
+      success: true,
+      goods: {
+        id: goods.id,
+        name: goods.name,
+        description: goods.description,
+        mainPicture: goods.mainPicture,
+        brand: goods.brandRelation?.name || null,
+        category: goods.category?.name || null,
+        status: goods.status,
+        isReviewed: goods.isReviewed,
+        isReviewedSeccuss: goods.isReviewedSeccuss,
+        salesCount: goods.goodsInfo?.salesCount ?? 0,
+        commentCount: goods.goodsInfo?.commentCount ?? 0,
+        collectCount: goods.goodsInfo?.collectCount ?? 0,
+      },
+      skus: formattedSkus,
+      skuCount: formattedSkus.length,
+    };
+  }
 }
 
 export interface SpecValueCombo {

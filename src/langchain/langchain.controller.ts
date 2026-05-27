@@ -105,15 +105,22 @@ export class LangChainController {
    * SSE /ai/session/:sessionId/streaming-chat
    *
    * SSE 无法设置 Authorization header，token 通过 query 传入，AuthGuard 内部兼容。
+   * 客户端用户访问时，通过 merchantId query 参数传递当前商家 ID
+   * 用户浏览商品时，通过 goodsId query 参数传递当前商品 ID
    */
   @Public()
   @Sse('session/:sessionId/streaming-chat')
   streamingChat(
     @Param('sessionId') sessionId: string,
     @Query('message') message: string,
-    @Req() req: { user: JwtPayloadType },
+    @Query('merchantId') merchantId: string,
+    @Query('goodsId') goodsId: string,
+    @Req() req: { user: JwtPayloadType; merchantId?: string; goodsId?: string },
     @Res({ passthrough: true }) res: Response,
   ): Observable<MessageEvent> {
+    // 将 merchantId 和 goodsId 传递到 req 对象中
+    req.merchantId = merchantId;
+    req.goodsId = goodsId;
     this.langChainService.prepareStreamingChatResponse(res);
     return this.langChainService.createStreamingChatObservable(
       sessionId,

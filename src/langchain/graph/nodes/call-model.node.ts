@@ -44,14 +44,19 @@ export const createCallModelNode = (
     const modelWithTools = model.bindTools(state.availableTools || []);
     const sessionId = (config?.configurable?.thread_id as string) || 'default';
 
+    // 从 config 中获取 roleId、currentTime、goodsId
+    const currentTime = (config?.configurable?.currentTime as string) || '';
+    const roleId = (config?.configurable?.roleId as number) || 2;
+    const goodsId = (config?.configurable?.goodsId as string) || undefined;
+    const role = roleId === 3 ? 'user' : roleId === 1 ? 'admin' : 'merchant';
+
     logger.log(
-      `[callModelNode] 调用模型 (stream), messages 数量: ${state.messages.length}`,
+      `[callModelNode] 调用模型 (stream), messages 数量: ${state.messages.length}, role: ${role}`,
     );
 
     try {
-      // 临时拼接 SystemMessage，不污染 state.messages
-      const currentTime = (config?.configurable?.currentTime as string) || '';
-      const systemPrompt = buildAgentSystemPrompt(currentTime);
+      // 根据角色和当前浏览商品 ID 动态生成系统提示词
+      const systemPrompt = buildAgentSystemPrompt(currentTime, role, goodsId);
       const messagesWithSystem = [
         new SystemMessage(systemPrompt),
         ...state.messages,

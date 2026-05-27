@@ -6,6 +6,7 @@ import { InventoryModule } from '../../modules/inventory/inventory.module';
 import { UserModule } from '../../modules/user/user.module';
 import { MerchantKbTool } from './merchant-kb.tool';
 import { ProductListTool } from './product-list.tool';
+import { ProductDetailTool } from './product-detail.tool';
 import { OrderListTool } from './order-list.tool';
 import { InventoryListTool } from './inventory-list.tool';
 import { InventoryLogsTool } from './inventory-logs.tool';
@@ -32,6 +33,7 @@ import { GenericQueryTool } from './generic-query.tool';
   providers: [
     MerchantKbTool,
     ProductListTool,
+    ProductDetailTool,
     OrderListTool,
     InventoryListTool,
     InventoryLogsTool,
@@ -44,6 +46,7 @@ import { GenericQueryTool } from './generic-query.tool';
   exports: [
     MerchantKbTool,
     ProductListTool,
+    ProductDetailTool,
     OrderListTool,
     InventoryListTool,
     InventoryLogsTool,

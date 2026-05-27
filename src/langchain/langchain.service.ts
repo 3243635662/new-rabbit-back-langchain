@@ -1,4 +1,3 @@
-import { ChatOpenAI } from '@langchain/openai';
 import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -52,12 +51,13 @@ export class LangChainService {
 
   // 构建 Agent 运行上下文
   private buildAgentContext = async (
-    req: { user: JwtPayloadType },
+    req: { user: JwtPayloadType; merchantId?: string; goodsId?: string },
     sessionId?: string,
   ): Promise<AgentRuntimeContext> => {
     let merchantId: string | undefined;
 
     if (req.user.roleId === 2) {
+      // 商家：从数据库查询关联的 merchantId
       const merchant = await this.merchantRepo.findOne({
         where: { userId: req.user.id },
         select: ['id'],
@@ -65,6 +65,9 @@ export class LangChainService {
       if (merchant) {
         merchantId = merchant.id.toString();
       }
+    } else if (req.user.roleId === 3) {
+      // 客户：从请求参数中获取当前商家 ID
+      merchantId = req.merchantId;
     }
 
     // 构建当前时间字符串，供 LLM 理解时间上下文
@@ -74,21 +77,36 @@ export class LangChainService {
       `(${now.toLocaleDateString('zh-CN', { weekday: 'long' })}) ` +
       `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
 
+    console.log(
+      '所有的上下文 user:',
+      req.user,
+      'sessionId',
+      sessionId,
+      'merchantId',
+      merchantId,
+      'goodsId',
+      req.goodsId,
+      'currentTime',
+      currentTime,
+    );
+
     return {
       ...req.user,
       sessionId: sessionId || 'default-session',
       merchantId,
+      goodsId: req.goodsId || undefined,
       currentTime,
     };
   };
 
   /**
    * 智能对话流式 SSE：Agent 生成 → 逐块推送 → 落 Redis / 异步同步 MySQL
+   * @param merchantId 商家 ID（客户端用户访问时从 URL 参数传递）
    */
   createStreamingChatObservable(
     sessionId: string,
     message: string,
-    req: { user: JwtPayloadType },
+    req: { user: JwtPayloadType; merchantId?: string },
     res: Response,
   ): Observable<MessageEvent> {
     const abortController = new AbortController();

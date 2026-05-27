@@ -4,6 +4,7 @@ import { JwtPayloadType } from './auth.type';
 export interface AgentRuntimeContext extends JwtPayloadType {
   sessionId: string;
   merchantId?: string;
+  goodsId?: string; // 当前浏览的商品ID（客户端用户咨询时传入）
   /** 当前对话时间，用于 LLM 理解时间上下文（如"今天""本月"等） */
   currentTime: string;
 }

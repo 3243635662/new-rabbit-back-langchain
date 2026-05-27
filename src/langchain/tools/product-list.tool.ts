@@ -79,6 +79,11 @@ export class ProductListTool {
             order: 'DESC',
           };
 
+          // 客户端用户（roleId=3）只能查看上架商品
+          if (roleId === 3) {
+            options.goodsStatus = true; // true 表示上架状态
+          }
+
           // 使用真实用户信息构造 payload
           const payload = { id: userId, roleId } as JwtPayloadType;
 
@@ -144,7 +149,9 @@ export class ProductListTool {
       {
         name: 'getProductList',
         description:
-          '获取当前登录商家的商品列表。用于查询商品名称、价格、库存、SKU 编码、品牌、分类、上下架状态。\n' +
+          '获取商品列表。用于查询商品名称、价格、库存、SKU 编码、品牌、分类、上下架状态。\n' +
+          '商家使用时：可查看所有商品（含下架）。\n' +
+          '客户端用户使用时：只能查看已上架的商品。\n' +
           'keyword 支持按商品名/SKU 编码/规格模糊搜索。需要查找特定商品时传入 keyword。\n' +
           '不需要用户指定商家 ID，系统自动获取。\n' +
           '翻页：结果含 totalPage/hasMore，"下一页" page+1。',

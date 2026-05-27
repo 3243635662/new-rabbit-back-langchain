@@ -229,6 +229,7 @@ export class ClientHomeService {
       discount: 1,
       inventory: totalInventory,
       brand: goods.merchant?.name || '',
+      merchantId: goods.merchant?.id || null, // 返回商家ID，供AI对话使用
       salesCount: goodsInfo?.salesCount || 0,
       commentCount: goodsInfo?.commentCount || 0,
       collectCount: goodsInfo?.collectCount || 0,

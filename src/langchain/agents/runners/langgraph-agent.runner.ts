@@ -63,6 +63,8 @@ export class LangGraphAgentRunner {
         user_id: context.id,
         merchantId: context.merchantId,
         currentTime: context.currentTime,
+        roleId: context.roleId, // 传递 roleId 供 call-model.node 使用
+        goodsId: context.goodsId, // 传递 goodsId 供 call-model.node 注入提示词
       },
       recursionLimit: this.langGraphConfig.recursionLimit,
       // 传递 abortSignal 到执行链，中断 LLM / tool 执行
@@ -186,6 +188,8 @@ export class LangGraphAgentRunner {
         user_id: context.id,
         merchantId: context.merchantId,
         currentTime: context.currentTime,
+        roleId: context.roleId, // 传递 roleId 供 call-model.node 使用
+        goodsId: context.goodsId, // 传递 goodsId 供提示词使用
       },
       recursionLimit: this.langGraphConfig.recursionLimit,
     };
