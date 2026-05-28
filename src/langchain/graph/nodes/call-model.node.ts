@@ -128,6 +128,13 @@ export const createCallModelNode = (
       return { messages: [aiMessage] };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+
+      // AbortError 是客户端主动断开连接触发的正常取消，不属于异常
+      if (err instanceof Error && err.name === 'AbortError') {
+        logger.log(`[callModelNode] 模型调用被中断（客户端断开连接）`);
+        return { messages: [] };
+      }
+
       logger.error(`[callModelNode] 模型调用失败: ${msg}`);
 
       // 优雅降级：返回错误信息作为 AIMessage，避免整个图崩溃

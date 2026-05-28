@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Delete,
   Param,
   Query,
@@ -120,5 +121,26 @@ export class FinanceController {
   @Sse('progress/:taskId')
   progressSse(@Param('taskId') taskId: string): Observable<SseEvent> {
     return this.financeService.progressSse(taskId);
+  }
+
+  /**
+   * PUT /finance/records/:extractedId
+   * 手动修正财务提取记录
+   */
+  @Put('extracted/:extractedId')
+  async updateExtractedRecord(
+    @Param('extractedId') extractedId: number,
+    @Body('newRaw') newRaw: Record<string, unknown>,
+    @Req() req: { user: JwtPayloadType },
+  ) {
+    if (!newRaw) {
+      return resFormatMethod(1, 'newRaw 不能为空', null);
+    }
+    await this.financeService.updateExtractedRecord(
+      extractedId,
+      newRaw,
+      req.user.id,
+    );
+    return resFormatMethod(0, '修正成功', null);
   }
 }

@@ -3,9 +3,10 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, Brackets } from 'typeorm';
+import { Repository, Not, Brackets, QueryDeepPartialEntity } from 'typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { Observable } from 'rxjs';
@@ -357,41 +358,9 @@ export class FinanceService {
     return result;
   }
 
-  /**
-   * 获取单个 FinanceSourceFile 详情 (关联 extractedRecords)
-   */
-  async getSourceFileDetail(
-    id: number,
-    userId: string,
-  ): Promise<FinanceSourceFile> {
-    const merchant = await this.merchantRepo.findOne({
-      where: { userId },
-      select: ['id'],
-    });
-    if (!merchant) {
-      throw new NotFoundException('当前用户未关联商户');
-    }
-
-    const cacheKey = RedisKeys.FINANCE.getSourceDetailKey(id);
-
-    const cached =
-      await this.redisService.getWithLogicExpire<FinanceSourceFile>(cacheKey);
-
-    let sourceFile: FinanceSourceFile;
-    if (cached.data) {
-      if (cached.data.merchantId !== merchant.id) {
-        throw new NotFoundException('无权访问该资源');
-      }
-      // 缓存过期或解析未完成（可能新记录已入库但缓存是旧的）→ 强制刷新
-      if (cached.isExpired || !cached.data.isParsed) {
-        sourceFile = await this.rebuildDetailCache(cacheKey, id, merchant.id);
-      } else {
-        sourceFile = cached.data;
-      }
-    } else {
-      sourceFile = await this.rebuildDetailCache(cacheKey, id, merchant.id);
-    }
-
+  private normalizeSourceFile(
+    sourceFile: FinanceSourceFile,
+  ): FinanceSourceFile {
     // 将数据二次规一化为绝对统一的前端极简渲染 JSON 格式！
     if (sourceFile.extractedRecords) {
       // 定义结构化字段类型
@@ -456,8 +425,11 @@ export class FinanceService {
               ? record.createdAt.toISOString()
               : new Date().toISOString());
 
-          // 5. 融合成用户最期待的完美 JSON 标准结构
+          // 5. 保留所有原始字段，只覆盖和适配必要字段
           const unifiedResult = {
+            // 先展开原始所有字段
+            ...rawObj,
+            // 再覆盖和适配必要字段
             document_type: documentType,
             summary,
             process_time: processTime,
@@ -476,6 +448,44 @@ export class FinanceService {
     return sourceFile;
   }
 
+  /**
+   * 获取单个 FinanceSourceFile 详情 (关联 extractedRecords)
+   */
+  async getSourceFileDetail(
+    id: number,
+    userId: string,
+  ): Promise<FinanceSourceFile> {
+    const merchant = await this.merchantRepo.findOne({
+      where: { userId },
+      select: ['id'],
+    });
+    if (!merchant) {
+      throw new NotFoundException('当前用户未关联商户');
+    }
+
+    const cacheKey = RedisKeys.FINANCE.getSourceDetailKey(id);
+
+    const cached =
+      await this.redisService.getWithLogicExpire<FinanceSourceFile>(cacheKey);
+
+    let sourceFile: FinanceSourceFile;
+    if (cached.data) {
+      if (cached.data.merchantId !== merchant.id) {
+        throw new NotFoundException('无权访问该资源');
+      }
+      // 缓存过期或解析未完成（可能新记录已入库但缓存是旧的）→ 强制刷新
+      if (cached.isExpired || !cached.data.isParsed) {
+        sourceFile = await this.rebuildDetailCache(cacheKey, id, merchant.id);
+      } else {
+        sourceFile = cached.data;
+      }
+    } else {
+      sourceFile = await this.rebuildDetailCache(cacheKey, id, merchant.id);
+    }
+
+    return this.normalizeSourceFile(sourceFile);
+  }
+
   private async rebuildDetailCache(
     cacheKey: string,
     id: number,
@@ -490,13 +500,15 @@ export class FinanceService {
       throw new NotFoundException('找不到指定资源或无权限访问');
     }
 
+    const normalizedSourceFile = this.normalizeSourceFile(sourceFile);
+
     void this.redisService.setWithLogicExpire(
       cacheKey,
-      sourceFile,
+      normalizedSourceFile,
       RedisTTL.CACHE.FINANCE_SOURCE_DETAIL,
     );
 
-    return sourceFile;
+    return normalizedSourceFile;
   }
 
   /**
@@ -673,4 +685,51 @@ export class FinanceService {
       };
     });
   };
+
+  // 手动修正财务提取记录
+  // 允许用户直接传入 raw 对象
+  async updateExtractedRecord(
+    extractedId: number,
+    newRaw: Record<string, unknown>,
+    userId: string,
+  ): Promise<void> {
+    // 验证用户商户
+    const merchant = await this.merchantRepo.findOne({
+      where: { userId },
+      select: ['id'],
+    });
+    if (!merchant) {
+      throw new NotFoundException('当前用户未关联商户');
+    }
+
+    // 验证提取记录是否属于当前商户
+    const record = await this.extractedRecordRepo.findOne({
+      where: { id: extractedId },
+      relations: ['sourceFile'],
+    });
+
+    if (!record) {
+      throw new NotFoundException('找不到指定的提取记录');
+    }
+
+    if (record.sourceFile?.merchantId !== merchant.id) {
+      throw new ForbiddenException('无权访问该记录');
+    }
+
+    await this.extractedRecordRepo.update({ id: extractedId }, {
+      raw: newRaw,
+    } as QueryDeepPartialEntity<FinanceExtractedRecord>);
+
+    // 清除相关缓存
+    if (record.sourceFileId) {
+      await this.redisService.del(
+        RedisKeys.FINANCE.getSourceDetailKey(record.sourceFileId),
+      );
+      void this.redisService.delByPrefixSafe(
+        RedisKeys.FINANCE.getSourceListPrefix(merchant.id),
+      );
+    }
+
+    this.logger.log(`商户 ${merchant.id} 手动修正提取记录 ${extractedId}`);
+  }
 }

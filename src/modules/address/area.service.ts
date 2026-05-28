@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like } from 'typeorm';
 import { Area } from './entities/area.entity';
@@ -7,7 +7,7 @@ import { RedisKeys } from '../../common/constants/redis-key.constant';
 import { RedisTTL } from '../../common/constants/redis-TTL.constant';
 
 @Injectable()
-export class AreaService implements OnModuleInit {
+export class AreaService {
   private readonly logger = new Logger(AreaService.name);
 
   constructor(
@@ -16,12 +16,9 @@ export class AreaService implements OnModuleInit {
     private readonly redisService: RedisService,
   ) {}
 
-  async onModuleInit() {
-    await this.warmUpAreaCache();
-  }
-
   /**
-   * 预热区划缓存：将所有区划 ext_id 写入布隆过滤器 + 预热省级缓存
+   * 预热区划缓存（测试环境已禁用，生产环境可手动调用）
+   * 将所有区划 ext_id 写入布隆过滤器 + 预热省级缓存
    */
   async warmUpAreaCache() {
     try {
@@ -36,7 +33,6 @@ export class AreaService implements OnModuleInit {
         `✅ 区划缓存预热完成，共加载 ${areas.length} 条区划到布隆过滤器`,
       );
 
-      // 预热省级数据（pid=0）
       void this.getChildren(0);
     } catch (error) {
       this.logger.error('❌ 区划缓存预热失败:', error);

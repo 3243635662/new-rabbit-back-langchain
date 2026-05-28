@@ -37,6 +37,8 @@ interface StreamChunk {
 interface StreamChannel {
   queue: (StreamChunk | null)[];
   resolveNext: ((value: IteratorResult<StreamChunk | null>) => void) | null;
+  thinkBuffer: string;
+  inThinkMode: boolean;
 }
 
 /**
@@ -55,6 +57,8 @@ export class AgentStreamHub {
     const channel: StreamChannel = {
       queue: [],
       resolveNext: null,
+      thinkBuffer: '',
+      inThinkMode: false,
     };
     this.channels.set(sessionId, channel);
     return channel;
@@ -62,8 +66,58 @@ export class AgentStreamHub {
 
   /** 向指定 session 推送流式 chunk */
   emit = (sessionId: string, chunk: StreamChunk): void => {
-    // 使用 getOrCreateChannel，避免竞态条件下首包丢失
     const channel = this.getOrCreateChannel(sessionId);
+
+    if (chunk.content) {
+      let remaining = chunk.content;
+      let contentToSend = '';
+
+      while (remaining.length > 0) {
+        if (!channel.inThinkMode) {
+          const thinkStart = remaining.indexOf('<think>');
+          if (thinkStart === -1) {
+            contentToSend += remaining;
+            break;
+          }
+
+          contentToSend += remaining.substring(0, thinkStart);
+          remaining = remaining.substring(thinkStart + 7);
+          channel.inThinkMode = true;
+        } else {
+          const thinkEnd = remaining.indexOf('</think>');
+          if (thinkEnd === -1) {
+            channel.thinkBuffer += remaining;
+            remaining = '';
+          } else {
+            channel.thinkBuffer += remaining.substring(0, thinkEnd);
+
+            const reasoningChunk: StreamChunk = {
+              content: '',
+              reasoning: channel.thinkBuffer,
+              toolCallChunks: [],
+            };
+            this.sendChunk(channel, reasoningChunk);
+
+            channel.thinkBuffer = '';
+            channel.inThinkMode = false;
+            remaining = remaining.substring(thinkEnd + 8);
+          }
+        }
+      }
+
+      if (contentToSend) {
+        this.sendChunk(channel, {
+          content: contentToSend,
+          reasoning: '',
+          toolCallChunks: [],
+        });
+      }
+    } else if (chunk.reasoning) {
+      this.sendChunk(channel, chunk);
+    }
+  };
+
+  private sendChunk = (channel: StreamChannel, chunk: StreamChunk): void => {
     if (channel.resolveNext) {
       channel.resolveNext({ value: chunk, done: false });
       channel.resolveNext = null;
@@ -141,6 +195,7 @@ export class AgentStreamHub {
 
     const reasoning =
       (chunk.additional_kwargs?.reasoning_content as string) || '';
+
     const toolCallChunks =
       (
         chunk as AIMessageChunk & {
