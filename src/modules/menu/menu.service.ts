@@ -99,27 +99,19 @@ export class MenuService implements OnModuleInit {
       try {
         let result: MenuResType[] = [];
 
-        // 如果是超级管理员（roleId === 1），直接返回所有菜单
-        if (roleId === 1) {
-          const allMenus = await this.menuRepository.find({
+        // 查找该角色对应的所有菜单 ID
+        const roleMenuMaps = await this.roleMenuMapRepository.findBy({
+          roleId,
+        });
+        const menuIds = roleMenuMaps.map((map) => map.menuId);
+
+        if (menuIds.length > 0) {
+          // 查找具体菜单
+          const menus = await this.menuRepository.find({
+            where: { id: In(menuIds) },
             order: { sort: 'ASC' },
           });
-          result = this.formatMenus(allMenus);
-        } else {
-          // 查找该角色对应的所有菜单 ID
-          const roleMenuMaps = await this.roleMenuMapRepository.findBy({
-            roleId,
-          });
-          const menuIds = roleMenuMaps.map((map) => map.menuId);
-
-          if (menuIds.length > 0) {
-            // 查找具体菜单
-            const menus = await this.menuRepository.find({
-              where: { id: In(menuIds) },
-              order: { sort: 'ASC' },
-            });
-            result = this.formatMenus(menus);
-          }
+          result = this.formatMenus(menus);
         }
 
         // 4. 更新布隆过滤器（认为此 roleId 有效）

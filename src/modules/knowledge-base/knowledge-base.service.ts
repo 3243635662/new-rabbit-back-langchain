@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { Observable } from 'rxjs';
@@ -22,6 +22,7 @@ import {
 import { QINIU_KEY_PREFIX } from '../../common/constants/qiniuKeyPrefix';
 import type { PresignResult, ConfirmBody } from '../../types/file.type';
 import type { TaskProgressPayload } from '../../types/task-progress.type';
+import type { JwtPayloadType } from '../../types/auth.type';
 
 interface SseEvent {
   data: unknown;
@@ -43,24 +44,31 @@ export class KnowledgeBaseService {
     private readonly redisService: RedisService,
   ) {}
 
+  private async getMerchantId(user: JwtPayloadType): Promise<number | null> {
+    if (user.roleId === 1) {
+      return null; // Admin uses platform level merchantId null
+    }
+    const merchant = await this.merchantRepo.findOne({
+      where: { userId: user.id },
+      select: ['id'],
+    });
+    if (!merchant) {
+      throw new NotFoundException('当前用户未关联商户');
+    }
+    return merchant.id;
+  }
+
   /**
    * 生成客户端直传七牛的凭证
    * key 前缀绑定 merchantId，防止客户端乱传路径
    */
   generatePresign = async (
     fileName: string,
-    userId: string,
+    user: JwtPayloadType,
   ): Promise<PresignResult> => {
-    const merchant = await this.merchantRepo.findOne({
-      where: { userId },
-      select: ['id'],
-    });
-    if (!merchant) {
-      throw new NotFoundException('当前用户未关联商户');
-    }
-
-    const merchantId = merchant.id.toString();
-    const keyPrefix = QINIU_KEY_PREFIX.RAG(merchantId);
+    const merchantId = await this.getMerchantId(user);
+    const merchantIdStr = merchantId === null ? '0' : merchantId.toString();
+    const keyPrefix = QINIU_KEY_PREFIX.RAG(merchantIdStr);
     return this.qiniuService.generatePresign(keyPrefix, fileName);
   };
 
@@ -68,20 +76,13 @@ export class KnowledgeBaseService {
    * 客户端直传七牛成功后，回调确认 → 校验文件真实性 → 创建 DB 记录 + 推入队列
    * 服务器全程不接触文件内容，零内存/带宽
    */
-  confirmUpload = async (body: ConfirmBody, userId: string) => {
+  confirmUpload = async (body: ConfirmBody, user: JwtPayloadType) => {
     const { qiniuKey, fileName, mimeType, fileSize } = body;
 
-    //  校验商户
-    const merchant = await this.merchantRepo.findOne({
-      where: { userId },
-      select: ['id'],
-    });
-    if (!merchant) {
-      throw new NotFoundException('当前用户未关联商户');
-    }
-
-    const merchantId = merchant.id.toString();
-    const expectedPrefix = `rag/raw/${merchantId}/`;
+    const numericMerchantId = await this.getMerchantId(user);
+    const merchantIdStr =
+      numericMerchantId === null ? '0' : numericMerchantId.toString();
+    const expectedPrefix = `rag/raw/${merchantIdStr}/`;
 
     const {
       qiniuUrl,
@@ -103,14 +104,14 @@ export class KnowledgeBaseService {
       qiniuUrl,
       chunkCount: 0,
       status: IngestStatus.PENDING,
-      merchantId: merchant.id,
+      merchantId: numericMerchantId,
     });
     await this.kbRepo.save(record);
 
     // 推入 BullMQ 队列（传 qiniuKey + fileName，fileName 用于去重判断）
     const job = await this.ragQueue.add(
       RedisKeys.RAG.JOB_NAMES.PROCESS_DOCUMENT,
-      { qiniuKey, merchantId, fileName },
+      { qiniuKey, merchantId: merchantIdStr, fileName },
       {
         attempts: 3,
         backoff: { type: 'exponential', delay: 5000 },
@@ -124,7 +125,7 @@ export class KnowledgeBaseService {
     await this.kbRepo.save(record);
 
     this.logger.log(
-      `商户 ${merchantId} 确认上传已入队: ${fileName} → taskId: ${job.id}`,
+      `商户 ${merchantIdStr} 确认上传已入队: ${fileName} → taskId: ${job.id}`,
     );
 
     return {
@@ -172,17 +173,11 @@ export class KnowledgeBaseService {
   /**
    * 查询商户的知识库文档列表
    */
-  listByMerchant = async (userId: string) => {
-    const merchant = await this.merchantRepo.findOne({
-      where: { userId },
-      select: ['id'],
-    });
-    if (!merchant) {
-      throw new NotFoundException('当前用户未关联商户');
-    }
+  listByMerchant = async (user: JwtPayloadType) => {
+    const merchantId = await this.getMerchantId(user);
 
     return this.kbRepo.find({
-      where: { merchantId: merchant.id },
+      where: merchantId === null ? { merchantId: IsNull() } : { merchantId },
       order: { createdAt: 'DESC' },
     });
   };
@@ -191,17 +186,12 @@ export class KnowledgeBaseService {
    * 删除知识库文档记录
    * 同时清理 ChromaDB 向量数据和七牛云文件
    */
-  remove = async (id: number, userId: string) => {
-    const merchant = await this.merchantRepo.findOne({
-      where: { userId },
-      select: ['id'],
-    });
-    if (!merchant) {
-      throw new NotFoundException('当前用户未关联商户');
-    }
+  remove = async (id: number, user: JwtPayloadType) => {
+    const merchantId = await this.getMerchantId(user);
 
     const record = await this.kbRepo.findOne({
-      where: { id, merchantId: merchant.id },
+      where:
+        merchantId === null ? { id, merchantId: IsNull() } : { id, merchantId },
     });
     if (!record) {
       throw new NotFoundException('文档不存在或不属于当前商户');
@@ -209,10 +199,7 @@ export class KnowledgeBaseService {
 
     // 1. 删除 ChromaDB 中的向量数据
     await this.merchantRagService
-      .deleteDocumentsBySourceFile(
-        record.merchantId.toString(),
-        record.fileName,
-      )
+      .deleteDocumentsBySourceFile(String(record.merchantId), record.fileName)
       .catch((err) => {
         this.logger.warn(`删除向量数据失败: ${(err as Error).message}`);
       });

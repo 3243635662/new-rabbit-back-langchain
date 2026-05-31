@@ -36,11 +36,28 @@ export const buildPersistNode = (repo: Repository<FinanceExtractedRecord>) => {
       confidence: avgConfidence,
     };
 
-    // 提取 LLM 识别的资源实际日期
-    const extractedDate =
-      r.document_date && typeof r.document_date === 'string'
-        ? r.document_date.trim() || null
-        : null;
+    // 提取 LLM 识别的资源实际日期，并转成 MySQL DATE 格式（YYYY-MM-DD）
+    const toMysqlDate = (raw: string): string | null => {
+      if (!raw) return null;
+      const s = raw.trim();
+      // 已经是 YYYY-MM-DD 格式，直接返回
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      // 解析中文日期：2026年05月22日 / 2026年5月22日
+      const cnMatch = s.match(/(\d{4})年(\d{1,2})月(\d{1,2})日?/);
+      if (cnMatch) {
+        const y = cnMatch[1];
+        const m = cnMatch[2].padStart(2, '0');
+        const d = cnMatch[3].padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      }
+      // 尝试 Date 对象解析
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) {
+        return d.toISOString().slice(0, 10);
+      }
+      return null;
+    };
+    const extractedDate = toMysqlDate(r.document_date as string);
 
     const entity = repo.create({
       sourceFileId: state.sourceFileId,

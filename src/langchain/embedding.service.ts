@@ -12,7 +12,7 @@ export class EmbeddingService {
       configuration: {
         baseURL: this.configService.get<string>('BAISHAN_DASHSCOPE_BASE_URL'),
       },
-      model: 'BAAI/bge-m3',
+      model: this.configService.get<string>('EMBEDDING_MODEL_NAME'),
     });
   }
 

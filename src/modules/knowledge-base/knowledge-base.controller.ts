@@ -35,7 +35,7 @@ export class KnowledgeBaseController {
     if (!fileName) {
       return resFormatMethod(1, 'fileName 不能为空', null);
     }
-    const result = await this.kbService.generatePresign(fileName, req.user.id);
+    const result = await this.kbService.generatePresign(fileName, req.user);
     return resFormatMethod(0, 'success', result);
   }
 
@@ -55,7 +55,7 @@ export class KnowledgeBaseController {
     },
     @Req() req: { user: JwtPayloadType },
   ) {
-    const result = await this.kbService.confirmUpload(body, req.user.id);
+    const result = await this.kbService.confirmUpload(body, req.user);
     return resFormatMethod(0, '已入队，处理中', result);
   }
 
@@ -75,7 +75,7 @@ export class KnowledgeBaseController {
    */
   @Get('list')
   async list(@Req() req: { user: JwtPayloadType }) {
-    const result = await this.kbService.listByMerchant(req.user.id);
+    const result = await this.kbService.listByMerchant(req.user);
     return resFormatMethod(0, 'success', result);
   }
 
@@ -85,7 +85,7 @@ export class KnowledgeBaseController {
    */
   @Delete(':id')
   async remove(@Param('id') id: number, @Req() req: { user: JwtPayloadType }) {
-    const result = await this.kbService.remove(id, req.user.id);
+    const result = await this.kbService.remove(id, req.user);
     return resFormatMethod(0, '删除成功', result);
   }
 

@@ -347,6 +347,9 @@ export class MerchantRagService {
     },
   ): Document[] => {
     const { merchantId, fileName, mimeType, documentType } = options;
+    // merchantId === '0' 代表 admin/平台级文档，tenantType 设为 'platform'
+    // 这样商家检索时 buildTenantFilter 的 { tenantType: 'platform' } 条件才能命中
+    const tenantType = merchantId === '0' ? 'platform' : 'merchant';
 
     return docs
       .map((doc, index) => {
@@ -357,7 +360,7 @@ export class MerchantRagService {
           pageContent: content,
           metadata: {
             ...metadata,
-            tenantType: 'merchant',
+            tenantType,
             merchantId,
             sourceFile: fileName,
             mimeType,
@@ -395,6 +398,9 @@ export class MerchantRagService {
       ? await this.splitStructuredDocuments(docsWithHeader, splitter)
       : await splitter.splitDocuments(docsWithHeader);
 
+    // merchantId === '0' 代表 admin/平台级文档，tenantType 设为 'platform'
+    const tenantType = merchantId === '0' ? 'platform' : 'merchant';
+
     return rawChunks
       .map((chunk, index) => {
         const normalizedContent = this.normalizeText(chunk.pageContent);
@@ -405,7 +411,7 @@ export class MerchantRagService {
           pageContent: normalizedContent,
           metadata: {
             ...metadata,
-            tenantType: 'merchant',
+            tenantType,
             merchantId,
             sourceFile: fileName,
             documentType,
@@ -711,15 +717,19 @@ export class MerchantRagService {
     merchantId: string,
     sourceFile: string,
   ): Promise<void> => {
+    // merchantId === '0' 代表平台级文档，tenantType 为 'platform'
+    const tenantType = merchantId === '0' ? 'platform' : 'merchant';
     await this.ragService.deleteDocuments({
       $and: [
-        { tenantType: 'merchant' },
+        { tenantType },
         { merchantId: { $eq: merchantId } },
         { sourceFile: { $eq: sourceFile } },
       ],
     } as unknown as import('chromadb').Where);
 
-    this.logger.log(`商户 ${merchantId} 文件 ${sourceFile} 的历史向量已清理`);
+    this.logger.log(
+      `[${tenantType}] 商户/平台 ${merchantId} 文件 ${sourceFile} 的历史向量已清理`,
+    );
   };
 
   cleanupTemp = async (filePath: string) => {

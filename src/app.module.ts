@@ -53,7 +53,7 @@ import Redis from 'ioredis';
         password: configService.get<string>('MYSQL_PASSWORD'),
         database: configService.get<string>('MYSQL_DATABASE'),
         entities: [join(__dirname, '**', '*.entity.{ts,js}')],
-        synchronize: false,
+        synchronize: true,
         autoLoadEntities: true,
       }),
     }),

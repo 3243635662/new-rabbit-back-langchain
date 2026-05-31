@@ -130,9 +130,14 @@ export class RagService {
       return { tenantType: 'platform' as const };
     }
     return {
-      $and: [
-        { tenantType: 'merchant' as const },
-        { merchantId: { $eq: merchantId! } },
+      $or: [
+        { tenantType: 'platform' as const },
+        {
+          $and: [
+            { tenantType: 'merchant' as const },
+            { merchantId: { $eq: merchantId! } },
+          ],
+        },
       ],
     } as unknown as Where;
   };
@@ -290,7 +295,7 @@ export class RagService {
   };
 
   /**
-   * 调用白山智算重排序 API 对候选文档进行二次精排。
+   * 重排序 API 对候选文档进行二次精排。
    * 返回文档列表、低相关性标志及重排序分数，用于 trace。
    */
   rerankDocuments = async (
@@ -322,7 +327,7 @@ export class RagService {
           Authorization: `Bearer ${this.API_KEY}`,
         },
         body: JSON.stringify({
-          model: 'bge-reranker-v2-m3',
+          model: this.configService.get<string>('RERANK_MODEL_NAME'),
           query,
           documents: documents.map((d) => d.pageContent),
           top_n: topN,

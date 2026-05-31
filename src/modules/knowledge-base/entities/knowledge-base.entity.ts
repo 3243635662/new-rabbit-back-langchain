@@ -49,12 +49,12 @@ export class KnowledgeBase {
   @Column({ type: 'varchar', nullable: true, comment: 'BullMQ 任务 ID' })
   taskId: string | null;
 
-  @Column({ comment: '商户 ID' })
-  merchantId: number;
+  @Column({ comment: '商户 ID', nullable: true, default: 0 })
+  merchantId: number | null;
 
-  @ManyToOne(() => Merchant, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Merchant, { onDelete: 'CASCADE', nullable: true })
   @JoinColumn({ name: 'merchantId' })
-  merchant: Merchant;
+  merchant: Merchant | null;
 
   @CreateDateColumn({ comment: '上传时间' })
   createdAt: Date;
