@@ -29,7 +29,15 @@ import { pushTaskProgress } from '../../../utils/task-progress.util';
  *  - CONTRACT     → ContractParser（合同文本解析 + 视觉抽取）
  */
 @Injectable()
-@Processor(RedisKeys.FINANCE.SOURCE_QUEUE_NAME)
+@Processor(RedisKeys.FINANCE.SOURCE_QUEUE_NAME, {
+  concurrency: 1,
+  // 锁超时 10 分钟，避免资源解析（含 LLM 调用/OCR）时间过长导致锁过期
+  lockDuration: 600_000,
+  // 自动续期间隔 5 分钟（锁有效期的一半），确保锁不会过期
+  lockRenewTime: 300_000,
+  // 每 30 秒检测一次 stalled，尽早续期
+  stalledInterval: 30_000,
+})
 export class FinanceSourceProcessor extends WorkerHost {
   private readonly logger = new Logger(FinanceSourceProcessor.name);
 

@@ -24,9 +24,9 @@ export class ModelProviderService {
 
     // 视觉模型 (Qwen)
     this.visionModel = new ChatOpenAI({
-      apiKey: this.configService.get<string>('ALI_DASHSCOPE_API_KEY'),
+      apiKey: this.configService.get<string>('QINIU_DASHSCOPE_API_KEY'),
       configuration: {
-        baseURL: this.configService.get<string>('ALI_DASHSCOPE_BASE_URL'),
+        baseURL: this.configService.get<string>('QINIU_DASHSCOPE_BASE_URL'),
         timeout: 60_000,
       },
       modelName: this.configService.get<string>('VISION_MODEL_NAME'),
