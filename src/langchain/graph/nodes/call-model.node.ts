@@ -70,21 +70,24 @@ export const createCallModelNode = (
       });
       let fullChunk: AIMessageChunk | undefined;
 
+      // 缓冲所有 chunk，流结束后判断是否有 tool_calls：
+      // - 有 tool_calls → content 是计划文本，丢弃
+      // - 无 tool_calls → 逐字符发送，保留打字机效果
+      const bufferedChunks: AIMessageChunk[] = [];
+
       for await (const chunk of stream) {
         if (!fullChunk) {
           fullChunk = chunk;
         } else {
           fullChunk = fullChunk.concat(chunk);
         }
-        streamHub.emit(sessionId, AgentStreamHub.fromMessageChunk(chunk));
+        bufferedChunks.push(chunk);
       }
 
       if (!fullChunk) {
         throw new Error('模型流式输出为空');
       }
 
-      // AIMessageChunk.concat() 已经通过 collapseToolCallChunks 聚合了 tool_call_chunks
-      // 优先信任 fullChunk.tool_calls，如果为空则回退到 tool_call_chunks
       const rawToolCalls =
         (
           fullChunk as AIMessageChunk & {
@@ -103,6 +106,22 @@ export const createCallModelNode = (
                 args: unknown;
               }[])
             : [];
+
+      // 无工具调用 → 逐字发送模拟打字机效果；有工具调用 → 丢弃（计划文本）
+      if (toolCalls.length === 0) {
+        for (const c of bufferedChunks) {
+          const text = AgentStreamHub.fromMessageChunk(c).content;
+          if (!text) continue;
+          for (const char of text) {
+            streamHub.emit(sessionId, {
+              content: char,
+              reasoning: '',
+              toolCallChunks: [],
+            });
+            await new Promise((r) => setTimeout(r, 30));
+          }
+        }
+      }
 
       const contentStr =
         typeof fullChunk.content === 'string'
